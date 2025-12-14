@@ -60,9 +60,11 @@ class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
     state = const AsyncValue.loading();
     try {
       final data = await _supabase.getDiscoveryProfiles(limit: 50);
+      print('Loaded ${data.length} real profiles from Supabase');
       final profiles = data.map((json) => UserModel.fromSupabase(json)).toList();
       state = AsyncValue.data(profiles);
     } catch (e, st) {
+      print('Error loading real profiles: $e');
       state = AsyncValue.error(e, st);
     }
   }
@@ -71,10 +73,43 @@ class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
     await loadProfiles();
   }
 
+  /// Like a user - pass the full UserModel to correctly detect AI profiles
+  Future<bool> likeUserModel(UserModel user) async {
+    try {
+      bool isMatch;
+      if (user.isAi) {
+        // AI profiles always like back - it's always a match!
+        isMatch = true;
+      } else {
+        // Real users - check for mutual like
+        isMatch = await _supabase.likeUser(user.id);
+      }
+
+      // Remove from current list after action (only affects real profiles)
+      state.whenData((profiles) {
+        state = AsyncValue.data(profiles.where((p) => p.id != user.id).toList());
+      });
+      return isMatch;
+    } catch (e) {
+      print('Error liking user: $e');
+      return false;
+    }
+  }
+
+  /// Legacy method - kept for compatibility but prefer likeUserModel
   Future<bool> likeUser(String userId) async {
     try {
-      // AI profiles (id starts with 'ai_') always match back instantly!
-      final isAIProfile = userId.startsWith('ai_');
+      // Check if this is an AI profile by ID prefix (for locally generated)
+      // or by checking the profiles list
+      bool isAIProfile = userId.startsWith('ai_');
+
+      // Also check current profiles list for isAi flag
+      state.whenData((profiles) {
+        final profile = profiles.where((p) => p.id == userId).firstOrNull;
+        if (profile != null && profile.isAi) {
+          isAIProfile = true;
+        }
+      });
 
       bool isMatch;
       if (isAIProfile) {
@@ -174,7 +209,7 @@ final filteredProfilesProvider = Provider<List<UserModel>>((ref) {
     }
 
     // AI profiles always pass distance filter (they're always nearby)
-    final isAI = profile.id.startsWith('ai_');
+    final isAI = profile.isAi;
 
     // Distance filter (skip for AI profiles)
     if (!isAI && profile.distanceKm != null && profile.distanceKm! > filter.distanceKm) {

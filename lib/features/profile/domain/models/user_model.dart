@@ -55,6 +55,7 @@ class UserModel extends Equatable {
   final bool isVerified;
   final bool isPremium;
   final bool isActive;
+  final bool isAi;
 
   // Location
   final String? city;
@@ -94,6 +95,7 @@ class UserModel extends Equatable {
     this.isVerified = false,
     this.isPremium = false,
     this.isActive = true,
+    this.isAi = false,
     this.city,
     this.country,
     this.latitude,
@@ -139,6 +141,7 @@ class UserModel extends Equatable {
     bool? isVerified,
     bool? isPremium,
     bool? isActive,
+    bool? isAi,
     String? city,
     String? country,
     double? latitude,
@@ -168,6 +171,7 @@ class UserModel extends Equatable {
       isVerified: isVerified ?? this.isVerified,
       isPremium: isPremium ?? this.isPremium,
       isActive: isActive ?? this.isActive,
+      isAi: isAi ?? this.isAi,
       city: city ?? this.city,
       country: country ?? this.country,
       latitude: latitude ?? this.latitude,
@@ -203,6 +207,7 @@ class UserModel extends Equatable {
       isVerified: json['isVerified'] as bool? ?? false,
       isPremium: json['isPremium'] as bool? ?? false,
       isActive: json['isActive'] as bool? ?? true,
+      isAi: json['isAi'] as bool? ?? false,
       city: json['city'] as String?,
       country: json['country'] as String?,
       latitude: (json['latitude'] as num?)?.toDouble(),
@@ -255,6 +260,7 @@ class UserModel extends Equatable {
       isVerified: json['is_verified'] as bool? ?? false,
       isPremium: json['is_premium'] as bool? ?? false,
       isActive: json['is_active'] as bool? ?? true,
+      isAi: json['is_ai'] as bool? ?? false,
       city: json['city'] as String?,
       country: json['country'] as String?,
       latitude: (json['latitude'] as num?)?.toDouble(),
@@ -299,6 +305,7 @@ class UserModel extends Equatable {
       'is_verified': isVerified,
       'is_premium': isPremium,
       'is_active': isActive,
+      'is_ai': isAi,
       'city': city,
       'country': country,
       'latitude': latitude,
@@ -331,6 +338,7 @@ class UserModel extends Equatable {
       'isVerified': isVerified,
       'isPremium': isPremium,
       'isActive': isActive,
+      'isAi': isAi,
       'city': city,
       'country': country,
       'latitude': latitude,
@@ -363,6 +371,7 @@ class UserModel extends Equatable {
         isVerified,
         isPremium,
         isActive,
+        isAi,
         city,
         country,
         latitude,

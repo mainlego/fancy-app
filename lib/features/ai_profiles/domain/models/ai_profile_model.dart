@@ -107,6 +107,7 @@ class AIProfileModel extends Equatable {
       isOnline: isOnline,
       isVerified: isVerified,
       isPremium: isPremium,
+      isAi: true, // Mark as AI profile for proper handling
       distanceKm: distanceKm,
       profileType: profileType,
       datingGoal: datingGoal,

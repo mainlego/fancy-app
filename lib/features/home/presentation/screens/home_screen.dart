@@ -175,8 +175,8 @@ class HomeScreen extends ConsumerWidget {
   }
 
   Future<void> _handleLike(BuildContext context, WidgetRef ref, UserModel user) async {
-    // Use Supabase like operation
-    final isMatch = await ref.read(profilesNotifierProvider.notifier).likeUser(user.id);
+    // Use Supabase like operation - pass full UserModel for correct AI detection
+    final isMatch = await ref.read(profilesNotifierProvider.notifier).likeUserModel(user);
 
     if (!context.mounted) return;
 
@@ -203,8 +203,8 @@ class HomeScreen extends ConsumerWidget {
   }
 
   Future<void> _handleSuperLike(BuildContext context, WidgetRef ref, UserModel user) async {
-    // Super like - always results in a match for now
-    final isMatch = await ref.read(profilesNotifierProvider.notifier).likeUser(user.id);
+    // Super like - pass full UserModel for correct AI detection
+    final isMatch = await ref.read(profilesNotifierProvider.notifier).likeUserModel(user);
 
     if (!context.mounted) return;
 
