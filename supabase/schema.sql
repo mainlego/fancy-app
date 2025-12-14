@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS profiles (
     occupation TEXT,
     languages TEXT[] DEFAULT '{}',
     interests TEXT[] DEFAULT '{}',
+    -- Looking for preference (who the user wants to see)
+    looking_for TEXT[] DEFAULT '{}' CHECK (looking_for <@ ARRAY['woman', 'man', 'manAndWoman', 'manPair', 'womanPair']::TEXT[]),
     last_online TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

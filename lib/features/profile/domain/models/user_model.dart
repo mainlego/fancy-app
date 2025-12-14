@@ -79,6 +79,9 @@ class UserModel extends Equatable {
   final List<String> languages;
   final List<String> interests;
 
+  // Looking for preferences (who user wants to see)
+  final Set<ProfileType> lookingFor;
+
   // Timestamps
   final DateTime? lastOnline;
   final DateTime createdAt;
@@ -110,6 +113,7 @@ class UserModel extends Equatable {
     this.occupation,
     this.languages = const [],
     this.interests = const [],
+    this.lookingFor = const {},
     this.lastOnline,
     required this.createdAt,
   });
@@ -156,6 +160,7 @@ class UserModel extends Equatable {
     String? occupation,
     List<String>? languages,
     List<String>? interests,
+    Set<ProfileType>? lookingFor,
     DateTime? lastOnline,
     DateTime? createdAt,
   }) {
@@ -186,6 +191,7 @@ class UserModel extends Equatable {
       occupation: occupation ?? this.occupation,
       languages: languages ?? this.languages,
       interests: interests ?? this.interests,
+      lookingFor: lookingFor ?? this.lookingFor,
       lastOnline: lastOnline ?? this.lastOnline,
       createdAt: createdAt ?? this.createdAt,
     );
@@ -230,6 +236,10 @@ class UserModel extends Equatable {
       occupation: json['occupation'] as String?,
       languages: (json['languages'] as List<dynamic>?)?.cast<String>() ?? [],
       interests: (json['interests'] as List<dynamic>?)?.cast<String>() ?? [],
+      lookingFor: (json['lookingFor'] as List<dynamic>?)
+              ?.map((e) => ProfileType.values.byName(e as String))
+              .toSet() ??
+          {},
       lastOnline: json['lastOnline'] != null
           ? DateTime.parse(json['lastOnline'] as String)
           : null,
@@ -283,6 +293,10 @@ class UserModel extends Equatable {
       occupation: json['occupation'] as String?,
       languages: (json['languages'] as List<dynamic>?)?.cast<String>() ?? [],
       interests: (json['interests'] as List<dynamic>?)?.cast<String>() ?? [],
+      lookingFor: (json['looking_for'] as List<dynamic>?)
+              ?.map((e) => ProfileType.values.byName(e as String))
+              .toSet() ??
+          {},
       lastOnline: json['last_online'] != null
           ? DateTime.parse(json['last_online'] as String)
           : null,
@@ -319,6 +333,7 @@ class UserModel extends Equatable {
       'occupation': occupation,
       'languages': languages,
       'interests': interests,
+      'looking_for': lookingFor.map((e) => e.name).toList(),
       'last_online': lastOnline?.toIso8601String(),
       'created_at': createdAt.toIso8601String(),
     };
@@ -353,6 +368,7 @@ class UserModel extends Equatable {
       'occupation': occupation,
       'languages': languages,
       'interests': interests,
+      'lookingFor': lookingFor.map((e) => e.name).toList(),
       'lastOnline': lastOnline?.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
     };
@@ -386,6 +402,7 @@ class UserModel extends Equatable {
         occupation,
         languages,
         interests,
+        lookingFor,
         lastOnline,
         createdAt,
       ];

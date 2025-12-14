@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../profile/domain/models/user_model.dart';
+import '../../../profile/domain/providers/current_profile_provider.dart';
 import '../../../filters/domain/models/filter_model.dart';
 import '../../../filters/domain/providers/filter_provider.dart';
 import '../../../ai_profiles/domain/providers/ai_profiles_provider.dart';
@@ -59,7 +60,22 @@ class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
   Future<void> loadProfiles() async {
     state = const AsyncValue.loading();
     try {
-      final data = await _supabase.getDiscoveryProfiles(limit: 50);
+      // Get current user's lookingFor preferences
+      final currentProfile = _ref.read(currentProfileProvider).valueOrNull;
+      final lookingFor = currentProfile?.lookingFor;
+
+      // Convert Set<ProfileType> to List<String> for the query
+      List<String>? lookingForStrings;
+      if (lookingFor != null && lookingFor.isNotEmpty) {
+        lookingForStrings = lookingFor.map((e) => e.name).toList();
+      }
+
+      print('Loading profiles with lookingFor: $lookingForStrings');
+
+      final data = await _supabase.getDiscoveryProfiles(
+        limit: 50,
+        lookingFor: lookingForStrings,
+      );
       print('Loaded ${data.length} real profiles from Supabase');
       final profiles = data.map((json) => UserModel.fromSupabase(json)).toList();
       state = AsyncValue.data(profiles);

@@ -109,11 +109,12 @@ class SupabaseService {
   }
 
   /// Get profiles for discovery (excluding current user, blocked users, and already interacted)
+  /// Filters by the current user's lookingFor preferences
   Future<List<Map<String, dynamic>>> getDiscoveryProfiles({
     int? minAge,
     int? maxAge,
     int? maxDistance,
-    String? gender,
+    List<String>? lookingFor,  // Profile types the user wants to see (e.g., ['woman', 'man'])
     int limit = 20,
     int offset = 0,
   }) async {
@@ -148,14 +149,22 @@ class SupabaseService {
       // Combine all IDs to exclude
       final excludeIds = {...interactedIds, ...blockedIds, userId};
 
-      // Build query for profiles
-      final response = await _client
+      // Build query for profiles with gender filter on server side
+      PostgrestFilterBuilder query = _client
           .from(SupabaseConfig.profilesTable)
-          .select()
+          .select();
+
+      // Apply gender filter on server side if specified
+      if (lookingFor != null && lookingFor.isNotEmpty) {
+        // Filter by profile_type IN (lookingFor list)
+        query = query.inFilter('profile_type', lookingFor);
+      }
+
+      final response = await query
           .limit(limit + excludeIds.length) // Get extra to account for filtering
           .order('last_online', ascending: false);
 
-      // Filter out excluded users and apply additional filters
+      // Filter out excluded users
       var profiles = (response as List)
           .where((p) => !excludeIds.contains(p['id'] as String?))
           .take(limit)
@@ -166,7 +175,7 @@ class SupabaseService {
       if (minAge != null || maxAge != null) {
         profiles = profiles.where((p) {
           final birthDateStr = p['birth_date'] as String?;
-          if (birthDateStr == null) return true;
+          if (birthDateStr == null) return true; // Include profiles without birthdate
           final birthDate = DateTime.tryParse(birthDateStr);
           if (birthDate == null) return true;
           final age = DateTime.now().difference(birthDate).inDays ~/ 365;
@@ -176,12 +185,7 @@ class SupabaseService {
         }).toList();
       }
 
-      // Apply gender filter
-      if (gender != null) {
-        profiles = profiles.where((p) => p['profile_type'] == gender).toList();
-      }
-
-      print('Discovery: Found ${profiles.length} profiles (excluded ${excludeIds.length - 1} users)');
+      print('Discovery: Found ${profiles.length} profiles (excluded ${excludeIds.length - 1} users, looking for: $lookingFor)');
       return profiles;
     } catch (e) {
       print('Error getting discovery profiles: $e');

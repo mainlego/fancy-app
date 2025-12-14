@@ -69,6 +69,7 @@ class CurrentProfileNotifier extends StateNotifier<AsyncValue<UserModel?>> {
     DatingGoal? datingGoal,
     RelationshipStatus? relationshipStatus,
     ProfileType? profileType,
+    Set<ProfileType>? lookingFor,
     int? heightCm,
     int? weightKg,
     String? city,
@@ -94,6 +95,7 @@ class CurrentProfileNotifier extends StateNotifier<AsyncValue<UserModel?>> {
       if (datingGoal != null) updates['dating_goal'] = datingGoal.name;
       if (relationshipStatus != null) updates['relationship_status'] = relationshipStatus.name;
       if (profileType != null) updates['profile_type'] = profileType.name;
+      if (lookingFor != null) updates['looking_for'] = lookingFor.map((e) => e.name).toList();
       if (heightCm != null) updates['height_cm'] = heightCm;
       if (weightKg != null) updates['weight_kg'] = weightKg;
       if (city != null) updates['city'] = city;
@@ -121,6 +123,7 @@ class CurrentProfileNotifier extends StateNotifier<AsyncValue<UserModel?>> {
     required DatingGoal datingGoal,
     ProfileType? profileType,
     RelationshipStatus? relationshipStatus,
+    Set<ProfileType>? lookingFor,
     String? bio,
     String? city,
     String? country,
@@ -130,6 +133,18 @@ class CurrentProfileNotifier extends StateNotifier<AsyncValue<UserModel?>> {
     if (userId == null) return false;
 
     try {
+      // Determine profile type based on gender if not provided
+      final userProfileType = profileType?.name ?? (gender == 'male' ? 'man' : 'woman');
+
+      // Default lookingFor based on user's gender (opposite gender)
+      List<String> defaultLookingFor;
+      if (lookingFor != null && lookingFor.isNotEmpty) {
+        defaultLookingFor = lookingFor.map((e) => e.name).toList();
+      } else {
+        // Default: if user is man, looking for woman and vice versa
+        defaultLookingFor = gender == 'male' ? ['woman'] : ['man'];
+      }
+
       final profileData = {
         'id': userId,
         'email': email,
@@ -138,7 +153,8 @@ class CurrentProfileNotifier extends StateNotifier<AsyncValue<UserModel?>> {
         'gender': gender,
         'dating_goal': datingGoal.name,
         'relationship_status': relationshipStatus?.name ?? RelationshipStatus.single.name,
-        'profile_type': profileType?.name ?? (gender == 'male' ? 'man' : 'woman'),
+        'profile_type': userProfileType,
+        'looking_for': defaultLookingFor,
         'bio': bio,
         'city': city,
         'country': country,
