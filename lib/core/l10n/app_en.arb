@@ -1,0 +1,184 @@
+{
+  "@@locale": "en",
+  "appName": "FANCY",
+
+  "navigationHome": "Home",
+  "navigationChats": "Chats",
+  "navigationProfile": "Profile",
+  "navigationSettings": "Settings",
+
+  "filterTitle": "Filters",
+  "filterGoals": "Dating goals",
+  "filterGoalAnything": "Anything",
+  "filterGoalCasual": "Casual",
+  "filterGoalVirtual": "Virtual",
+  "filterGoalFriendship": "Friendship",
+  "filterGoalLongTerm": "Long-term",
+
+  "filterStatus": "Relationship status",
+  "filterStatusSingle": "Single",
+  "filterStatusComplicated": "Complicated",
+  "filterStatusMarried": "Married",
+  "filterStatusInRelationship": "In a relationship",
+
+  "filterDistance": "Distance",
+  "filterDistanceKm": "{distance} km",
+  "@filterDistanceKm": {
+    "placeholders": {
+      "distance": {"type": "int"}
+    }
+  },
+
+  "filterAge": "Age",
+  "filterAgeRange": "{min} - {max} years",
+  "@filterAgeRange": {
+    "placeholders": {
+      "min": {"type": "int"},
+      "max": {"type": "int"}
+    }
+  },
+
+  "filterOnlineOnly": "Online only",
+  "filterWithPhoto": "With photo",
+  "filterVerifiedPhoto": "Verified photos",
+
+  "filterLookingFor": "Looking for",
+  "filterLookingForWoman": "Woman",
+  "filterLookingForMan": "Man",
+  "filterLookingForBoth": "Man & Woman",
+  "filterLookingForManPair": "Man pair",
+  "filterLookingForWomanPair": "Woman pair",
+
+  "filterHeight": "Height",
+  "filterWeight": "Weight",
+  "filterZodiac": "Zodiac sign",
+  "filterLanguage": "Language",
+
+  "filterApply": "Apply filters",
+  "filterReset": "Reset",
+
+  "profileTitle": "Profile",
+  "profileAbout": "About me",
+  "profileAboutHint": "Tell about yourself (max 300 characters)",
+  "profileEdit": "Edit profile",
+  "profileAlbums": "Albums",
+  "profileSettings": "Settings",
+  "profilePhotos": "Photos",
+  "profileAddPhoto": "Add photo",
+
+  "profileOnline": "Online",
+  "profileOffline": "Offline",
+  "profileVerified": "Verified",
+  "profileNotVerified": "Not verified",
+
+  "profileEditTitle": "Edit profile",
+  "profileEditSave": "Save",
+  "profileEditGoals": "Dating goals",
+  "profileEditStatus": "Relationship status",
+  "profileEditInterests": "Interests",
+  "profileEditOccupation": "Occupation",
+  "profileEditBirthday": "Date of birth",
+  "profileEditHeight": "Height",
+  "profileEditWeight": "Weight",
+  "profileEditLanguages": "Languages",
+  "profileEditLocation": "Location",
+  "profileEditType": "Profile type",
+
+  "settingsTitle": "Settings",
+  "settingsPremium": "Fancy Premium",
+  "settingsPremiumUpgrade": "Upgrade to Premium",
+  "settingsVerification": "Photo verification",
+  "settingsVerificationStart": "Start verification",
+
+  "settingsSubscription": "Subscription",
+  "settingsRestorePurchase": "Restore purchase",
+  "settingsPaymentMethod": "Payment method",
+  "settingsCancelSubscription": "Cancel subscription",
+
+  "settingsSecurity": "Security",
+  "settingsBlockedUsers": "Blocked users",
+  "settingsIncognito": "Incognito mode",
+  "settingsAppIcon": "App icon & name",
+  "settingsDeleteAccount": "Delete account",
+
+  "settingsNotifications": "Notifications",
+  "settingsNotifyMatches": "Matches",
+  "settingsNotifyLikes": "Likes",
+  "settingsNotifySuperLikes": "Super likes",
+  "settingsNotifyMessages": "Messages",
+
+  "settingsOther": "Other",
+  "settingsTerms": "Terms of use",
+  "settingsPrivacy": "Privacy policy",
+  "settingsFaq": "FAQ",
+  "settingsSuggestImprovement": "Suggest improvement",
+  "settingsContactUs": "Contact us",
+
+  "settingsUnits": "Units",
+  "settingsUnitsMetric": "Metric",
+  "settingsUnitsImperial": "Imperial",
+
+  "settingsLanguage": "App language",
+  "settingsLanguageEn": "English",
+  "settingsLanguageRu": "Russian",
+
+  "chatsTitle": "Chats",
+  "chatsTabChats": "Chats",
+  "chatsTabLikes": "Likes",
+  "chatsTabFavs": "Favorites",
+  "chatsEmpty": "No chats yet",
+  "chatsDeleteChat": "Delete chat",
+  "chatsTypeMessage": "Type a message...",
+  "chatsSend": "Send",
+
+  "albumsTitle": "Albums",
+  "albumsPublic": "Public",
+  "albumsPrivate": "Private",
+  "albumsAddMedia": "Add photo/video",
+  "albumsDelete": "Delete",
+  "albumsEdit": "Edit",
+
+  "homeQuickFilters": "Quick filters",
+  "homeNoProfiles": "No profiles found",
+  "homeLoadMore": "Load more",
+
+  "actionLike": "Like",
+  "actionSuperLike": "Super like",
+  "actionReport": "Report",
+  "actionBlock": "Block",
+  "actionHide": "Hide",
+
+  "distanceAway": "{distance} km away",
+  "@distanceAway": {
+    "placeholders": {
+      "distance": {"type": "int"}
+    }
+  },
+
+  "yearsOld": "{age} years old",
+  "@yearsOld": {
+    "placeholders": {
+      "age": {"type": "int"}
+    }
+  },
+
+  "zodiacAries": "Aries",
+  "zodiacTaurus": "Taurus",
+  "zodiacGemini": "Gemini",
+  "zodiacCancer": "Cancer",
+  "zodiacLeo": "Leo",
+  "zodiacVirgo": "Virgo",
+  "zodiacLibra": "Libra",
+  "zodiacScorpio": "Scorpio",
+  "zodiacSagittarius": "Sagittarius",
+  "zodiacCapricorn": "Capricorn",
+  "zodiacAquarius": "Aquarius",
+  "zodiacPisces": "Pisces",
+
+  "cancel": "Cancel",
+  "confirm": "Confirm",
+  "ok": "OK",
+  "error": "Error",
+  "loading": "Loading...",
+  "retry": "Retry"
+}

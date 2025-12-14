@@ -1,0 +1,76 @@
+name: fancy_app
+description: FANCY Dating App - Find your match
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # State Management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # Routing
+  go_router: ^14.2.0
+
+  # UI Components
+  flutter_svg: ^2.0.10+1
+  cached_network_image: ^3.3.1
+  shimmer: ^3.0.0
+
+  # Forms & Validation
+  flutter_hooks: ^0.20.5
+
+  # Storage
+  shared_preferences: ^2.2.3
+
+  # Supabase
+  supabase_flutter: ^2.8.4
+
+  # Utilities
+  intl: ^0.20.2
+  uuid: ^4.4.2
+  equatable: ^2.0.5
+  http: ^1.2.1
+
+  # Media
+  image_picker: ^1.1.2
+  photo_view: ^0.15.0
+
+  # Icons
+  iconsax: ^0.0.8
+  google_fonts: ^6.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  riverpod_generator: ^2.4.0
+  build_runner: ^2.4.9
+  riverpod_lint: ^2.3.10
+
+flutter:
+  uses-material-design: true
+  generate: true
+
+  # assets:
+  #   - assets/images/
+  #   - assets/icons/
+
+  # fonts:
+  #   - family: Onest
+  #     fonts:
+  #       - asset: assets/fonts/Onest-Regular.ttf
+  #         weight: 400
+  #       - asset: assets/fonts/Onest-Medium.ttf
+  #         weight: 500
+  #       - asset: assets/fonts/Onest-SemiBold.ttf
+  #         weight: 600
+  #       - asset: assets/fonts/Onest-Bold.ttf
+  #         weight: 700

@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: fancy-app
+    runtime: static
+    buildCommand: |
+      # Install Flutter
+      git clone https://github.com/flutter/flutter.git -b stable --depth 1
+      export PATH="$PATH:`pwd`/flutter/bin"
+      flutter precache --web
+      flutter pub get
+      flutter build web --release --dart-define=OPENAI_API_KEY=$OPENAI_API_KEY
+    staticPublishPath: build/web
+    pullRequestPreviewsEnabled: true
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false  # Set this manually in Render dashboard
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=31536000
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache
+      - path: /version.json
+        name: Cache-Control
+        value: no-cache
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

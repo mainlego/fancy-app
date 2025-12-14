@@ -1,0 +1,462 @@
+import 'package:equatable/equatable.dart';
+
+/// Message type enum
+enum MessageType {
+  text,
+  image,
+  video,
+  voice,
+  gif,
+  sticker,
+}
+
+/// Message model
+class MessageModel extends Equatable {
+  final String id;
+  final String chatId;
+  final String senderId;
+  final String? text;
+  final MessageType type;
+  final String? mediaUrl;
+  final int? mediaDurationMs;
+  final bool isRead;
+  final DateTime createdAt;
+
+  const MessageModel({
+    required this.id,
+    required this.chatId,
+    required this.senderId,
+    this.text,
+    this.type = MessageType.text,
+    this.mediaUrl,
+    this.mediaDurationMs,
+    this.isRead = false,
+    required this.createdAt,
+  });
+
+  bool get isMediaMessage =>
+      type == MessageType.image ||
+      type == MessageType.video ||
+      type == MessageType.voice ||
+      type == MessageType.gif ||
+      type == MessageType.sticker;
+
+  /// Get image URL (alias for mediaUrl for image messages)
+  String? get imageUrl => type == MessageType.image ? mediaUrl : null;
+
+  /// Check if message is from current user (set externally or through currentUserId)
+  static String? currentUserId;
+  bool get isMe => senderId == currentUserId;
+
+  MessageModel copyWith({
+    String? id,
+    String? chatId,
+    String? senderId,
+    String? text,
+    MessageType? type,
+    String? mediaUrl,
+    int? mediaDurationMs,
+    bool? isRead,
+    DateTime? createdAt,
+  }) {
+    return MessageModel(
+      id: id ?? this.id,
+      chatId: chatId ?? this.chatId,
+      senderId: senderId ?? this.senderId,
+      text: text ?? this.text,
+      type: type ?? this.type,
+      mediaUrl: mediaUrl ?? this.mediaUrl,
+      mediaDurationMs: mediaDurationMs ?? this.mediaDurationMs,
+      isRead: isRead ?? this.isRead,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  factory MessageModel.fromJson(Map<String, dynamic> json) {
+    return MessageModel(
+      id: json['id'] as String,
+      chatId: json['chatId'] as String,
+      senderId: json['senderId'] as String,
+      text: json['text'] as String?,
+      type: MessageType.values.byName(json['type'] as String? ?? 'text'),
+      mediaUrl: json['mediaUrl'] as String?,
+      mediaDurationMs: json['mediaDurationMs'] as int?,
+      isRead: json['isRead'] as bool? ?? false,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+    );
+  }
+
+  /// From Supabase JSON (snake_case format)
+  factory MessageModel.fromSupabase(Map<String, dynamic> json) {
+    return MessageModel(
+      id: json['id'] as String,
+      chatId: json['chat_id'] as String,
+      senderId: json['sender_id'] as String,
+      text: json['content'] as String?,
+      type: MessageType.values.byName(json['message_type'] as String? ?? 'text'),
+      mediaUrl: json['image_url'] as String?,
+      mediaDurationMs: json['media_duration_ms'] as int?,
+      isRead: json['is_read'] as bool? ?? false,
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'chatId': chatId,
+      'senderId': senderId,
+      'text': text,
+      'type': type.name,
+      'mediaUrl': mediaUrl,
+      'mediaDurationMs': mediaDurationMs,
+      'isRead': isRead,
+      'createdAt': createdAt.toIso8601String(),
+    };
+  }
+
+  /// To Supabase JSON (snake_case format)
+  Map<String, dynamic> toSupabase() {
+    return {
+      'chat_id': chatId,
+      'sender_id': senderId,
+      'content': text,
+      'message_type': type.name,
+      'image_url': mediaUrl,
+      'media_duration_ms': mediaDurationMs,
+      'is_read': isRead,
+    };
+  }
+
+  @override
+  List<Object?> get props => [
+        id,
+        chatId,
+        senderId,
+        text,
+        type,
+        mediaUrl,
+        mediaDurationMs,
+        isRead,
+        createdAt,
+      ];
+}
+
+/// Chat model
+class ChatModel extends Equatable {
+  final String id;
+  final String participantId;
+  final String participantName;
+  final String? participantAvatarUrl;
+  final bool participantOnline;
+  final bool participantVerified;
+  final MessageModel? lastMessage;
+  final int unreadCount;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  const ChatModel({
+    required this.id,
+    required this.participantId,
+    required this.participantName,
+    this.participantAvatarUrl,
+    this.participantOnline = false,
+    this.participantVerified = false,
+    this.lastMessage,
+    this.unreadCount = 0,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  bool get hasUnread => unreadCount > 0;
+
+  ChatModel copyWith({
+    String? id,
+    String? participantId,
+    String? participantName,
+    String? participantAvatarUrl,
+    bool? participantOnline,
+    bool? participantVerified,
+    MessageModel? lastMessage,
+    int? unreadCount,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return ChatModel(
+      id: id ?? this.id,
+      participantId: participantId ?? this.participantId,
+      participantName: participantName ?? this.participantName,
+      participantAvatarUrl: participantAvatarUrl ?? this.participantAvatarUrl,
+      participantOnline: participantOnline ?? this.participantOnline,
+      participantVerified: participantVerified ?? this.participantVerified,
+      lastMessage: lastMessage ?? this.lastMessage,
+      unreadCount: unreadCount ?? this.unreadCount,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  factory ChatModel.fromJson(Map<String, dynamic> json) {
+    return ChatModel(
+      id: json['id'] as String,
+      participantId: json['participantId'] as String,
+      participantName: json['participantName'] as String,
+      participantAvatarUrl: json['participantAvatarUrl'] as String?,
+      participantOnline: json['participantOnline'] as bool? ?? false,
+      participantVerified: json['participantVerified'] as bool? ?? false,
+      lastMessage: json['lastMessage'] != null
+          ? MessageModel.fromJson(json['lastMessage'] as Map<String, dynamic>)
+          : null,
+      unreadCount: json['unreadCount'] as int? ?? 0,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
+    );
+  }
+
+  /// From Supabase JSON (snake_case format)
+  /// Expects profile data from join: profiles!participant1_id or profiles!participant2_id
+  factory ChatModel.fromSupabase(Map<String, dynamic> json, String currentUserId) {
+    // Determine which participant is the other user
+    final participant1Id = json['participant1_id'] as String?;
+    final isParticipant1 = participant1Id == currentUserId;
+
+    final profileKey = isParticipant1 ? 'profiles!participant2_id' : 'profiles!participant1_id';
+    final participantProfile = json[profileKey] as Map<String, dynamic>?;
+
+    // Get last message from messages array if available
+    MessageModel? lastMessage;
+    final messages = json['messages'] as List<dynamic>?;
+    if (messages != null && messages.isNotEmpty) {
+      final lastMsgData = messages.first as Map<String, dynamic>;
+      lastMessage = MessageModel(
+        id: 'last',
+        chatId: json['id'] as String,
+        senderId: lastMsgData['sender_id'] as String? ?? '',
+        text: lastMsgData['content'] as String?,
+        createdAt: lastMsgData['created_at'] != null
+            ? DateTime.parse(lastMsgData['created_at'] as String)
+            : DateTime.now(),
+      );
+    }
+
+    return ChatModel(
+      id: json['id'] as String,
+      participantId: participantProfile?['id'] as String? ??
+          (isParticipant1 ? json['participant2_id'] as String : json['participant1_id'] as String),
+      participantName: participantProfile?['name'] as String? ??
+          participantProfile?['display_name'] as String? ?? 'Unknown',
+      participantAvatarUrl: participantProfile?['avatar_url'] as String?,
+      participantOnline: participantProfile?['is_online'] as bool? ?? false,
+      participantVerified: participantProfile?['is_verified'] as bool? ?? false,
+      lastMessage: lastMessage,
+      unreadCount: json['unread_count'] as int? ?? 0,
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : DateTime.now(),
+      updatedAt: json['updated_at'] != null
+          ? DateTime.parse(json['updated_at'] as String)
+          : DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'participantId': participantId,
+      'participantName': participantName,
+      'participantAvatarUrl': participantAvatarUrl,
+      'participantOnline': participantOnline,
+      'participantVerified': participantVerified,
+      'lastMessage': lastMessage?.toJson(),
+      'unreadCount': unreadCount,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
+  }
+
+  @override
+  List<Object?> get props => [
+        id,
+        participantId,
+        participantName,
+        participantAvatarUrl,
+        participantOnline,
+        participantVerified,
+        lastMessage,
+        unreadCount,
+        createdAt,
+        updatedAt,
+      ];
+}
+
+/// Like model (for Likes tab)
+class LikeModel extends Equatable {
+  final String id;
+  final String userId;
+  final String userName;
+  final String? userAvatarUrl;
+  final int userAge;
+  final bool isSuperLike;
+  final bool isMatched;
+  final DateTime createdAt;
+
+  const LikeModel({
+    required this.id,
+    required this.userId,
+    required this.userName,
+    this.userAvatarUrl,
+    required this.userAge,
+    this.isSuperLike = false,
+    this.isMatched = false,
+    required this.createdAt,
+  });
+
+  factory LikeModel.fromJson(Map<String, dynamic> json) {
+    return LikeModel(
+      id: json['id'] as String,
+      userId: json['userId'] as String,
+      userName: json['userName'] as String,
+      userAvatarUrl: json['userAvatarUrl'] as String?,
+      userAge: json['userAge'] as int,
+      isSuperLike: json['isSuperLike'] as bool? ?? false,
+      isMatched: json['isMatched'] as bool? ?? false,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+    );
+  }
+
+  /// From Supabase JSON (snake_case format)
+  /// Expects profile data from join: profiles!from_user_id
+  factory LikeModel.fromSupabase(Map<String, dynamic> json) {
+    final profileData = json['profiles'] as Map<String, dynamic>?;
+
+    // Calculate age from birth_date
+    int age = 0;
+    if (profileData?['birth_date'] != null) {
+      final birthDate = DateTime.parse(profileData!['birth_date'] as String);
+      age = DateTime.now().difference(birthDate).inDays ~/ 365;
+    }
+
+    return LikeModel(
+      id: json['from_user_id'] as String? ?? '',
+      userId: json['from_user_id'] as String? ?? profileData?['id'] as String? ?? '',
+      userName: profileData?['name'] as String? ??
+          profileData?['display_name'] as String? ?? 'Unknown',
+      userAvatarUrl: profileData?['avatar_url'] as String?,
+      userAge: age,
+      isSuperLike: json['is_super_like'] as bool? ?? false,
+      isMatched: false,
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'userId': userId,
+      'userName': userName,
+      'userAvatarUrl': userAvatarUrl,
+      'userAge': userAge,
+      'isSuperLike': isSuperLike,
+      'isMatched': isMatched,
+      'createdAt': createdAt.toIso8601String(),
+    };
+  }
+
+  @override
+  List<Object?> get props => [
+        id,
+        userId,
+        userName,
+        userAvatarUrl,
+        userAge,
+        isSuperLike,
+        isMatched,
+        createdAt,
+      ];
+}
+
+/// Favorite model (for Favs tab)
+class FavoriteModel extends Equatable {
+  final String id;
+  final String oderId;
+  final String userName;
+  final String? userAvatarUrl;
+  final int userAge;
+  final bool isOnline;
+  final DateTime createdAt;
+
+  const FavoriteModel({
+    required this.id,
+    required this.oderId,
+    required this.userName,
+    this.userAvatarUrl,
+    required this.userAge,
+    this.isOnline = false,
+    required this.createdAt,
+  });
+
+  factory FavoriteModel.fromJson(Map<String, dynamic> json) {
+    return FavoriteModel(
+      id: json['id'] as String,
+      oderId: json['userId'] as String,
+      userName: json['userName'] as String,
+      userAvatarUrl: json['userAvatarUrl'] as String?,
+      userAge: json['userAge'] as int,
+      isOnline: json['isOnline'] as bool? ?? false,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+    );
+  }
+
+  /// From Supabase JSON (snake_case format)
+  /// Expects profile data from join
+  factory FavoriteModel.fromSupabase(Map<String, dynamic> json) {
+    final profileData = json['profiles'] as Map<String, dynamic>?;
+
+    // Calculate age from birth_date
+    int age = 0;
+    if (profileData?['birth_date'] != null) {
+      final birthDate = DateTime.parse(profileData!['birth_date'] as String);
+      age = DateTime.now().difference(birthDate).inDays ~/ 365;
+    }
+
+    return FavoriteModel(
+      id: json['id'] as String? ?? '',
+      oderId: json['favorite_user_id'] as String? ?? profileData?['id'] as String? ?? '',
+      userName: profileData?['name'] as String? ??
+          profileData?['display_name'] as String? ?? 'Unknown',
+      userAvatarUrl: profileData?['avatar_url'] as String?,
+      userAge: age,
+      isOnline: profileData?['is_online'] as bool? ?? false,
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'userId': oderId,
+      'userName': userName,
+      'userAvatarUrl': userAvatarUrl,
+      'userAge': userAge,
+      'isOnline': isOnline,
+      'createdAt': createdAt.toIso8601String(),
+    };
+  }
+
+  @override
+  List<Object?> get props => [
+        id,
+        oderId,
+        userName,
+        userAvatarUrl,
+        userAge,
+        isOnline,
+        createdAt,
+      ];
+}
