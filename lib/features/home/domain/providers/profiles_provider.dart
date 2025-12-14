@@ -76,6 +76,11 @@ class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
       final lookingFor = currentProfile?.lookingFor;
       final myProfileType = currentProfile?.profileType;
 
+      // DEBUG: Print full profile info
+      print('DEBUG: currentProfile = ${currentProfile?.name}');
+      print('DEBUG: currentProfile.lookingFor = $lookingFor');
+      print('DEBUG: currentProfile.profileType = $myProfileType');
+
       // Convert Set<ProfileType> to List<String> for the query
       List<String>? lookingForStrings;
       if (lookingFor != null && lookingFor.isNotEmpty) {
@@ -93,6 +98,12 @@ class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
         myProfileType: myProfileTypeString,
       );
       print('Loaded ${data.length} real profiles from Supabase');
+
+      // DEBUG: Print each profile loaded
+      for (final json in data) {
+        print('DEBUG: Loaded profile: ${json['name']} (${json['profile_type']}) looking_for: ${json['looking_for']}');
+      }
+
       final profiles = data.map((json) => UserModel.fromSupabase(json)).toList();
       state = AsyncValue.data(profiles);
     } catch (e, st) {
