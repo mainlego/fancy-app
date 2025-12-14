@@ -205,7 +205,7 @@ class _HomeIconPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-/// Chats icon painter - exact Figma SVG (globe with leaf)
+/// Chats icon painter - chat bubble icon
 class _ChatsIconPainter extends CustomPainter {
   final Color color;
 
@@ -213,36 +213,39 @@ class _ChatsIconPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final scale = size.width / 32.0;
+    final scale = size.width / 24.0;
 
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0
+      ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    // Leaf shape inside globe
-    final leafPath = Path();
-    leafPath.moveTo(18.6154 * scale, 13.9245 * scale);
-    leafPath.cubicTo(19.6247 * scale, 14.9341 * scale, 20.2408 * scale, 16.3896 * scale, 20.6107 * scale, 17.7984 * scale);
-    leafPath.cubicTo(20.9604 * scale, 19.1306 * scale, 21.0756 * scale, 20.3725 * scale, 21.1143 * scale, 21.0496 * scale);
-    leafPath.cubicTo(20.4371 * scale, 21.0109 * scale, 19.1944 * scale, 20.8968 * scale, 17.8618 * scale, 20.547 * scale);
-    leafPath.cubicTo(16.4528 * scale, 20.1771 * scale, 14.9979 * scale, 19.5604 * scale, 13.9885 * scale, 18.5512 * scale);
-    leafPath.cubicTo(12.9791 * scale, 17.5418 * scale, 12.3623 * scale, 16.0867 * scale, 11.9924 * scale, 14.6778 * scale);
-    leafPath.cubicTo(11.6423 * scale, 13.3444 * scale, 11.5273 * scale, 12.1012 * scale, 11.4887 * scale, 11.4244 * scale);
-    leafPath.cubicTo(12.1656 * scale, 11.4629 * scale, 13.4083 * scale, 11.5794 * scale, 14.7413 * scale, 11.9292 * scale);
-    leafPath.cubicTo(16.1504 * scale, 12.299 * scale, 17.606 * scale, 12.9149 * scale, 18.6154 * scale, 13.9245 * scale);
-    leafPath.close();
+    // Chat bubble path
+    final bubblePath = Path();
+    // Main bubble shape
+    bubblePath.moveTo(4 * scale, 18 * scale);
+    bubblePath.lineTo(4 * scale, 6 * scale);
+    bubblePath.cubicTo(4 * scale, 4.9 * scale, 4.9 * scale, 4 * scale, 6 * scale, 4 * scale);
+    bubblePath.lineTo(18 * scale, 4 * scale);
+    bubblePath.cubicTo(19.1 * scale, 4 * scale, 20 * scale, 4.9 * scale, 20 * scale, 6 * scale);
+    bubblePath.lineTo(20 * scale, 14 * scale);
+    bubblePath.cubicTo(20 * scale, 15.1 * scale, 19.1 * scale, 16 * scale, 18 * scale, 16 * scale);
+    bubblePath.lineTo(8 * scale, 16 * scale);
+    bubblePath.lineTo(4 * scale, 20 * scale);
+    bubblePath.close();
 
-    canvas.drawPath(leafPath, paint);
+    canvas.drawPath(bubblePath, paint);
 
-    // Circle (globe)
-    canvas.drawCircle(
-      Offset(16 * scale, 16 * scale),
-      11.5 * scale,
-      paint,
-    );
+    // Three dots inside bubble
+    final dotPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(Offset(8 * scale, 10 * scale), 1 * scale, dotPaint);
+    canvas.drawCircle(Offset(12 * scale, 10 * scale), 1 * scale, dotPaint);
+    canvas.drawCircle(Offset(16 * scale, 10 * scale), 1 * scale, dotPaint);
   }
 
   @override

@@ -186,7 +186,12 @@ class HomeScreen extends ConsumerWidget {
         context,
         matchedUser: user,
         onSendMessage: () {
-          context.pushChatDetail(user.id);
+          // Use correct route based on isAi flag
+          if (user.isAi) {
+            context.pushAIChat(user.id);
+          } else {
+            context.pushChatDetail(user.id);
+          }
         },
         onKeepBrowsing: () {},
       );
@@ -214,7 +219,12 @@ class HomeScreen extends ConsumerWidget {
         context,
         matchedUser: user,
         onSendMessage: () {
-          context.pushChatDetail(user.id);
+          // Use correct route based on isAi flag
+          if (user.isAi) {
+            context.pushAIChat(user.id);
+          } else {
+            context.pushChatDetail(user.id);
+          }
         },
         onKeepBrowsing: () {},
       );

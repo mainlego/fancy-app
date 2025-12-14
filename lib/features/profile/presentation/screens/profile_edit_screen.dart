@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
@@ -235,6 +236,8 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     );
   }
 
+  bool _isUploadingPhoto = false;
+
   Widget _buildPhotosGrid() {
     final profileAsync = ref.watch(currentProfileProvider);
     final user = profileAsync.valueOrNull;
@@ -260,15 +263,30 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
                 child: Image.network(
                   user.photos[index],
                   fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      color: AppColors.surfaceVariant,
+                      child: const Center(
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: AppColors.surfaceVariant,
+                      child: const Center(
+                        child: Icon(Icons.broken_image, color: AppColors.textTertiary),
+                      ),
+                    );
+                  },
                 ),
               ),
               Positioned(
                 top: 4,
                 right: 4,
                 child: GestureDetector(
-                  onTap: () {
-                    // Delete photo
-                  },
+                  onTap: () => _deletePhoto(user.photos[index]),
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: const BoxDecoration(
@@ -283,30 +301,202 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
                   ),
                 ),
               ),
+              if (index == 0)
+                Positioned(
+                  bottom: 4,
+                  left: 4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'Main',
+                      style: AppTypography.labelSmall.copyWith(
+                        color: AppColors.textPrimary,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                ),
             ],
           );
         }
         return GestureDetector(
-          onTap: () {
-            // Add photo
-          },
+          onTap: _isUploadingPhoto ? null : _addPhoto,
           child: Container(
             decoration: BoxDecoration(
               color: AppColors.surfaceVariant,
               borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
               border: Border.all(color: AppColors.border),
             ),
-            child: const Center(
-              child: Icon(
-                Icons.add,
-                color: AppColors.textTertiary,
-                size: 32,
-              ),
+            child: Center(
+              child: _isUploadingPhoto && index == user.photos.length
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(
+                      Icons.add,
+                      color: AppColors.textTertiary,
+                      size: 32,
+                    ),
             ),
           ),
         );
       },
     );
+  }
+
+  Future<void> _addPhoto() async {
+    final picker = ImagePicker();
+
+    // Show picker source dialog
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppSpacing.radiusLg)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Add Photo',
+                style: AppTypography.headlineSmall.copyWith(color: AppColors.textPrimary),
+              ),
+              AppSpacing.vGapLg,
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: AppColors.primary),
+                title: Text('Camera', style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary)),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: AppColors.primary),
+                title: Text('Gallery', style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary)),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+              AppSpacing.vGapMd,
+              FancyButton(
+                text: 'Cancel',
+                variant: FancyButtonVariant.ghost,
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    try {
+      final pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+
+      if (pickedFile == null) return;
+
+      setState(() => _isUploadingPhoto = true);
+
+      final bytes = await pickedFile.readAsBytes();
+      final fileName = pickedFile.name;
+
+      final url = await ref.read(currentProfileProvider.notifier).addPhoto(fileName, bytes);
+
+      if (mounted) {
+        setState(() => _isUploadingPhoto = false);
+
+        if (url != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Photo uploaded successfully'),
+              backgroundColor: AppColors.success,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to upload photo'),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isUploadingPhoto = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deletePhoto(String photoUrl) async {
+    // Confirm deletion
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(
+          'Delete Photo?',
+          style: AppTypography.headlineSmall.copyWith(color: AppColors.textPrimary),
+        ),
+        content: Text(
+          'This action cannot be undone.',
+          style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final success = await ref.read(currentProfileProvider.notifier).removePhoto(photoUrl);
+
+    if (mounted) {
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Photo deleted'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to delete photo'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildSingleSelect<T>({

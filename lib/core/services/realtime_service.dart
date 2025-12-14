@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
+import 'notification_service.dart';
+import 'supabase_service.dart';
 
 /// Realtime event types
 enum RealtimeEventType {
@@ -28,6 +31,7 @@ class RealtimeEvent {
 /// Realtime service for handling live updates
 class RealtimeService {
   final SupabaseClient _client;
+  final NotificationService _notificationService;
   final Map<String, RealtimeChannel> _channels = {};
 
   // Event callbacks
@@ -37,7 +41,10 @@ class RealtimeService {
   void Function(Map<String, dynamic>)? onNewMatch;
   void Function(String, bool)? onUserPresenceChange;
 
-  RealtimeService(this._client);
+  // Current chat ID to avoid notifications for open chat
+  String? currentOpenChatId;
+
+  RealtimeService(this._client) : _notificationService = NotificationService();
 
   /// Get current user ID
   String? get _currentUserId => _client.auth.currentUser?.id;
@@ -63,8 +70,24 @@ class RealtimeService {
           event: PostgresChangeEvent.insert,
           schema: 'public',
           table: SupabaseConfig.messagesTable,
-          callback: (payload) {
+          callback: (payload) async {
             final newMessage = payload.newRecord;
+            final senderId = newMessage['sender_id'] as String?;
+            final chatId = newMessage['chat_id'] as String?;
+            final content = newMessage['content'] as String?;
+
+            // Only process messages from other users and not in currently open chat
+            if (senderId != null && senderId != userId && chatId != currentOpenChatId) {
+              // Show notification
+              if (kIsWeb && _notificationService.hasPermission) {
+                await _notificationService.showMessageNotification(
+                  senderName: 'New message', // Will be replaced with actual name
+                  message: content ?? 'Sent you a message',
+                  chatId: chatId,
+                );
+              }
+            }
+
             onNewMessage?.call(newMessage);
             onEvent?.call(RealtimeEvent(
               type: RealtimeEventType.newMessage,
@@ -91,8 +114,20 @@ class RealtimeService {
             column: 'to_user_id',
             value: userId,
           ),
-          callback: (payload) {
+          callback: (payload) async {
             final newLike = payload.newRecord;
+            final fromUserId = newLike['from_user_id'] as String?;
+            final isSuperLike = newLike['is_super_like'] as bool? ?? false;
+
+            // Show notification for new like
+            if (kIsWeb && _notificationService.hasPermission && fromUserId != null) {
+              await _notificationService.showLikeNotification(
+                userName: 'Someone', // Will be replaced with actual name
+                userId: fromUserId,
+                isSuperLike: isSuperLike,
+              );
+            }
+
             onNewLike?.call(newLike);
             onEvent?.call(RealtimeEvent(
               type: RealtimeEventType.newLike,
@@ -114,12 +149,22 @@ class RealtimeService {
           event: PostgresChangeEvent.insert,
           schema: 'public',
           table: SupabaseConfig.matchesTable,
-          callback: (payload) {
+          callback: (payload) async {
             final newMatch = payload.newRecord;
             // Check if current user is part of this match
-            final user1Id = newMatch['user1_id'];
-            final user2Id = newMatch['user2_id'];
+            final user1Id = newMatch['user1_id'] as String?;
+            final user2Id = newMatch['user2_id'] as String?;
             if (user1Id == userId || user2Id == userId) {
+              final otherUserId = user1Id == userId ? user2Id : user1Id;
+
+              // Show match notification
+              if (kIsWeb && _notificationService.hasPermission && otherUserId != null) {
+                await _notificationService.showMatchNotification(
+                  userName: 'Someone special', // Will be replaced with actual name
+                  matchId: newMatch['id'] as String?,
+                );
+              }
+
               onNewMatch?.call(newMatch);
               onEvent?.call(RealtimeEvent(
                 type: RealtimeEventType.newMatch,

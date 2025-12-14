@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
@@ -106,7 +108,7 @@ class SupabaseService {
     await _client.from(SupabaseConfig.profilesTable).insert(data);
   }
 
-  /// Get profiles for discovery (excluding current user and blocked users)
+  /// Get profiles for discovery (excluding current user, blocked users, and already interacted)
   Future<List<Map<String, dynamic>>> getDiscoveryProfiles({
     int? minAge,
     int? maxAge,
@@ -118,36 +120,80 @@ class SupabaseService {
     final userId = currentUser?.id;
     if (userId == null) return [];
 
-    // Build query - note: filters applied conditionally using or/and if needed
-    final response = await _client
-        .from(SupabaseConfig.profilesTable)
-        .select()
-        .neq('id', userId)
-        .limit(limit)
-        .range(offset, offset + limit - 1);
+    try {
+      // Get IDs of users we've already interacted with (liked/passed)
+      final interactedResponse = await _client
+          .from(SupabaseConfig.likesTable)
+          .select('to_user_id')
+          .eq('from_user_id', userId);
 
-    // Filter results in memory for now (age, gender filters)
-    // TODO: Move to RPC function for better performance
-    var profiles = List<Map<String, dynamic>>.from(response);
+      final interactedIds = (interactedResponse as List)
+          .map((e) => e['to_user_id'] as String)
+          .toSet();
 
-    if (minAge != null || maxAge != null) {
-      profiles = profiles.where((p) {
-        final birthDateStr = p['birth_date'] as String?;
-        if (birthDateStr == null) return true;
-        final birthDate = DateTime.tryParse(birthDateStr);
-        if (birthDate == null) return true;
-        final age = DateTime.now().difference(birthDate).inDays ~/ 365;
-        if (minAge != null && age < minAge) return false;
-        if (maxAge != null && age > maxAge) return false;
-        return true;
-      }).toList();
+      // Get IDs of blocked users (both directions)
+      final blockedResponse = await _client
+          .from(SupabaseConfig.blockedUsersTable)
+          .select('blocked_id, blocker_id')
+          .or('blocker_id.eq.$userId,blocked_id.eq.$userId');
+
+      final blockedIds = <String>{};
+      for (final block in blockedResponse as List) {
+        final blockerId = block['blocker_id'] as String?;
+        final blockedId = block['blocked_id'] as String?;
+        if (blockerId != null && blockerId != userId) blockedIds.add(blockerId);
+        if (blockedId != null && blockedId != userId) blockedIds.add(blockedId);
+      }
+
+      // Combine all IDs to exclude
+      final excludeIds = {...interactedIds, ...blockedIds, userId};
+
+      // Build query for profiles
+      final response = await _client
+          .from(SupabaseConfig.profilesTable)
+          .select()
+          .limit(limit + excludeIds.length) // Get extra to account for filtering
+          .order('last_online', ascending: false);
+
+      // Filter out excluded users and apply additional filters
+      var profiles = (response as List)
+          .where((p) => !excludeIds.contains(p['id'] as String?))
+          .take(limit)
+          .map((p) => Map<String, dynamic>.from(p))
+          .toList();
+
+      // Apply age filter
+      if (minAge != null || maxAge != null) {
+        profiles = profiles.where((p) {
+          final birthDateStr = p['birth_date'] as String?;
+          if (birthDateStr == null) return true;
+          final birthDate = DateTime.tryParse(birthDateStr);
+          if (birthDate == null) return true;
+          final age = DateTime.now().difference(birthDate).inDays ~/ 365;
+          if (minAge != null && age < minAge) return false;
+          if (maxAge != null && age > maxAge) return false;
+          return true;
+        }).toList();
+      }
+
+      // Apply gender filter
+      if (gender != null) {
+        profiles = profiles.where((p) => p['profile_type'] == gender).toList();
+      }
+
+      print('Discovery: Found ${profiles.length} profiles (excluded ${excludeIds.length - 1} users)');
+      return profiles;
+    } catch (e) {
+      print('Error getting discovery profiles: $e');
+      // Fallback to simple query
+      final response = await _client
+          .from(SupabaseConfig.profilesTable)
+          .select()
+          .neq('id', userId)
+          .limit(limit);
+
+      return List<Map<String, dynamic>>.from(response);
     }
-
-    if (gender != null) {
-      profiles = profiles.where((p) => p['gender'] == gender).toList();
-    }
-
-    return profiles;
   }
 
   // ===================
@@ -516,30 +562,149 @@ class SupabaseService {
   // ===================
 
   /// Upload avatar image
-  Future<String> uploadAvatar(String fileName, List<int> bytes) async {
+  Future<String> uploadAvatar(String fileName, Uint8List bytes) async {
     final userId = currentUser?.id;
     if (userId == null) throw Exception('Not authenticated');
 
-    final path = '$userId/$fileName';
-    await _client.storage.from(SupabaseConfig.avatarsBucket).uploadBinary(path, bytes as dynamic);
+    // Generate unique filename with timestamp
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final extension = fileName.split('.').last;
+    final path = '$userId/avatar_$timestamp.$extension';
 
-    return _client.storage.from(SupabaseConfig.avatarsBucket).getPublicUrl(path);
+    // Delete old avatar if exists
+    try {
+      final existingFiles = await _client.storage.from(SupabaseConfig.avatarsBucket).list(path: userId);
+      if (existingFiles.isNotEmpty) {
+        final oldPaths = existingFiles.map((f) => '$userId/${f.name}').toList();
+        await _client.storage.from(SupabaseConfig.avatarsBucket).remove(oldPaths);
+      }
+    } catch (e) {
+      // Ignore errors if no existing files
+    }
+
+    await _client.storage.from(SupabaseConfig.avatarsBucket).uploadBinary(
+      path,
+      bytes,
+      fileOptions: FileOptions(
+        contentType: _getContentType(extension),
+        upsert: true,
+      ),
+    );
+
+    final publicUrl = _client.storage.from(SupabaseConfig.avatarsBucket).getPublicUrl(path);
+
+    // Update profile with new avatar URL
+    await updateProfile(userId, {'avatar_url': publicUrl});
+
+    return publicUrl;
   }
 
-  /// Upload photo
-  Future<String> uploadPhoto(String fileName, List<int> bytes) async {
+  /// Upload photo to user's gallery
+  Future<String> uploadPhoto(String fileName, Uint8List bytes) async {
     final userId = currentUser?.id;
     if (userId == null) throw Exception('Not authenticated');
 
-    final path = '$userId/$fileName';
-    await _client.storage.from(SupabaseConfig.photosBucket).uploadBinary(path, bytes as dynamic);
+    // Generate unique filename with timestamp
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final extension = fileName.split('.').last;
+    final path = '$userId/photo_$timestamp.$extension';
 
-    return _client.storage.from(SupabaseConfig.photosBucket).getPublicUrl(path);
+    await _client.storage.from(SupabaseConfig.photosBucket).uploadBinary(
+      path,
+      bytes,
+      fileOptions: FileOptions(
+        contentType: _getContentType(extension),
+        upsert: true,
+      ),
+    );
+
+    final publicUrl = _client.storage.from(SupabaseConfig.photosBucket).getPublicUrl(path);
+
+    // Add photo to profile's photos array
+    await addPhotoToProfile(publicUrl);
+
+    return publicUrl;
   }
 
-  /// Delete photo
+  /// Add photo URL to profile's photos array
+  Future<void> addPhotoToProfile(String photoUrl) async {
+    final userId = currentUser?.id;
+    if (userId == null) return;
+
+    final profile = await getProfile(userId);
+    if (profile == null) return;
+
+    final currentPhotos = List<String>.from(profile['photos'] ?? []);
+    if (!currentPhotos.contains(photoUrl)) {
+      currentPhotos.add(photoUrl);
+      await updateProfile(userId, {'photos': currentPhotos});
+    }
+  }
+
+  /// Remove photo from profile
+  Future<void> removePhotoFromProfile(String photoUrl) async {
+    final userId = currentUser?.id;
+    if (userId == null) return;
+
+    final profile = await getProfile(userId);
+    if (profile == null) return;
+
+    final currentPhotos = List<String>.from(profile['photos'] ?? []);
+    currentPhotos.remove(photoUrl);
+    await updateProfile(userId, {'photos': currentPhotos});
+
+    // Try to delete the file from storage
+    try {
+      final uri = Uri.parse(photoUrl);
+      final pathSegments = uri.pathSegments;
+      // URL format: /storage/v1/object/public/photos/userId/filename
+      if (pathSegments.length >= 6) {
+        final storagePath = '${pathSegments[5]}/${pathSegments[6]}';
+        await deletePhoto(storagePath);
+      }
+    } catch (e) {
+      print('Error deleting photo from storage: $e');
+    }
+  }
+
+  /// Delete photo from storage
   Future<void> deletePhoto(String path) async {
     await _client.storage.from(SupabaseConfig.photosBucket).remove([path]);
+  }
+
+  /// Delete avatar from storage
+  Future<void> deleteAvatar(String path) async {
+    await _client.storage.from(SupabaseConfig.avatarsBucket).remove([path]);
+  }
+
+  /// Get content type from file extension
+  String _getContentType(String extension) {
+    switch (extension.toLowerCase()) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'heic':
+        return 'image/heic';
+      default:
+        return 'image/jpeg';
+    }
+  }
+
+  /// Get user's photos from storage
+  Future<List<String>> getUserPhotos() async {
+    final userId = currentUser?.id;
+    if (userId == null) return [];
+
+    final profile = await getProfile(userId);
+    if (profile == null) return [];
+
+    return List<String>.from(profile['photos'] ?? []);
   }
 
   // ===================

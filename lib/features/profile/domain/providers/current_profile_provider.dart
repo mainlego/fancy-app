@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/supabase_service.dart';
@@ -161,20 +163,11 @@ class CurrentProfileNotifier extends StateNotifier<AsyncValue<UserModel?>> {
   }
 
   /// Add photo to profile
-  Future<String?> addPhoto(String fileName, List<int> bytes) async {
+  Future<String?> addPhoto(String fileName, Uint8List bytes) async {
     try {
+      // uploadPhoto already adds to profile's photos array
       final url = await _supabase.uploadPhoto(fileName, bytes);
-
-      // Update profile with new photo
-      final currentProfile = state.valueOrNull;
-      if (currentProfile != null) {
-        final newPhotos = [...currentProfile.photos, url];
-        final userId = _supabase.currentUser?.id;
-        if (userId != null) {
-          await _supabase.updateProfile(userId, {'photos': newPhotos});
-          await loadProfile();
-        }
-      }
+      await loadProfile();
       return url;
     } catch (e) {
       print('Error uploading photo: $e');
@@ -182,18 +175,25 @@ class CurrentProfileNotifier extends StateNotifier<AsyncValue<UserModel?>> {
     }
   }
 
+  /// Upload avatar
+  Future<String?> uploadAvatar(String fileName, Uint8List bytes) async {
+    try {
+      // uploadAvatar already updates profile's avatar_url
+      final url = await _supabase.uploadAvatar(fileName, bytes);
+      await loadProfile();
+      return url;
+    } catch (e) {
+      print('Error uploading avatar: $e');
+      return null;
+    }
+  }
+
   /// Remove photo from profile
   Future<bool> removePhoto(String photoUrl) async {
     try {
-      final currentProfile = state.valueOrNull;
-      if (currentProfile != null) {
-        final newPhotos = currentProfile.photos.where((p) => p != photoUrl).toList();
-        final userId = _supabase.currentUser?.id;
-        if (userId != null) {
-          await _supabase.updateProfile(userId, {'photos': newPhotos});
-          await loadProfile();
-        }
-      }
+      // removePhotoFromProfile handles both profile update and storage deletion
+      await _supabase.removePhotoFromProfile(photoUrl);
+      await loadProfile();
       return true;
     } catch (e) {
       print('Error removing photo: $e');

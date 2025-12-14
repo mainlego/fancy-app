@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,7 +7,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'core/config/supabase_config.dart';
+import 'core/services/pwa_update_service.dart';
+import 'core/services/notification_service.dart';
 import 'features/chats/domain/models/chat_model.dart';
+import 'shared/widgets/pwa_update_dialog.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,6 +46,13 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
 
+  // Initialize PWA services for web
+  if (kIsWeb) {
+    PwaUpdateService().init();
+    // Initialize notification service and request permission
+    await NotificationService().init();
+  }
+
   runApp(
     const ProviderScope(
       child: FancyApp(),
@@ -55,7 +66,7 @@ class FancyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
+    Widget app = MaterialApp.router(
       title: 'FANCY',
       debugShowCheckedModeBanner: false,
 
@@ -83,5 +94,12 @@ class FancyApp extends StatelessWidget {
         physics: const BouncingScrollPhysics(),
       ),
     );
+
+    // Wrap with PWA update listener for web
+    if (kIsWeb) {
+      app = PwaUpdateListener(child: app);
+    }
+
+    return app;
   }
 }
