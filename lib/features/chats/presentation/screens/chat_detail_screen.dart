@@ -65,38 +65,72 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // First try to get chat from the cached list
     final chatsAsync = ref.watch(chatsNotifierProvider);
     final chats = chatsAsync.valueOrNull ?? [];
-    final chat = chats.isNotEmpty
-        ? chats.firstWhere(
-            (c) => c.id == widget.chatId,
-            orElse: () => chats.first,
-          )
-        : null;
+    ChatModel? chat;
+
+    // Try to find in cached chats list
+    for (final c in chats) {
+      if (c.id == widget.chatId) {
+        chat = c;
+        break;
+      }
+    }
+
+    // If not found in cache, load directly from database
+    final singleChatAsync = ref.watch(singleChatProvider(widget.chatId));
+    chat ??= singleChatAsync.valueOrNull;
 
     final messagesAsync = ref.watch(messagesNotifierProvider(widget.chatId));
-    final messages = messagesAsync.valueOrNull ?? [];
 
-    if (chat == null) {
+    // Show loading if chat is still being loaded
+    if (chat == null && (chatsAsync.isLoading || singleChatAsync.isLoading)) {
       return const Scaffold(
         backgroundColor: AppColors.background,
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
+    // Show error if chat not found after loading
+    if (chat == null) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(title: const Text('Chat')),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+              AppSpacing.vGapMd,
+              Text('Chat not found', style: AppTypography.titleMedium),
+              AppSpacing.vGapMd,
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Go back'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Create non-nullable local variable for use in callbacks
+    final currentChat = chat;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         titleSpacing: 0,
         title: GestureDetector(
-          onTap: () => context.pushProfileView(chat.participantId),
+          onTap: () => context.pushProfileView(currentChat.participantId),
           child: Row(
             children: [
               FancyAvatar(
-                imageUrl: chat.participantAvatarUrl,
-                name: chat.participantName,
+                imageUrl: currentChat.participantAvatarUrl,
+                name: currentChat.participantName,
                 size: AvatarSize.small,
-                isOnline: chat.participantOnline,
+                isOnline: currentChat.participantOnline,
               ),
               AppSpacing.hGapMd,
               Expanded(
@@ -104,7 +138,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      chat.participantName,
+                      currentChat.participantName,
                       style: AppTypography.titleSmall,
                     ),
                     if (_partnerTyping != null)
@@ -117,9 +151,9 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                       )
                     else
                       Text(
-                        chat.participantOnline ? 'Online' : 'Offline',
+                        currentChat.participantOnline ? 'Online' : 'Offline',
                         style: AppTypography.labelSmall.copyWith(
-                          color: chat.participantOnline
+                          color: currentChat.participantOnline
                               ? AppColors.online
                               : AppColors.textTertiary,
                         ),
@@ -133,7 +167,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.more_vert),
-            onPressed: () => _showChatOptions(context),
+            onPressed: () => _showChatOptions(context, currentChat.participantId),
           ),
         ],
       ),
@@ -178,7 +212,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                         ),
                         AppSpacing.vGapSm,
                         Text(
-                          'Say hello to ${chat.participantName}!',
+                          'Say hello to ${currentChat.participantName}!',
                           style: AppTypography.bodyMedium.copyWith(
                             color: AppColors.textTertiary,
                           ),
@@ -364,7 +398,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     );
   }
 
-  void _showChatOptions(BuildContext context) {
+  void _showChatOptions(BuildContext context, String participantId) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface,
@@ -391,10 +425,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
               title: const Text('View profile'),
               onTap: () {
                 Navigator.pop(context);
-                final chatsAsync = ref.read(chatsNotifierProvider);
-                final chats = chatsAsync.valueOrNull ?? [];
-                final chat = chats.firstWhere((c) => c.id == widget.chatId);
-                context.pushProfileView(chat.participantId);
+                context.pushProfileView(participantId);
               },
             ),
             ListTile(

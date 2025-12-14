@@ -36,9 +36,10 @@ class _BottomNavBar extends StatelessWidget {
 
   int _getCurrentIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
-    if (location.startsWith('/chats')) return 1;
+    if (location.startsWith('/chats')) return 0;  // Chats is first
+    if (location == '/') return 1;  // Home is second
     if (location.startsWith('/profile')) return 2;
-    return 0;
+    return 1;  // Default to home
   }
 
   @override
@@ -59,21 +60,24 @@ class _BottomNavBar extends StatelessWidget {
       child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
+              // First: Chats
               _NavItem(
-                iconPainter: _HomeIconPainter(
+                iconPainter: _ChatsIconPainter(
                   color: currentIndex == 0 ? AppColors.primary : AppColors.textSecondary,
                 ),
                 isActive: currentIndex == 0,
-                onTap: () => context.goToHome(),
-              ),
-              _NavItem(
-                iconPainter: _ChatsIconPainter(
-                  color: currentIndex == 1 ? AppColors.primary : AppColors.textSecondary,
-                ),
-                isActive: currentIndex == 1,
                 badge: unreadCount > 0 ? unreadCount : null,
                 onTap: () => context.goToChats(),
               ),
+              // Second: Home
+              _NavItem(
+                iconPainter: _HomeIconPainter(
+                  color: currentIndex == 1 ? AppColors.primary : AppColors.textSecondary,
+                ),
+                isActive: currentIndex == 1,
+                onTap: () => context.goToHome(),
+              ),
+              // Third: Profile
               _NavItem(
                 iconPainter: _ProfileIconPainter(
                   color: currentIndex == 2 ? AppColors.primary : AppColors.textSecondary,

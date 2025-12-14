@@ -265,6 +265,23 @@ final newLikesCountProvider = Provider<int>((ref) {
   );
 });
 
+/// Single chat provider - loads chat by ID directly from database
+final singleChatProvider = FutureProvider.family<ChatModel?, String>((ref, chatId) async {
+  final supabase = ref.watch(supabaseServiceProvider);
+  final currentUserId = supabase.currentUser?.id;
+
+  if (currentUserId == null) return null;
+
+  try {
+    final data = await supabase.getChat(chatId);
+    if (data == null) return null;
+    return ChatModel.fromSupabase(data, currentUserId);
+  } catch (e) {
+    print('Error loading single chat: $e');
+    return null;
+  }
+});
+
 /// Messages provider for a specific chat
 final messagesProvider = FutureProvider.family<List<MessageModel>, String>((ref, chatId) async {
   final supabase = ref.watch(supabaseServiceProvider);
