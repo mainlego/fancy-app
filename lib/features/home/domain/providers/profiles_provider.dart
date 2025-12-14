@@ -257,11 +257,18 @@ final filteredProfilesProvider = Provider<List<UserModel>>((ref) {
   // Get real profiles (empty list if loading/error)
   final realProfiles = profilesAsync.valueOrNull ?? [];
 
+  // DEBUG: Log what we have
+  print('DEBUG filteredProfilesProvider: realProfiles=${realProfiles.length}, aiProfiles=${aiProfiles.length}');
+  print('DEBUG filteredProfilesProvider: profilesAsync state=${profilesAsync.isLoading ? "loading" : profilesAsync.hasError ? "error" : "data"}');
+  for (final p in realProfiles) {
+    print('DEBUG filteredProfilesProvider: Real profile: ${p.name} (${p.profileType})');
+  }
+
   // Combine real profiles with AI profiles
   // Real users are shown FIRST, then AI profiles
   final allProfiles = [...realProfiles, ...aiProfiles];
 
-  return allProfiles.where((profile) {
+  final filtered = allProfiles.where((profile) {
     // Quick filter: dating goal
     if (quickGoal != null && profile.datingGoal != quickGoal) {
       return false;
@@ -353,6 +360,9 @@ final filteredProfilesProvider = Provider<List<UserModel>>((ref) {
 
     return true;
   }).toList();
+
+  print('DEBUG filteredProfilesProvider: Final filtered count=${filtered.length}');
+  return filtered;
 });
 
 /// Likes received by current user
