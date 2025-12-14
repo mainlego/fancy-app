@@ -52,43 +52,62 @@ final profilesProvider = FutureProvider<List<UserModel>>((ref) async {
 class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
   final SupabaseService _supabase;
   final Ref _ref;
-  bool _hasLoadedWithProfile = false;
+  bool _isLoading = false;
 
   ProfilesNotifier(this._supabase, this._ref) : super(const AsyncValue.loading()) {
     // Listen for current profile changes to reload with proper filters
     _ref.listen<AsyncValue<UserModel?>>(currentProfileProvider, (previous, next) {
       // When profile becomes available, reload profiles with proper filters
-      if (next.hasValue && next.value != null && !_hasLoadedWithProfile) {
-        _hasLoadedWithProfile = true;
+      if (next.hasValue && next.value != null) {
+        print('DEBUG: Profile changed, reloading profiles...');
         loadProfiles();
       }
     });
 
-    // Also start loading immediately (may load without filters if profile not ready)
-    loadProfiles();
+    // Check if profile is already available
+    final currentProfile = _ref.read(currentProfileProvider).valueOrNull;
+    if (currentProfile != null) {
+      loadProfiles();
+    }
+    // If profile not ready, wait for listener to trigger
   }
 
   Future<void> loadProfiles() async {
+    // Prevent concurrent loads
+    if (_isLoading) {
+      print('DEBUG: Already loading, skipping...');
+      return;
+    }
+
+    // Get current user's profile for bidirectional matching
+    final currentProfile = _ref.read(currentProfileProvider).valueOrNull;
+
+    // Don't load without profile - wait for it
+    if (currentProfile == null) {
+      print('DEBUG: No profile yet, waiting...');
+      return;
+    }
+
+    _isLoading = true;
     state = const AsyncValue.loading();
+
     try {
-      // Get current user's profile for bidirectional matching
-      final currentProfile = _ref.read(currentProfileProvider).valueOrNull;
-      final lookingFor = currentProfile?.lookingFor;
-      final myProfileType = currentProfile?.profileType;
+      final lookingFor = currentProfile.lookingFor;
+      final myProfileType = currentProfile.profileType;
 
       // DEBUG: Print full profile info
-      print('DEBUG: currentProfile = ${currentProfile?.name}');
+      print('DEBUG: currentProfile = ${currentProfile.name}');
       print('DEBUG: currentProfile.lookingFor = $lookingFor');
       print('DEBUG: currentProfile.profileType = $myProfileType');
 
       // Convert Set<ProfileType> to List<String> for the query
       List<String>? lookingForStrings;
-      if (lookingFor != null && lookingFor.isNotEmpty) {
+      if (lookingFor.isNotEmpty) {
         lookingForStrings = lookingFor.map((e) => e.name).toList();
       }
 
       // Get my profile type for bidirectional matching
-      String? myProfileTypeString = myProfileType?.name;
+      String? myProfileTypeString = myProfileType.name;
 
       print('Loading profiles with lookingFor: $lookingForStrings, myProfileType: $myProfileTypeString');
 
@@ -109,6 +128,8 @@ class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
     } catch (e, st) {
       print('Error loading real profiles: $e');
       state = AsyncValue.error(e, st);
+    } finally {
+      _isLoading = false;
     }
   }
 
@@ -237,8 +258,8 @@ final filteredProfilesProvider = Provider<List<UserModel>>((ref) {
   final realProfiles = profilesAsync.valueOrNull ?? [];
 
   // Combine real profiles with AI profiles
-  // AI profiles are always shown first (they're always online and nearby)
-  final allProfiles = [...aiProfiles, ...realProfiles];
+  // Real users are shown FIRST, then AI profiles
+  final allProfiles = [...realProfiles, ...aiProfiles];
 
   return allProfiles.where((profile) {
     // Quick filter: dating goal
