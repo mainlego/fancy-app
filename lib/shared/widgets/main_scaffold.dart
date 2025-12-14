@@ -155,7 +155,7 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-/// Home icon painter - exact Figma SVG
+/// Home icon painter - circle with leaf (swipe/discover icon)
 class _HomeIconPainter extends CustomPainter {
   final Color color;
 
@@ -172,37 +172,27 @@ class _HomeIconPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    // House body path
-    final housePath = Path();
-    housePath.moveTo(5.33301 * scale, 13.1385 * scale);
-    housePath.cubicTo(5.33301 * scale, 11.9357 * scale, 5.33301 * scale, 11.3343 * scale, 5.63171 * scale, 10.8509 * scale);
-    housePath.cubicTo(5.9304 * scale, 10.3676 * scale, 6.46832 * scale, 10.0987 * scale, 7.54415 * scale, 9.56077 * scale);
-    housePath.lineTo(14.2108 * scale, 6.22744 * scale);
-    housePath.cubicTo(15.0886 * scale, 5.78853 * scale, 15.5275 * scale, 5.56908 * scale, 15.9997 * scale, 5.56908 * scale);
-    housePath.cubicTo(16.4718 * scale, 5.56908 * scale, 16.9107 * scale, 5.78853 * scale, 17.7885 * scale, 6.22743 * scale);
-    housePath.lineTo(24.4552 * scale, 9.56077 * scale);
-    housePath.cubicTo(25.531 * scale, 10.0987 * scale, 26.0689 * scale, 10.3676 * scale, 26.3676 * scale, 10.8509 * scale);
-    housePath.cubicTo(26.6663 * scale, 11.3343 * scale, 26.6663 * scale, 11.9357 * scale, 26.6663 * scale, 13.1385 * scale);
-    housePath.lineTo(26.6663 * scale, 22.6663 * scale);
-    housePath.cubicTo(26.6663 * scale, 24.552 * scale, 26.6663 * scale, 25.4948 * scale, 26.0806 * scale, 26.0806 * scale);
-    housePath.cubicTo(25.4948 * scale, 26.6663 * scale, 24.552 * scale, 26.6663 * scale, 22.6663 * scale, 26.6663 * scale);
-    housePath.lineTo(9.33301 * scale, 26.6663 * scale);
-    housePath.cubicTo(7.44739 * scale, 26.6663 * scale, 6.50458 * scale, 26.6663 * scale, 5.91879 * scale, 26.0806 * scale);
-    housePath.cubicTo(5.33301 * scale, 25.4948 * scale, 5.33301 * scale, 24.552 * scale, 5.33301 * scale, 22.6663 * scale);
-    housePath.close();
+    // Outer circle
+    canvas.drawCircle(
+      Offset(16 * scale, 16 * scale),
+      11.5 * scale,
+      paint,
+    );
 
-    canvas.drawPath(housePath, paint);
+    // Leaf path inside circle
+    final leafPath = Path();
+    leafPath.moveTo(18.6149 * scale, 13.9245 * scale);
+    leafPath.cubicTo(19.6242 * scale, 14.9341 * scale, 20.2403 * scale, 16.3896 * scale, 20.6102 * scale, 17.7984 * scale);
+    leafPath.cubicTo(20.9599 * scale, 19.1306 * scale, 21.0751 * scale, 20.3725 * scale, 21.1138 * scale, 21.0496 * scale);
+    leafPath.cubicTo(20.4366 * scale, 21.0109 * scale, 19.1939 * scale, 20.8968 * scale, 17.8613 * scale, 20.547 * scale);
+    leafPath.cubicTo(16.4523 * scale, 20.1771 * scale, 14.9974 * scale, 19.5604 * scale, 13.988 * scale, 18.5512 * scale);
+    leafPath.cubicTo(12.9787 * scale, 17.5418 * scale, 12.3619 * scale, 16.0867 * scale, 11.9919 * scale, 14.6778 * scale);
+    leafPath.cubicTo(11.6418 * scale, 13.3444 * scale, 11.5268 * scale, 12.1012 * scale, 11.4882 * scale, 11.4244 * scale);
+    leafPath.cubicTo(12.1651 * scale, 11.4629 * scale, 13.4078 * scale, 11.5794 * scale, 14.7408 * scale, 11.9292 * scale);
+    leafPath.cubicTo(16.1499 * scale, 12.299 * scale, 17.6055 * scale, 12.9149 * scale, 18.6149 * scale, 13.9245 * scale);
+    leafPath.close();
 
-    // Roof detail line
-    final roofPath = Path();
-    roofPath.moveTo(5.33301 * scale, 13.333 * scale);
-    roofPath.lineTo(8.74722 * scale, 16.7472 * scale);
-    roofPath.cubicTo(9.12229 * scale, 17.1223 * scale, 9.631 * scale, 17.333 * scale, 10.1614 * scale, 17.333 * scale);
-    roofPath.lineTo(21.8379 * scale, 17.333 * scale);
-    roofPath.cubicTo(22.3683 * scale, 17.333 * scale, 22.8771 * scale, 17.1223 * scale, 23.2521 * scale, 16.7472 * scale);
-    roofPath.lineTo(26.6663 * scale, 13.333 * scale);
-
-    canvas.drawPath(roofPath, paint);
+    canvas.drawPath(leafPath, paint);
   }
 
   @override
