@@ -109,12 +109,13 @@ class SupabaseService {
   }
 
   /// Get profiles for discovery (excluding current user, blocked users, and already interacted)
-  /// Filters by the current user's lookingFor preferences
+  /// Filters bidirectionally: shows profiles that match user's preferences AND are looking for user's type
   Future<List<Map<String, dynamic>>> getDiscoveryProfiles({
     int? minAge,
     int? maxAge,
     int? maxDistance,
     List<String>? lookingFor,  // Profile types the user wants to see (e.g., ['woman', 'man'])
+    String? myProfileType,     // Current user's profile type (for bidirectional matching)
     int limit = 20,
     int offset = 0,
   }) async {
@@ -154,19 +155,35 @@ class SupabaseService {
           .from(SupabaseConfig.profilesTable)
           .select();
 
-      // Apply gender filter on server side if specified
+      // Apply filter: show profiles whose profile_type matches what I'm looking for
       if (lookingFor != null && lookingFor.isNotEmpty) {
         // Filter by profile_type IN (lookingFor list)
         query = query.inFilter('profile_type', lookingFor);
       }
 
+      // Note: We apply bidirectional filter client-side to handle profiles with empty looking_for
+
       final response = await query
-          .limit(limit + excludeIds.length) // Get extra to account for filtering
+          .limit((limit + excludeIds.length) * 2) // Get extra to account for filtering
           .order('last_online', ascending: false);
 
-      // Filter out excluded users
+      // Filter out excluded users and apply bidirectional matching
       var profiles = (response as List)
           .where((p) => !excludeIds.contains(p['id'] as String?))
+          .where((p) {
+            // Bidirectional filter: only show profiles who are looking for my profile type
+            // Skip this check if my profile type is not set
+            if (myProfileType == null || myProfileType.isEmpty) return true;
+
+            // Get the profile's looking_for array
+            final theirLookingFor = (p['looking_for'] as List<dynamic>?)?.cast<String>() ?? [];
+
+            // If their looking_for is empty, assume they're looking for everyone (haven't set preference)
+            if (theirLookingFor.isEmpty) return true;
+
+            // Check if my profile type is in their looking_for list
+            return theirLookingFor.contains(myProfileType);
+          })
           .take(limit)
           .map((p) => Map<String, dynamic>.from(p))
           .toList();
@@ -185,7 +202,7 @@ class SupabaseService {
         }).toList();
       }
 
-      print('Discovery: Found ${profiles.length} profiles (excluded ${excludeIds.length - 1} users, looking for: $lookingFor)');
+      print('Discovery: Found ${profiles.length} profiles (excluded ${excludeIds.length - 1} users, looking for: $lookingFor, my type: $myProfileType)');
       return profiles;
     } catch (e) {
       print('Error getting discovery profiles: $e');

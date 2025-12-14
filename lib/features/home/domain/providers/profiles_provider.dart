@@ -52,17 +52,29 @@ final profilesProvider = FutureProvider<List<UserModel>>((ref) async {
 class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
   final SupabaseService _supabase;
   final Ref _ref;
+  bool _hasLoadedWithProfile = false;
 
   ProfilesNotifier(this._supabase, this._ref) : super(const AsyncValue.loading()) {
+    // Listen for current profile changes to reload with proper filters
+    _ref.listen<AsyncValue<UserModel?>>(currentProfileProvider, (previous, next) {
+      // When profile becomes available, reload profiles with proper filters
+      if (next.hasValue && next.value != null && !_hasLoadedWithProfile) {
+        _hasLoadedWithProfile = true;
+        loadProfiles();
+      }
+    });
+
+    // Also start loading immediately (may load without filters if profile not ready)
     loadProfiles();
   }
 
   Future<void> loadProfiles() async {
     state = const AsyncValue.loading();
     try {
-      // Get current user's lookingFor preferences
+      // Get current user's profile for bidirectional matching
       final currentProfile = _ref.read(currentProfileProvider).valueOrNull;
       final lookingFor = currentProfile?.lookingFor;
+      final myProfileType = currentProfile?.profileType;
 
       // Convert Set<ProfileType> to List<String> for the query
       List<String>? lookingForStrings;
@@ -70,11 +82,15 @@ class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
         lookingForStrings = lookingFor.map((e) => e.name).toList();
       }
 
-      print('Loading profiles with lookingFor: $lookingForStrings');
+      // Get my profile type for bidirectional matching
+      String? myProfileTypeString = myProfileType?.name;
+
+      print('Loading profiles with lookingFor: $lookingForStrings, myProfileType: $myProfileTypeString');
 
       final data = await _supabase.getDiscoveryProfiles(
         limit: 50,
         lookingFor: lookingForStrings,
+        myProfileType: myProfileTypeString,
       );
       print('Loaded ${data.length} real profiles from Supabase');
       final profiles = data.map((json) => UserModel.fromSupabase(json)).toList();
