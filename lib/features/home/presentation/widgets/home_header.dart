@@ -118,9 +118,10 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
               behavior: HitTestBehavior.opaque,
               child: Text(
                 _getDatingGoalText(selectedGoal),
-                style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textPrimary,
-                  fontSize: 14,
+                style: const TextStyle(
+                  color: Color(0xFFD9D9D9),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w200,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -134,9 +135,10 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
               behavior: HitTestBehavior.opaque,
               child: Text(
                 _getStatusText(selectedStatus),
-                style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textPrimary,
-                  fontSize: 14,
+                style: const TextStyle(
+                  color: Color(0xFFD9D9D9),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w200,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -150,9 +152,10 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
               behavior: HitTestBehavior.opaque,
               child: Text(
                 filter.distanceKm >= 500 ? '500+ km' : '${filter.distanceKm} km',
-                style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textPrimary,
-                  fontSize: 14,
+                style: const TextStyle(
+                  color: Color(0xFFD9D9D9),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w200,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -228,6 +231,9 @@ class _FilterOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final dropdownWidth = screenWidth * 0.45; // ~1/2 width
+
     return Material(
       color: Colors.transparent,
       child: Stack(
@@ -239,11 +245,11 @@ class _FilterOverlay extends StatelessWidget {
               child: Container(color: Colors.black54),
             ),
           ),
-          // Content centered
+          // Content centered horizontally
           Positioned(
             top: 80,
-            left: 16,
-            right: 16,
+            left: (screenWidth - dropdownWidth) / 2,
+            width: dropdownWidth,
             child: child,
           ),
         ],
