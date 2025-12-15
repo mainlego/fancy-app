@@ -181,6 +181,10 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     // Create non-nullable local variable for use in callbacks
     final currentChat = chat;
 
+    // Get fresh online status for participant
+    final onlineStatusAsync = ref.watch(userOnlineStatusProvider(currentChat.participantId));
+    final isParticipantOnline = onlineStatusAsync.valueOrNull ?? currentChat.participantOnline;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -193,7 +197,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                 imageUrl: currentChat.participantAvatarUrl,
                 name: currentChat.participantName,
                 size: AvatarSize.small,
-                isOnline: currentChat.participantOnline,
+                isOnline: isParticipantOnline,
               ),
               AppSpacing.hGapMd,
               Expanded(
@@ -214,9 +218,9 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                       )
                     else
                       Text(
-                        currentChat.participantOnline ? 'Online' : 'Offline',
+                        isParticipantOnline ? 'Online' : 'Offline',
                         style: AppTypography.labelSmall.copyWith(
-                          color: currentChat.participantOnline
+                          color: isParticipantOnline
                               ? AppColors.online
                               : AppColors.textTertiary,
                         ),

@@ -11,6 +11,19 @@ enum ChatsTab { chats, likes, favs }
 /// Current tab provider
 final chatsTabProvider = StateProvider<ChatsTab>((ref) => ChatsTab.chats);
 
+/// Provider for user's online status (fetches fresh from DB)
+final userOnlineStatusProvider = FutureProvider.family<bool, String>((ref, userId) async {
+  final supabase = ref.watch(supabaseServiceProvider);
+
+  try {
+    final profile = await supabase.getProfile(userId);
+    return profile?['is_online'] as bool? ?? false;
+  } catch (e) {
+    print('Error getting user online status: $e');
+    return false;
+  }
+});
+
 /// Chats from Supabase
 final chatsProvider = FutureProvider<List<ChatModel>>((ref) async {
   final supabase = ref.watch(supabaseServiceProvider);
