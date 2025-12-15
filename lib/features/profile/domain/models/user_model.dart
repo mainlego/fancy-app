@@ -251,9 +251,16 @@ class UserModel extends Equatable {
   factory UserModel.fromSupabase(Map<String, dynamic> json) {
     // Calculate age from birth_date
     int age = 0;
-    if (json['birth_date'] != null) {
-      final birthDate = DateTime.parse(json['birth_date'] as String);
-      age = DateTime.now().difference(birthDate).inDays ~/ 365;
+    final birthDateRaw = json['birth_date'];
+    print('DEBUG fromSupabase: name=${json['name']}, birth_date raw=$birthDateRaw (${birthDateRaw?.runtimeType})');
+    if (birthDateRaw != null) {
+      try {
+        final birthDate = DateTime.parse(birthDateRaw as String);
+        age = DateTime.now().difference(birthDate).inDays ~/ 365;
+        print('DEBUG fromSupabase: parsed birthDate=$birthDate, calculated age=$age');
+      } catch (e) {
+        print('DEBUG fromSupabase: ERROR parsing birth_date: $e');
+      }
     }
 
     return UserModel(
