@@ -15,18 +15,19 @@ import 'features/chats/domain/models/chat_model.dart';
 import 'shared/widgets/pwa_update_dialog.dart';
 
 Future<void> main() async {
-  // Run everything in the same zone to avoid zone mismatch
+  // Initialize binding BEFORE runZonedGuarded to avoid zone mismatch
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Set up Flutter error handling
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    debugPrint('🔴 Flutter Error: ${details.exception}');
+    debugPrint('🔴 Stack: ${details.stack}');
+  };
+
+  // Use runZonedGuarded only for catching async errors
   runZonedGuarded(
     () async {
-      WidgetsFlutterBinding.ensureInitialized();
-
-      // Set up error handling
-      FlutterError.onError = (details) {
-        FlutterError.presentError(details);
-        debugPrint('🔴 Flutter Error: ${details.exception}');
-        debugPrint('🔴 Stack: ${details.stack}');
-      };
-
       // Initialize Supabase
       await Supabase.initialize(
         url: SupabaseConfig.url,
