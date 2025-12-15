@@ -15,56 +15,56 @@ import 'features/chats/domain/models/chat_model.dart';
 import 'shared/widgets/pwa_update_dialog.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // Set up error handling
-  FlutterError.onError = (details) {
-    FlutterError.presentError(details);
-    debugPrint('🔴 Flutter Error: ${details.exception}');
-    debugPrint('🔴 Stack: ${details.stack}');
-  };
-
-  // Initialize Supabase
-  await Supabase.initialize(
-    url: SupabaseConfig.url,
-    anonKey: SupabaseConfig.anonKey,
-  );
-
-  // Set current user ID for MessageModel
-  MessageModel.currentUserId = Supabase.instance.client.auth.currentUser?.id;
-
-  // Listen for auth changes to update currentUserId
-  Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-    MessageModel.currentUserId = data.session?.user.id;
-  });
-
-  // Set system UI overlay style for dark theme
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      statusBarBrightness: Brightness.dark,
-      systemNavigationBarColor: Colors.black,
-      systemNavigationBarIconBrightness: Brightness.light,
-    ),
-  );
-
-  // Lock orientation to portrait for mobile-first experience
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-
-  // Initialize PWA services for web
-  if (kIsWeb) {
-    PwaUpdateService().init();
-    // Initialize notification service and request permission
-    await NotificationService().init();
-  }
-
-  // Run app with zone error handling
+  // Run everything in the same zone to avoid zone mismatch
   runZonedGuarded(
-    () {
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+
+      // Set up error handling
+      FlutterError.onError = (details) {
+        FlutterError.presentError(details);
+        debugPrint('🔴 Flutter Error: ${details.exception}');
+        debugPrint('🔴 Stack: ${details.stack}');
+      };
+
+      // Initialize Supabase
+      await Supabase.initialize(
+        url: SupabaseConfig.url,
+        anonKey: SupabaseConfig.anonKey,
+      );
+
+      // Set current user ID for MessageModel
+      MessageModel.currentUserId = Supabase.instance.client.auth.currentUser?.id;
+
+      // Listen for auth changes to update currentUserId
+      Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+        MessageModel.currentUserId = data.session?.user.id;
+      });
+
+      // Set system UI overlay style for dark theme
+      SystemChrome.setSystemUIOverlayStyle(
+        const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+          systemNavigationBarColor: Colors.black,
+          systemNavigationBarIconBrightness: Brightness.light,
+        ),
+      );
+
+      // Lock orientation to portrait for mobile-first experience
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+
+      // Initialize PWA services for web
+      if (kIsWeb) {
+        PwaUpdateService().init();
+        // Initialize notification service and request permission
+        await NotificationService().init();
+      }
+
       runApp(
         const ProviderScope(
           child: FancyApp(),

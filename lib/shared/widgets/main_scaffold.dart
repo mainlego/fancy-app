@@ -37,8 +37,8 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> with WidgetsBinding
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    // Set user offline when scaffold is disposed
-    _setOnlineStatus(false);
+    // Note: Don't call _setOnlineStatus here as ref is already disposed
+    // Online status will be set to false by app lifecycle events or session timeout
     super.dispose();
   }
 
@@ -70,6 +70,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> with WidgetsBinding
   }
 
   void _setOnlineStatus(bool isOnline) {
+    if (!mounted) return;
     final realtimeService = ref.read(realtimeServiceProvider);
     realtimeService.setOnlineStatus(isOnline);
   }
