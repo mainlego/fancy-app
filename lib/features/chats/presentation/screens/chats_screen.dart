@@ -7,7 +7,6 @@ import '../../../../core/router/app_router.dart';
 import '../../../../shared/widgets/widgets.dart';
 import '../../domain/models/chat_model.dart';
 import '../../domain/providers/chats_provider.dart';
-import '../../../ai_profiles/domain/services/ai_chat_service.dart';
 
 /// Chats screen with tabs (Chats, Likes, Favs)
 class ChatsScreen extends ConsumerWidget {
@@ -397,7 +396,7 @@ class _ChatListTile extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                chat.lastMessage?.text ?? 'No messages yet',
+                _getMessagePreview(chat),
                 style: AppTypography.bodySmall.copyWith(
                   color: chat.hasUnread
                       ? AppColors.textPrimary
@@ -445,6 +444,26 @@ class _ChatListTile extends StatelessWidget {
     if (diff.inDays < 1) return '${diff.inHours}h';
     if (diff.inDays < 7) return '${diff.inDays}d';
     return '${date.day}/${date.month}';
+  }
+
+  String _getMessagePreview(ChatModel chat) {
+    final message = chat.lastMessage;
+    if (message == null) return 'No messages yet';
+
+    switch (message.type) {
+      case MessageType.text:
+        return message.text ?? 'No messages yet';
+      case MessageType.image:
+        return '📷 Photo';
+      case MessageType.video:
+        return '🎬 Video';
+      case MessageType.voice:
+        return '🎤 Voice message';
+      case MessageType.gif:
+        return 'GIF';
+      case MessageType.sticker:
+        return 'Sticker';
+    }
   }
 }
 

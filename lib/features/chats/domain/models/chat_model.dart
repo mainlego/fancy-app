@@ -249,11 +249,16 @@ class ChatModel extends Equatable {
     final messages = json['messages'] as List<dynamic>?;
     if (messages != null && messages.isNotEmpty) {
       final lastMsgData = messages.first as Map<String, dynamic>;
+      final messageType = MessageType.values.byName(
+        lastMsgData['message_type'] as String? ?? 'text',
+      );
       lastMessage = MessageModel(
-        id: 'last',
+        id: lastMsgData['id'] as String? ?? 'last',
         chatId: json['id'] as String,
         senderId: lastMsgData['sender_id'] as String? ?? '',
         text: lastMsgData['content'] as String?,
+        type: messageType,
+        mediaUrl: lastMsgData['image_url'] as String?,
         createdAt: lastMsgData['created_at'] != null
             ? DateTime.parse(lastMsgData['created_at'] as String)
             : DateTime.now(),

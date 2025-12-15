@@ -335,9 +335,10 @@ class SupabaseService {
           .or('participant1_id.eq.$userId,participant2_id.eq.$userId')
           .order('updated_at', ascending: false);
 
-      // Load participant profiles separately
+      // Load participant profiles and last message separately
       final chats = List<Map<String, dynamic>>.from(response);
       for (var chat in chats) {
+        final chatId = chat['id'] as String;
         final participant1Id = chat['participant1_id'] as String?;
         final participant2Id = chat['participant2_id'] as String?;
 
@@ -349,6 +350,28 @@ class SupabaseService {
           final profile2 = await getProfile(participant2Id);
           chat['participant2'] = profile2;
         }
+
+        // Fetch last message for this chat
+        final lastMessageResponse = await _client
+            .from(SupabaseConfig.messagesTable)
+            .select()
+            .eq('chat_id', chatId)
+            .order('created_at', ascending: false)
+            .limit(1);
+
+        if ((lastMessageResponse as List).isNotEmpty) {
+          chat['messages'] = lastMessageResponse;
+        }
+
+        // Count unread messages (messages not from current user that are unread)
+        final unreadResponse = await _client
+            .from(SupabaseConfig.messagesTable)
+            .select('id')
+            .eq('chat_id', chatId)
+            .neq('sender_id', userId)
+            .eq('is_read', false);
+
+        chat['unread_count'] = (unreadResponse as List).length;
       }
 
       return chats;
@@ -804,13 +827,13 @@ class SupabaseService {
     if (userId == null) throw Exception('Not authenticated');
 
     final path = '$chatId/$userId/$fileName';
-    await _client.storage.from('chat_media').uploadBinary(
+    await _client.storage.from(SupabaseConfig.chatMediaBucket).uploadBinary(
       path,
       bytes,
       fileOptions: FileOptions(contentType: contentType, upsert: true),
     );
 
-    return _client.storage.from('chat_media').getPublicUrl(path);
+    return _client.storage.from(SupabaseConfig.chatMediaBucket).getPublicUrl(path);
   }
 
   // ===================

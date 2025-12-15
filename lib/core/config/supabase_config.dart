@@ -14,6 +14,7 @@ abstract class SupabaseConfig {
   static const String avatarsBucket = 'avatars';
   static const String photosBucket = 'photos';
   static const String albumsBucket = 'albums';
+  static const String chatMediaBucket = 'chat_media';
 
   /// Table names
   static const String usersTable = 'users';

@@ -3,10 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/router/app_router.dart';
+import '../../core/services/realtime_service.dart';
 import '../../features/chats/domain/providers/chats_provider.dart';
 
 /// Main scaffold with bottom navigation
-class MainScaffold extends ConsumerWidget {
+class MainScaffold extends ConsumerStatefulWidget {
   final Widget child;
 
   const MainScaffold({
@@ -15,11 +16,42 @@ class MainScaffold extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MainScaffold> createState() => _MainScaffoldState();
+}
+
+class _MainScaffoldState extends ConsumerState<MainScaffold> {
+  @override
+  void initState() {
+    super.initState();
+    // Initialize realtime service for message notifications
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _setupRealtimeListeners();
+    });
+  }
+
+  void _setupRealtimeListeners() {
+    final realtimeService = ref.read(realtimeServiceProvider);
+
+    // Listen for new messages and refresh chats list
+    realtimeService.onNewMessage = (message) {
+      // Refresh chats to update unread count and last message preview
+      ref.read(chatsNotifierProvider.notifier).refresh();
+    };
+
+    // Listen for new matches and refresh chats list
+    realtimeService.onNewMatch = (match) {
+      ref.read(chatsNotifierProvider.notifier).refresh();
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Watch realtime service to keep it alive
+    ref.watch(realtimeServiceProvider);
     final unreadCount = ref.watch(unreadChatsCountProvider);
 
     return Scaffold(
-      body: child,
+      body: widget.child,
       bottomNavigationBar: _BottomNavBar(
         unreadCount: unreadCount,
       ),
