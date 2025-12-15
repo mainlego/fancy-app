@@ -21,6 +21,11 @@ class MessageModel extends Equatable {
   final int? mediaDurationMs;
   final bool isRead;
   final DateTime createdAt;
+  // Private media fields for timed/one-time viewing
+  final bool isPrivateMedia; // Is this from private album
+  final int? viewDurationSec; // How long can be viewed (null = unlimited)
+  final bool oneTimeView; // One-time view only
+  final bool hasBeenViewed; // For one-time tracking
 
   const MessageModel({
     required this.id,
@@ -32,6 +37,10 @@ class MessageModel extends Equatable {
     this.mediaDurationMs,
     this.isRead = false,
     required this.createdAt,
+    this.isPrivateMedia = false,
+    this.viewDurationSec,
+    this.oneTimeView = false,
+    this.hasBeenViewed = false,
   });
 
   bool get isMediaMessage =>
@@ -48,6 +57,12 @@ class MessageModel extends Equatable {
   static String? currentUserId;
   bool get isMe => senderId == currentUserId;
 
+  /// Check if media has view restrictions
+  bool get hasViewRestrictions => isPrivateMedia && (viewDurationSec != null || oneTimeView);
+
+  /// Check if media can still be viewed (not a one-time that was already viewed)
+  bool get canBeViewed => !oneTimeView || !hasBeenViewed;
+
   MessageModel copyWith({
     String? id,
     String? chatId,
@@ -58,6 +73,10 @@ class MessageModel extends Equatable {
     int? mediaDurationMs,
     bool? isRead,
     DateTime? createdAt,
+    bool? isPrivateMedia,
+    int? viewDurationSec,
+    bool? oneTimeView,
+    bool? hasBeenViewed,
   }) {
     return MessageModel(
       id: id ?? this.id,
@@ -69,6 +88,10 @@ class MessageModel extends Equatable {
       mediaDurationMs: mediaDurationMs ?? this.mediaDurationMs,
       isRead: isRead ?? this.isRead,
       createdAt: createdAt ?? this.createdAt,
+      isPrivateMedia: isPrivateMedia ?? this.isPrivateMedia,
+      viewDurationSec: viewDurationSec ?? this.viewDurationSec,
+      oneTimeView: oneTimeView ?? this.oneTimeView,
+      hasBeenViewed: hasBeenViewed ?? this.hasBeenViewed,
     );
   }
 
@@ -83,6 +106,10 @@ class MessageModel extends Equatable {
       mediaDurationMs: json['mediaDurationMs'] as int?,
       isRead: json['isRead'] as bool? ?? false,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      isPrivateMedia: json['isPrivateMedia'] as bool? ?? false,
+      viewDurationSec: json['viewDurationSec'] as int?,
+      oneTimeView: json['oneTimeView'] as bool? ?? false,
+      hasBeenViewed: json['hasBeenViewed'] as bool? ?? false,
     );
   }
 
@@ -100,6 +127,10 @@ class MessageModel extends Equatable {
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : DateTime.now(),
+      isPrivateMedia: json['is_private_media'] as bool? ?? false,
+      viewDurationSec: json['view_duration_sec'] as int?,
+      oneTimeView: json['one_time_view'] as bool? ?? false,
+      hasBeenViewed: json['has_been_viewed'] as bool? ?? false,
     );
   }
 
@@ -114,6 +145,10 @@ class MessageModel extends Equatable {
       'mediaDurationMs': mediaDurationMs,
       'isRead': isRead,
       'createdAt': createdAt.toIso8601String(),
+      'isPrivateMedia': isPrivateMedia,
+      'viewDurationSec': viewDurationSec,
+      'oneTimeView': oneTimeView,
+      'hasBeenViewed': hasBeenViewed,
     };
   }
 
@@ -127,6 +162,10 @@ class MessageModel extends Equatable {
       'image_url': mediaUrl,
       'media_duration_ms': mediaDurationMs,
       'is_read': isRead,
+      'is_private_media': isPrivateMedia,
+      'view_duration_sec': viewDurationSec,
+      'one_time_view': oneTimeView,
+      'has_been_viewed': hasBeenViewed,
     };
   }
 
@@ -141,6 +180,10 @@ class MessageModel extends Equatable {
         mediaDurationMs,
         isRead,
         createdAt,
+        isPrivateMedia,
+        viewDurationSec,
+        oneTimeView,
+        hasBeenViewed,
       ];
 }
 

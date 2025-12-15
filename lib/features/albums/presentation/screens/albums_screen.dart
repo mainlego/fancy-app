@@ -1,84 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../shared/widgets/widgets.dart';
 import '../../domain/models/album_model.dart';
-
-/// Mock albums provider
-final mockAlbumsProvider = Provider<List<AlbumModel>>((ref) {
-  final now = DateTime.now();
-  return [
-    AlbumModel(
-      id: 'album1',
-      userId: 'me',
-      name: 'Public Photos',
-      privacy: AlbumPrivacy.public,
-      media: [
-        MediaModel(
-          id: 'm1',
-          albumId: 'album1',
-          type: MediaType.photo,
-          url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
-          createdAt: now.subtract(const Duration(days: 10)),
-        ),
-        MediaModel(
-          id: 'm2',
-          albumId: 'album1',
-          type: MediaType.photo,
-          url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400',
-          createdAt: now.subtract(const Duration(days: 8)),
-        ),
-        MediaModel(
-          id: 'm3',
-          albumId: 'album1',
-          type: MediaType.video,
-          url: 'https://example.com/video.mp4',
-          thumbnailUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400',
-          durationMs: 15000,
-          createdAt: now.subtract(const Duration(days: 5)),
-        ),
-      ],
-      createdAt: now.subtract(const Duration(days: 30)),
-      updatedAt: now.subtract(const Duration(days: 5)),
-    ),
-    AlbumModel(
-      id: 'album2',
-      userId: 'me',
-      name: 'Private',
-      privacy: AlbumPrivacy.private,
-      media: [
-        MediaModel(
-          id: 'm4',
-          albumId: 'album2',
-          type: MediaType.photo,
-          url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
-          createdAt: now.subtract(const Duration(days: 3)),
-        ),
-      ],
-      createdAt: now.subtract(const Duration(days: 20)),
-      updatedAt: now.subtract(const Duration(days: 3)),
-    ),
-  ];
-});
+import '../../domain/providers/albums_provider.dart';
 
 /// Current album tab
-enum AlbumTab { public, private }
+enum AlbumTab { public, private, requests }
 
 final albumTabProvider = StateProvider<AlbumTab>((ref) => AlbumTab.public);
 
 /// Albums screen
-class AlbumsScreen extends ConsumerWidget {
+class AlbumsScreen extends ConsumerStatefulWidget {
   const AlbumsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final albums = ref.watch(mockAlbumsProvider);
-    final currentTab = ref.watch(albumTabProvider);
+  ConsumerState<AlbumsScreen> createState() => _AlbumsScreenState();
+}
 
-    final publicAlbums = albums.where((a) => !a.isPrivate).toList();
-    final privateAlbums = albums.where((a) => a.isPrivate).toList();
+class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
+  bool _isUploading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final defaultAlbumsAsync = ref.watch(defaultAlbumsProvider);
+    final currentTab = ref.watch(albumTabProvider);
+    final accessRequestsAsync = ref.watch(accessRequestsNotifierProvider);
+    final pendingCount = ref.watch(pendingAccessRequestsCountProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -87,27 +39,51 @@ class AlbumsScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => _showAddMediaDialog(context),
+            onPressed: _isUploading ? null : () => _showAddMediaDialog(context),
           ),
         ],
       ),
       body: Column(
         children: [
           // Tab bar
-          _buildTabBar(ref, currentTab),
+          _buildTabBar(ref, currentTab, pendingCount),
 
           // Content
           Expanded(
-            child: currentTab == AlbumTab.public
-                ? _buildAlbumGrid(context, publicAlbums)
-                : _buildPrivateContent(context, privateAlbums),
+            child: defaultAlbumsAsync.when(
+              data: (albums) {
+                if (currentTab == AlbumTab.public) {
+                  return _buildAlbumGrid(context, albums['public']!);
+                } else if (currentTab == AlbumTab.private) {
+                  return _buildPrivateContent(context, albums['private']!);
+                } else {
+                  return _buildRequestsTab(accessRequestsAsync);
+                }
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, st) => Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+                    AppSpacing.vGapMd,
+                    Text('Failed to load albums', style: AppTypography.bodyMedium),
+                    AppSpacing.vGapSm,
+                    TextButton(
+                      onPressed: () => ref.invalidate(defaultAlbumsProvider),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTabBar(WidgetRef ref, AlbumTab currentTab) {
+  Widget _buildTabBar(WidgetRef ref, AlbumTab currentTab, int pendingCount) {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Row(
@@ -119,7 +95,7 @@ class AlbumsScreen extends ConsumerWidget {
               onTap: () => ref.read(albumTabProvider.notifier).state = AlbumTab.public,
             ),
           ),
-          AppSpacing.hGapMd,
+          AppSpacing.hGapSm,
           Expanded(
             child: _TabButton(
               label: 'Private',
@@ -127,22 +103,30 @@ class AlbumsScreen extends ConsumerWidget {
               onTap: () => ref.read(albumTabProvider.notifier).state = AlbumTab.private,
             ),
           ),
+          AppSpacing.hGapSm,
+          Expanded(
+            child: _TabButton(
+              label: 'Requests',
+              isSelected: currentTab == AlbumTab.requests,
+              badge: pendingCount > 0 ? pendingCount : null,
+              onTap: () => ref.read(albumTabProvider.notifier).state = AlbumTab.requests,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildAlbumGrid(BuildContext context, List<AlbumModel> albums) {
-    if (albums.isEmpty) {
+  Widget _buildAlbumGrid(BuildContext context, AlbumModel album) {
+    final media = album.media;
+
+    if (media.isEmpty) {
       return _buildEmptyState(
         icon: Icons.photo_library_outlined,
         title: 'No public media',
         subtitle: 'Add photos and videos to share with others',
       );
     }
-
-    // Flatten all media from albums
-    final allMedia = albums.expand((a) => a.media).toList();
 
     return GridView.builder(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -151,21 +135,23 @@ class AlbumsScreen extends ConsumerWidget {
         crossAxisSpacing: AppSpacing.sm,
         mainAxisSpacing: AppSpacing.sm,
       ),
-      itemCount: allMedia.length + 1, // +1 for add button
+      itemCount: media.length + 1,
       itemBuilder: (context, index) {
         if (index == 0) {
-          return _buildAddMediaTile(context);
+          return _buildAddMediaTile(context, isPrivate: false);
         }
         return _MediaTile(
-          media: allMedia[index - 1],
-          onTap: () => _showMediaViewer(context, allMedia[index - 1]),
-          onLongPress: () => _showMediaOptions(context, allMedia[index - 1]),
+          media: media[index - 1],
+          onTap: () => _showMediaViewer(context, media[index - 1]),
+          onLongPress: () => _showMediaOptions(context, album.id, media[index - 1]),
         );
       },
     );
   }
 
-  Widget _buildPrivateContent(BuildContext context, List<AlbumModel> albums) {
+  Widget _buildPrivateContent(BuildContext context, AlbumModel album) {
+    final media = album.media;
+
     return Column(
       children: [
         // Private info card
@@ -189,7 +175,7 @@ class AlbumsScreen extends ConsumerWidget {
                         style: AppTypography.titleSmall,
                       ),
                       Text(
-                        'Only you can see these. Not even developers can access them.',
+                        'Only visible to users you approve. Send with timed viewing in chat.',
                         style: AppTypography.bodySmall,
                       ),
                     ],
@@ -203,7 +189,7 @@ class AlbumsScreen extends ConsumerWidget {
 
         // Private media grid
         Expanded(
-          child: albums.isEmpty || albums.first.media.isEmpty
+          child: media.isEmpty
               ? _buildEmptyState(
                   icon: Icons.lock_outline,
                   title: 'No private media',
@@ -216,15 +202,16 @@ class AlbumsScreen extends ConsumerWidget {
                     crossAxisSpacing: AppSpacing.sm,
                     mainAxisSpacing: AppSpacing.sm,
                   ),
-                  itemCount: albums.first.media.length + 1,
+                  itemCount: media.length + 1,
                   itemBuilder: (context, index) {
                     if (index == 0) {
-                      return _buildAddMediaTile(context);
+                      return _buildAddMediaTile(context, isPrivate: true);
                     }
                     return _MediaTile(
-                      media: albums.first.media[index - 1],
-                      onTap: () => _showMediaViewer(context, albums.first.media[index - 1]),
-                      onLongPress: () => _showMediaOptions(context, albums.first.media[index - 1]),
+                      media: media[index - 1],
+                      onTap: () => _showMediaViewer(context, media[index - 1]),
+                      onLongPress: () => _showMediaOptions(context, album.id, media[index - 1]),
+                      showPrivateIndicator: true,
                     );
                   },
                 ),
@@ -233,9 +220,50 @@ class AlbumsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildAddMediaTile(BuildContext context) {
+  Widget _buildRequestsTab(AsyncValue<List<dynamic>> requestsAsync) {
+    return requestsAsync.when(
+      data: (requests) {
+        if (requests.isEmpty) {
+          return _buildEmptyState(
+            icon: Icons.inbox_outlined,
+            title: 'No access requests',
+            subtitle: 'When someone requests access to your private album, it will appear here',
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          itemCount: requests.length,
+          itemBuilder: (context, index) {
+            final request = requests[index];
+            return _AccessRequestTile(
+              requesterName: request.requesterName ?? 'Unknown',
+              requesterAvatarUrl: request.requesterAvatarUrl,
+              albumName: request.albumName ?? 'Private',
+              createdAt: request.createdAt,
+              onApprove: () => _handleRequestResponse(request.id, true),
+              onDeny: () => _handleRequestResponse(request.id, false),
+            );
+          },
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, st) => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+            AppSpacing.vGapMd,
+            Text('Failed to load requests', style: AppTypography.bodyMedium),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAddMediaTile(BuildContext context, {required bool isPrivate}) {
     return GestureDetector(
-      onTap: () => _showAddMediaDialog(context),
+      onTap: _isUploading ? null : () => _showAddMediaDialog(context, isPrivate: isPrivate),
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.surfaceVariant,
@@ -245,12 +273,18 @@ class AlbumsScreen extends ConsumerWidget {
             style: BorderStyle.solid,
           ),
         ),
-        child: const Center(
-          child: Icon(
-            Icons.add,
-            color: AppColors.textTertiary,
-            size: 32,
-          ),
+        child: Center(
+          child: _isUploading
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Icon(
+                  isPrivate ? Icons.add_photo_alternate : Icons.add,
+                  color: AppColors.textTertiary,
+                  size: 32,
+                ),
         ),
       ),
     );
@@ -278,19 +312,25 @@ class AlbumsScreen extends ConsumerWidget {
             ),
           ),
           AppSpacing.vGapSm,
-          Text(
-            subtitle,
-            style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textTertiary,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+            child: Text(
+              subtitle,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textTertiary,
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
           ),
         ],
       ),
     );
   }
 
-  void _showAddMediaDialog(BuildContext context) {
+  void _showAddMediaDialog(BuildContext context, {bool? isPrivate}) {
+    final currentTab = ref.read(albumTabProvider);
+    final isPrivateUpload = isPrivate ?? (currentTab == AlbumTab.private);
+
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface,
@@ -312,20 +352,30 @@ class AlbumsScreen extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            ListTile(
-              leading: const Icon(Icons.photo, color: AppColors.primary),
-              title: const Text('Add photo'),
-              onTap: () {
-                Navigator.pop(context);
-                // Handle add photo
-              },
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+              child: Row(
+                children: [
+                  Icon(
+                    isPrivateUpload ? Icons.lock : Icons.public,
+                    color: isPrivateUpload ? AppColors.warning : AppColors.success,
+                    size: 20,
+                  ),
+                  AppSpacing.hGapSm,
+                  Text(
+                    isPrivateUpload ? 'Adding to Private Album' : 'Adding to Public Album',
+                    style: AppTypography.titleSmall,
+                  ),
+                ],
+              ),
             ),
+            AppSpacing.vGapMd,
             ListTile(
-              leading: const Icon(Icons.videocam, color: AppColors.info),
-              title: const Text('Add video'),
+              leading: const Icon(Icons.photo_library, color: AppColors.primary),
+              title: const Text('Choose from gallery'),
               onTap: () {
                 Navigator.pop(context);
-                // Handle add video
+                _pickAndUploadPhoto(ImageSource.gallery, isPrivateUpload);
               },
             ),
             ListTile(
@@ -333,7 +383,7 @@ class AlbumsScreen extends ConsumerWidget {
               title: const Text('Take photo'),
               onTap: () {
                 Navigator.pop(context);
-                // Handle take photo
+                _pickAndUploadPhoto(ImageSource.camera, isPrivateUpload);
               },
             ),
             AppSpacing.vGapLg,
@@ -341,6 +391,61 @@ class AlbumsScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _pickAndUploadPhoto(ImageSource source, bool isPrivate) async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(
+      source: source,
+      maxWidth: 1920,
+      maxHeight: 1920,
+      imageQuality: 85,
+    );
+
+    if (image == null) return;
+
+    setState(() => _isUploading = true);
+
+    try {
+      final bytes = await image.readAsBytes();
+      final fileName = image.name;
+
+      // Get the appropriate album
+      final defaultAlbums = await ref.read(defaultAlbumsProvider.future);
+      final album = isPrivate ? defaultAlbums['private']! : defaultAlbums['public']!;
+
+      await ref.read(albumsNotifierProvider.notifier).uploadPhoto(
+        albumId: album.id,
+        fileName: fileName,
+        bytes: bytes,
+        isPrivate: isPrivate,
+      );
+
+      // Refresh the albums
+      ref.invalidate(defaultAlbumsProvider);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Photo added to ${isPrivate ? "private" : "public"} album'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to upload: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploading = false);
+      }
+    }
   }
 
   void _showMediaViewer(BuildContext context, MediaModel media) {
@@ -352,7 +457,7 @@ class AlbumsScreen extends ConsumerWidget {
     );
   }
 
-  void _showMediaOptions(BuildContext context, MediaModel media) {
+  void _showMediaOptions(BuildContext context, String albumId, MediaModel media) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface,
@@ -375,18 +480,11 @@ class AlbumsScreen extends ConsumerWidget {
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.edit, color: AppColors.textSecondary),
-              title: const Text('Edit'),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
               leading: const Icon(Icons.delete, color: AppColors.error),
               title: const Text('Delete'),
               onTap: () {
                 Navigator.pop(context);
-                // Handle delete
+                _confirmDelete(context, albumId, media);
               },
             ),
             AppSpacing.vGapLg,
@@ -395,16 +493,89 @@ class AlbumsScreen extends ConsumerWidget {
       ),
     );
   }
+
+  void _confirmDelete(BuildContext context, String albumId, MediaModel media) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Delete Photo'),
+        content: const Text('Are you sure you want to delete this photo?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await ref.read(albumsNotifierProvider.notifier).deletePhoto(
+                  albumId,
+                  media.id,
+                  media.url,
+                );
+                ref.invalidate(defaultAlbumsProvider);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Photo deleted'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to delete: $e'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleRequestResponse(String requestId, bool approve) async {
+    try {
+      await ref.read(accessRequestsNotifierProvider.notifier).respondToRequest(requestId, approve);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(approve ? 'Access granted' : 'Access denied'),
+            backgroundColor: approve ? AppColors.success : AppColors.textSecondary,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
 }
 
 class _TabButton extends StatelessWidget {
   final String label;
   final bool isSelected;
+  final int? badge;
   final VoidCallback onTap;
 
   const _TabButton({
     required this.label,
     required this.isSelected,
+    this.badge,
     required this.onTap,
   });
 
@@ -419,11 +590,34 @@ class _TabButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
         ),
         child: Center(
-          child: Text(
-            label,
-            style: AppTypography.labelLarge.copyWith(
-              color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                label,
+                style: AppTypography.labelLarge.copyWith(
+                  color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+                ),
+              ),
+              if (badge != null) ...[
+                const SizedBox(width: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.error,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    badge.toString(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),
@@ -435,11 +629,13 @@ class _MediaTile extends StatelessWidget {
   final MediaModel media;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+  final bool showPrivateIndicator;
 
   const _MediaTile({
     required this.media,
     required this.onTap,
     required this.onLongPress,
+    this.showPrivateIndicator = false,
   });
 
   @override
@@ -456,10 +652,13 @@ class _MediaTile extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Image.network(
-              media.displayUrl,
+            CachedNetworkImage(
+              imageUrl: media.displayUrl,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stack) => const Center(
+              placeholder: (context, url) => const Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              errorWidget: (context, url, error) => const Center(
                 child: Icon(
                   Icons.broken_image,
                   color: AppColors.textTertiary,
@@ -501,6 +700,23 @@ class _MediaTile extends StatelessWidget {
                   ),
                 ),
               ),
+            if (showPrivateIndicator || media.isPrivate)
+              Positioned(
+                top: 4,
+                left: 4,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: AppColors.overlay,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Icon(
+                    Icons.lock,
+                    color: AppColors.warning,
+                    size: 12,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -512,6 +728,92 @@ class _MediaTile extends StatelessWidget {
     final minutes = seconds ~/ 60;
     final remainingSeconds = seconds % 60;
     return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
+  }
+}
+
+class _AccessRequestTile extends StatelessWidget {
+  final String requesterName;
+  final String? requesterAvatarUrl;
+  final String albumName;
+  final DateTime createdAt;
+  final VoidCallback onApprove;
+  final VoidCallback onDeny;
+
+  const _AccessRequestTile({
+    required this.requesterName,
+    this.requesterAvatarUrl,
+    required this.albumName,
+    required this.createdAt,
+    required this.onApprove,
+    required this.onDeny,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FancyCard(
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundImage: requesterAvatarUrl != null
+                    ? CachedNetworkImageProvider(requesterAvatarUrl!)
+                    : null,
+                child: requesterAvatarUrl == null
+                    ? const Icon(Icons.person, color: AppColors.textTertiary)
+                    : null,
+              ),
+              AppSpacing.hGapMd,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      requesterName,
+                      style: AppTypography.titleMedium,
+                    ),
+                    Text(
+                      'Wants to view your $albumName album',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          AppSpacing.vGapMd,
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: onDeny,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.error,
+                    side: const BorderSide(color: AppColors.error),
+                  ),
+                  child: const Text('Deny'),
+                ),
+              ),
+              AppSpacing.hGapMd,
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: onApprove,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                  ),
+                  child: const Text('Approve'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -530,9 +832,15 @@ class _MediaViewerScreen extends StatelessWidget {
       ),
       body: Center(
         child: InteractiveViewer(
-          child: Image.network(
-            media.url,
+          child: CachedNetworkImage(
+            imageUrl: media.url,
             fit: BoxFit.contain,
+            placeholder: (context, url) => const CircularProgressIndicator(),
+            errorWidget: (context, url, error) => const Icon(
+              Icons.error,
+              color: Colors.white,
+              size: 48,
+            ),
           ),
         ),
       ),

@@ -23,6 +23,10 @@ class MediaModel extends Equatable {
   final int? width;
   final int? height;
   final DateTime createdAt;
+  // Privacy fields for timed viewing
+  final bool isPrivate;
+  final int? viewDurationSec; // For timed viewing (null = unlimited)
+  final bool oneTimeView; // Can only be viewed once
 
   const MediaModel({
     required this.id,
@@ -34,10 +38,14 @@ class MediaModel extends Equatable {
     this.width,
     this.height,
     required this.createdAt,
+    this.isPrivate = false,
+    this.viewDurationSec,
+    this.oneTimeView = false,
   });
 
   bool get isVideo => type == MediaType.video;
   bool get isPhoto => type == MediaType.photo;
+  bool get hasViewRestrictions => isPrivate && (viewDurationSec != null || oneTimeView);
 
   String get displayUrl => thumbnailUrl ?? url;
 
@@ -51,6 +59,9 @@ class MediaModel extends Equatable {
     int? width,
     int? height,
     DateTime? createdAt,
+    bool? isPrivate,
+    int? viewDurationSec,
+    bool? oneTimeView,
   }) {
     return MediaModel(
       id: id ?? this.id,
@@ -62,20 +73,46 @@ class MediaModel extends Equatable {
       width: width ?? this.width,
       height: height ?? this.height,
       createdAt: createdAt ?? this.createdAt,
+      isPrivate: isPrivate ?? this.isPrivate,
+      viewDurationSec: viewDurationSec ?? this.viewDurationSec,
+      oneTimeView: oneTimeView ?? this.oneTimeView,
     );
   }
 
   factory MediaModel.fromJson(Map<String, dynamic> json) {
     return MediaModel(
       id: json['id'] as String,
-      albumId: json['albumId'] as String,
-      type: MediaType.values.byName(json['type'] as String),
+      albumId: json['albumId'] as String? ?? json['album_id'] as String,
+      type: MediaType.values.byName(json['type'] as String? ?? 'photo'),
       url: json['url'] as String,
-      thumbnailUrl: json['thumbnailUrl'] as String?,
-      durationMs: json['durationMs'] as int?,
+      thumbnailUrl: json['thumbnailUrl'] as String? ?? json['thumbnail_url'] as String?,
+      durationMs: json['durationMs'] as int? ?? json['duration_ms'] as int?,
       width: json['width'] as int?,
       height: json['height'] as int?,
-      createdAt: DateTime.parse(json['createdAt'] as String),
+      createdAt: DateTime.parse(json['createdAt'] as String? ?? json['created_at'] as String),
+      isPrivate: json['isPrivate'] as bool? ?? json['is_private'] as bool? ?? false,
+      viewDurationSec: json['viewDurationSec'] as int? ?? json['view_duration_sec'] as int?,
+      oneTimeView: json['oneTimeView'] as bool? ?? json['one_time_view'] as bool? ?? false,
+    );
+  }
+
+  /// From Supabase JSON (snake_case format)
+  factory MediaModel.fromSupabase(Map<String, dynamic> json) {
+    return MediaModel(
+      id: json['id'] as String,
+      albumId: json['album_id'] as String,
+      type: MediaType.values.byName(json['type'] as String? ?? 'photo'),
+      url: json['url'] as String,
+      thumbnailUrl: json['thumbnail_url'] as String?,
+      durationMs: json['duration_ms'] as int?,
+      width: json['width'] as int?,
+      height: json['height'] as int?,
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : DateTime.now(),
+      isPrivate: json['is_private'] as bool? ?? false,
+      viewDurationSec: json['view_duration_sec'] as int?,
+      oneTimeView: json['one_time_view'] as bool? ?? false,
     );
   }
 
@@ -90,6 +127,25 @@ class MediaModel extends Equatable {
       'width': width,
       'height': height,
       'createdAt': createdAt.toIso8601String(),
+      'isPrivate': isPrivate,
+      'viewDurationSec': viewDurationSec,
+      'oneTimeView': oneTimeView,
+    };
+  }
+
+  /// To Supabase JSON (snake_case format)
+  Map<String, dynamic> toSupabase() {
+    return {
+      'album_id': albumId,
+      'type': type.name,
+      'url': url,
+      'thumbnail_url': thumbnailUrl,
+      'duration_ms': durationMs,
+      'width': width,
+      'height': height,
+      'is_private': isPrivate,
+      'view_duration_sec': viewDurationSec,
+      'one_time_view': oneTimeView,
     };
   }
 
@@ -104,6 +160,9 @@ class MediaModel extends Equatable {
         width,
         height,
         createdAt,
+        isPrivate,
+        viewDurationSec,
+        oneTimeView,
       ];
 }
 
@@ -162,16 +221,41 @@ class AlbumModel extends Equatable {
   factory AlbumModel.fromJson(Map<String, dynamic> json) {
     return AlbumModel(
       id: json['id'] as String,
-      userId: json['userId'] as String,
+      userId: json['userId'] as String? ?? json['user_id'] as String,
       name: json['name'] as String,
       privacy: AlbumPrivacy.values.byName(json['privacy'] as String? ?? 'public'),
       media: (json['media'] as List<dynamic>?)
               ?.map((e) => MediaModel.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
-      coverUrl: json['coverUrl'] as String?,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      coverUrl: json['coverUrl'] as String? ?? json['cover_url'] as String?,
+      createdAt: DateTime.parse(json['createdAt'] as String? ?? json['created_at'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String? ?? json['updated_at'] as String),
+    );
+  }
+
+  /// From Supabase JSON (snake_case format)
+  factory AlbumModel.fromSupabase(Map<String, dynamic> json) {
+    // Parse media from album_photos relation
+    final photosData = json['album_photos'] as List<dynamic>?;
+    final media = photosData
+            ?.map((e) => MediaModel.fromSupabase(e as Map<String, dynamic>))
+            .toList() ??
+        [];
+
+    return AlbumModel(
+      id: json['id'] as String,
+      userId: json['user_id'] as String,
+      name: json['name'] as String,
+      privacy: AlbumPrivacy.values.byName(json['privacy'] as String? ?? 'public'),
+      media: media,
+      coverUrl: json['cover_url'] as String?,
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : DateTime.now(),
+      updatedAt: json['updated_at'] != null
+          ? DateTime.parse(json['updated_at'] as String)
+          : DateTime.now(),
     );
   }
 
@@ -185,6 +269,16 @@ class AlbumModel extends Equatable {
       'coverUrl': coverUrl,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
+    };
+  }
+
+  /// To Supabase JSON (snake_case format)
+  Map<String, dynamic> toSupabase() {
+    return {
+      'user_id': userId,
+      'name': name,
+      'privacy': privacy.name,
+      'cover_url': coverUrl,
     };
   }
 

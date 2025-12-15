@@ -1212,6 +1212,379 @@ class SupabaseService {
 
     return List<Map<String, dynamic>>.from(response);
   }
+
+  // ===================
+  // ALBUMS OPERATIONS
+  // ===================
+
+  /// Get current user's albums with photos
+  Future<List<Map<String, dynamic>>> getMyAlbums() async {
+    final userId = currentUser?.id;
+    if (userId == null) return [];
+
+    final response = await _client
+        .from(SupabaseConfig.albumsTable)
+        .select('*, ${SupabaseConfig.albumPhotosTable}(*)')
+        .eq('user_id', userId)
+        .order('created_at', ascending: false);
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Get user's albums (for viewing other profiles)
+  Future<List<Map<String, dynamic>>> getUserAlbums(String userId, {bool onlyPublic = false}) async {
+    var query = _client
+        .from(SupabaseConfig.albumsTable)
+        .select('*, ${SupabaseConfig.albumPhotosTable}(*)')
+        .eq('user_id', userId);
+
+    if (onlyPublic) {
+      query = query.eq('privacy', 'public');
+    }
+
+    final response = await query.order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Create a new album
+  Future<Map<String, dynamic>> createAlbum({
+    required String name,
+    required String privacy, // 'public' or 'private'
+  }) async {
+    final userId = currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+
+    final response = await _client.from(SupabaseConfig.albumsTable).insert({
+      'user_id': userId,
+      'name': name,
+      'privacy': privacy,
+      'created_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
+    }).select().single();
+
+    return response;
+  }
+
+  /// Update album
+  Future<void> updateAlbum(String albumId, Map<String, dynamic> updates) async {
+    await _client
+        .from(SupabaseConfig.albumsTable)
+        .update({
+          ...updates,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', albumId);
+  }
+
+  /// Delete album and all its photos
+  Future<void> deleteAlbum(String albumId) async {
+    // First get all photos to delete from storage
+    final photos = await _client
+        .from(SupabaseConfig.albumPhotosTable)
+        .select('url')
+        .eq('album_id', albumId);
+
+    // Delete photos from storage
+    for (final photo in photos as List) {
+      final url = photo['url'] as String?;
+      if (url != null) {
+        try {
+          final uri = Uri.parse(url);
+          final pathSegments = uri.pathSegments;
+          if (pathSegments.length >= 6) {
+            final storagePath = pathSegments.sublist(5).join('/');
+            await _client.storage.from(SupabaseConfig.albumsBucket).remove([storagePath]);
+          }
+        } catch (e) {
+          print('Error deleting photo from storage: $e');
+        }
+      }
+    }
+
+    // Delete all photos in album (cascade will handle this, but just in case)
+    await _client
+        .from(SupabaseConfig.albumPhotosTable)
+        .delete()
+        .eq('album_id', albumId);
+
+    // Delete the album
+    await _client
+        .from(SupabaseConfig.albumsTable)
+        .delete()
+        .eq('id', albumId);
+  }
+
+  /// Upload photo to album
+  Future<Map<String, dynamic>> uploadAlbumPhoto({
+    required String albumId,
+    required String fileName,
+    required Uint8List bytes,
+    bool isPrivate = false,
+  }) async {
+    final userId = currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+
+    // Generate unique filename
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final extension = fileName.split('.').last;
+    final path = '$userId/$albumId/photo_$timestamp.$extension';
+
+    // Upload to storage
+    await _client.storage.from(SupabaseConfig.albumsBucket).uploadBinary(
+      path,
+      bytes,
+      fileOptions: FileOptions(
+        contentType: _getContentType(extension),
+        upsert: true,
+      ),
+    );
+
+    final publicUrl = _client.storage.from(SupabaseConfig.albumsBucket).getPublicUrl(path);
+
+    // Insert photo record
+    final response = await _client.from(SupabaseConfig.albumPhotosTable).insert({
+      'album_id': albumId,
+      'url': publicUrl,
+      'type': 'photo',
+      'is_private': isPrivate,
+      'created_at': DateTime.now().toIso8601String(),
+    }).select().single();
+
+    // Update album's updated_at
+    await _client
+        .from(SupabaseConfig.albumsTable)
+        .update({'updated_at': DateTime.now().toIso8601String()})
+        .eq('id', albumId);
+
+    return response;
+  }
+
+  /// Delete photo from album
+  Future<void> deleteAlbumPhoto(String photoId, String photoUrl) async {
+    // Delete from storage
+    try {
+      final uri = Uri.parse(photoUrl);
+      final pathSegments = uri.pathSegments;
+      if (pathSegments.length >= 5) {
+        final storagePath = pathSegments.sublist(5).join('/');
+        await _client.storage.from(SupabaseConfig.albumsBucket).remove([storagePath]);
+      }
+    } catch (e) {
+      print('Error deleting photo from storage: $e');
+    }
+
+    // Delete record
+    await _client
+        .from(SupabaseConfig.albumPhotosTable)
+        .delete()
+        .eq('id', photoId);
+  }
+
+  // ===================
+  // ALBUM ACCESS REQUESTS
+  // ===================
+
+  /// Request access to a private album
+  Future<void> requestAlbumAccess(String albumId, String ownerId) async {
+    final userId = currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+
+    // Check if request already exists
+    final existing = await _client
+        .from(SupabaseConfig.albumAccessRequestsTable)
+        .select()
+        .eq('album_id', albumId)
+        .eq('requester_id', userId)
+        .maybeSingle();
+
+    if (existing != null) {
+      throw Exception('Access request already exists');
+    }
+
+    await _client.from(SupabaseConfig.albumAccessRequestsTable).insert({
+      'album_id': albumId,
+      'requester_id': userId,
+      'owner_id': ownerId,
+      'status': 'pending',
+      'created_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// Get pending access requests for current user's albums (as owner)
+  Future<List<Map<String, dynamic>>> getAccessRequestsAsOwner() async {
+    final userId = currentUser?.id;
+    if (userId == null) return [];
+
+    final response = await _client
+        .from(SupabaseConfig.albumAccessRequestsTable)
+        .select('*, profiles!requester_id(*), albums(*)')
+        .eq('owner_id', userId)
+        .eq('status', 'pending')
+        .order('created_at', ascending: false);
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Get access request status for a specific album (as requester)
+  Future<Map<String, dynamic>?> getAccessRequestStatus(String albumId) async {
+    final userId = currentUser?.id;
+    if (userId == null) return null;
+
+    final response = await _client
+        .from(SupabaseConfig.albumAccessRequestsTable)
+        .select()
+        .eq('album_id', albumId)
+        .eq('requester_id', userId)
+        .maybeSingle();
+
+    return response;
+  }
+
+  /// Respond to access request (approve or deny)
+  Future<void> respondToAccessRequest(String requestId, bool approve) async {
+    await _client
+        .from(SupabaseConfig.albumAccessRequestsTable)
+        .update({
+          'status': approve ? 'approved' : 'denied',
+          'responded_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', requestId);
+  }
+
+  /// Check if user has access to a private album
+  Future<bool> hasAlbumAccess(String albumId) async {
+    final userId = currentUser?.id;
+    if (userId == null) return false;
+
+    // Check if user is the owner
+    final album = await _client
+        .from(SupabaseConfig.albumsTable)
+        .select('user_id')
+        .eq('id', albumId)
+        .maybeSingle();
+
+    if (album != null && album['user_id'] == userId) {
+      return true; // Owner always has access
+    }
+
+    // Check if access was approved
+    final request = await _client
+        .from(SupabaseConfig.albumAccessRequestsTable)
+        .select()
+        .eq('album_id', albumId)
+        .eq('requester_id', userId)
+        .eq('status', 'approved')
+        .maybeSingle();
+
+    return request != null;
+  }
+
+  /// Get list of users who have approved access to an album
+  Future<List<Map<String, dynamic>>> getApprovedAccessUsers(String albumId) async {
+    final response = await _client
+        .from(SupabaseConfig.albumAccessRequestsTable)
+        .select('*, profiles!requester_id(*)')
+        .eq('album_id', albumId)
+        .eq('status', 'approved');
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Revoke access to an album
+  Future<void> revokeAlbumAccess(String requestId) async {
+    await _client
+        .from(SupabaseConfig.albumAccessRequestsTable)
+        .delete()
+        .eq('id', requestId);
+  }
+
+  // ===================
+  // PRIVATE MEDIA MESSAGES
+  // ===================
+
+  /// Send a private media message (with timed/one-time view)
+  Future<Map<String, dynamic>> sendPrivateMediaMessage({
+    required String chatId,
+    required String mediaUrl,
+    required String messageType,
+    bool isPrivateMedia = true,
+    int? viewDurationSec,
+    bool oneTimeView = false,
+    String? content,
+  }) async {
+    final userId = currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+
+    final response = await _client.from(SupabaseConfig.messagesTable).insert({
+      'chat_id': chatId,
+      'sender_id': userId,
+      'content': content ?? '',
+      'image_url': mediaUrl,
+      'message_type': messageType,
+      'is_private_media': isPrivateMedia,
+      'view_duration_sec': viewDurationSec,
+      'one_time_view': oneTimeView,
+      'has_been_viewed': false,
+      'created_at': DateTime.now().toIso8601String(),
+    }).select().single();
+
+    // Update chat's updated_at
+    await _client
+        .from(SupabaseConfig.chatsTable)
+        .update({'updated_at': DateTime.now().toIso8601String()})
+        .eq('id', chatId);
+
+    return response;
+  }
+
+  /// Mark private media as viewed (for one-time view tracking)
+  Future<void> markPrivateMediaAsViewed(String messageId) async {
+    await _client
+        .from(SupabaseConfig.messagesTable)
+        .update({'has_been_viewed': true})
+        .eq('id', messageId);
+  }
+
+  /// Get default albums for user (creates if not exists)
+  Future<Map<String, Map<String, dynamic>>> getOrCreateDefaultAlbums() async {
+    final userId = currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+
+    // Get existing albums
+    final existing = await _client
+        .from(SupabaseConfig.albumsTable)
+        .select('*, ${SupabaseConfig.albumPhotosTable}(*)')
+        .eq('user_id', userId)
+        .inFilter('name', ['Public', 'Private']);
+
+    Map<String, dynamic>? publicAlbum;
+    Map<String, dynamic>? privateAlbum;
+
+    for (final album in existing as List) {
+      if (album['name'] == 'Public') {
+        publicAlbum = Map<String, dynamic>.from(album);
+      } else if (album['name'] == 'Private') {
+        privateAlbum = Map<String, dynamic>.from(album);
+      }
+    }
+
+    // Create public album if not exists
+    if (publicAlbum == null) {
+      publicAlbum = await createAlbum(name: 'Public', privacy: 'public');
+      publicAlbum['album_photos'] = [];
+    }
+
+    // Create private album if not exists
+    if (privateAlbum == null) {
+      privateAlbum = await createAlbum(name: 'Private', privacy: 'private');
+      privateAlbum['album_photos'] = [];
+    }
+
+    return {
+      'public': publicAlbum,
+      'private': privateAlbum,
+    };
+  }
 }
 
 /// Supabase service provider

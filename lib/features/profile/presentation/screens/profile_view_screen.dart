@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -6,6 +7,9 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../shared/widgets/widgets.dart';
+import '../../../albums/domain/models/album_model.dart';
+import '../../../albums/domain/models/access_request_model.dart';
+import '../../../albums/domain/providers/albums_provider.dart';
 import '../../../home/domain/providers/profiles_provider.dart';
 import '../../../home/presentation/widgets/match_dialog.dart';
 import '../../domain/models/user_model.dart';
@@ -238,6 +242,9 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
                       // Details
                       _buildDetailsSection(user),
                       AppSpacing.vGapXl,
+
+                      // Albums section
+                      _buildAlbumsSection(user),
 
                       // Interests
                       if (user.interests.isNotEmpty) ...[
@@ -487,6 +494,370 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
     );
   }
 
+  Widget _buildAlbumsSection(UserModel user) {
+    final albumsAsync = ref.watch(userAlbumsProvider(user.id));
+
+    return albumsAsync.when(
+      data: (albums) {
+        if (albums.isEmpty) return const SizedBox.shrink();
+
+        final publicAlbums = albums.where((a) => !a.isPrivate).toList();
+        final privateAlbums = albums.where((a) => a.isPrivate).toList();
+
+        if (publicAlbums.isEmpty && privateAlbums.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Albums',
+              style: AppTypography.titleMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            AppSpacing.vGapMd,
+
+            // Public album
+            if (publicAlbums.isNotEmpty && publicAlbums.first.media.isNotEmpty)
+              _buildAlbumSection(
+                'Public Photos',
+                publicAlbums.first,
+                user,
+                isPrivate: false,
+              ),
+
+            // Private album
+            if (privateAlbums.isNotEmpty && privateAlbums.first.media.isNotEmpty)
+              _buildAlbumSection(
+                'Private Photos',
+                privateAlbums.first,
+                user,
+                isPrivate: true,
+              ),
+
+            AppSpacing.vGapXl,
+          ],
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+
+  Widget _buildAlbumSection(
+    String title,
+    AlbumModel album,
+    UserModel user, {
+    required bool isPrivate,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              isPrivate ? Icons.lock : Icons.public,
+              size: 16,
+              color: isPrivate ? AppColors.warning : AppColors.success,
+            ),
+            AppSpacing.hGapSm,
+            Text(
+              title,
+              style: AppTypography.labelMedium.copyWith(
+                color: isPrivate ? AppColors.warning : AppColors.textSecondary,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '${album.media.length} photos',
+              style: AppTypography.labelSmall.copyWith(
+                color: AppColors.textTertiary,
+              ),
+            ),
+          ],
+        ),
+        AppSpacing.vGapSm,
+        if (isPrivate)
+          _buildPrivateAlbumGrid(album, user)
+        else
+          _buildPublicAlbumGrid(album),
+        AppSpacing.vGapMd,
+      ],
+    );
+  }
+
+  Widget _buildPublicAlbumGrid(AlbumModel album) {
+    final displayMedia = album.media.take(6).toList();
+    return SizedBox(
+      height: 100,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: displayMedia.length,
+        separatorBuilder: (_, __) => AppSpacing.hGapSm,
+        itemBuilder: (context, index) {
+          final media = displayMedia[index];
+          return GestureDetector(
+            onTap: () => _showPhotoViewer(context, media.url),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+              child: CachedNetworkImage(
+                imageUrl: media.displayUrl,
+                width: 100,
+                height: 100,
+                fit: BoxFit.cover,
+                placeholder: (_, __) => Container(
+                  width: 100,
+                  height: 100,
+                  color: AppColors.surfaceVariant,
+                ),
+                errorWidget: (_, __, ___) => Container(
+                  width: 100,
+                  height: 100,
+                  color: AppColors.surfaceVariant,
+                  child: const Icon(Icons.broken_image),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildPrivateAlbumGrid(AlbumModel album, UserModel user) {
+    // Check if current user has access to this private album
+    final hasAccessAsync = ref.watch(albumAccessProvider(album.id));
+    final hasAccess = hasAccessAsync.valueOrNull ?? false;
+
+    final displayMedia = album.media.take(6).toList();
+    return Column(
+      children: [
+        SizedBox(
+          height: 100,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: displayMedia.length,
+            separatorBuilder: (_, __) => AppSpacing.hGapSm,
+            itemBuilder: (context, index) {
+              final media = displayMedia[index];
+              return GestureDetector(
+                onTap: hasAccess
+                    ? () => _showPhotoViewer(context, media.url)
+                    : () => _showRequestAccessDialog(context, album, user),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                  child: Stack(
+                    children: [
+                      // Blurred image
+                      CachedNetworkImage(
+                        imageUrl: media.displayUrl,
+                        width: 100,
+                        height: 100,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) => Container(
+                          width: 100,
+                          height: 100,
+                          color: AppColors.surfaceVariant,
+                        ),
+                        errorWidget: (_, __, ___) => Container(
+                          width: 100,
+                          height: 100,
+                          color: AppColors.surfaceVariant,
+                          child: const Icon(Icons.broken_image),
+                        ),
+                      ),
+                      // Blur overlay if no access
+                      if (!hasAccess)
+                        Positioned.fill(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                              child: Container(
+                                color: AppColors.overlay,
+                                child: const Icon(
+                                  Icons.lock,
+                                  color: AppColors.warning,
+                                  size: 24,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        // Request access button
+        if (!hasAccess)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.sm),
+            child: _buildAccessRequestButton(album, user),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildAccessRequestButton(AlbumModel album, UserModel user) {
+    final requestStatusAsync = ref.watch(albumAccessRequestStatusProvider(album.id));
+
+    return requestStatusAsync.when(
+      data: (status) {
+        if (status == AccessRequestStatus.pending) {
+          return Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceVariant,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.hourglass_empty, size: 16, color: AppColors.warning),
+                AppSpacing.hGapSm,
+                Text(
+                  'Request pending',
+                  style: AppTypography.labelMedium.copyWith(
+                    color: AppColors.warning,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        if (status == AccessRequestStatus.denied) {
+          return Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceVariant,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.block, size: 16, color: AppColors.error),
+                AppSpacing.hGapSm,
+                Text(
+                  'Request denied',
+                  style: AppTypography.labelMedium.copyWith(
+                    color: AppColors.error,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // No request yet - show request button
+        return TextButton.icon(
+          onPressed: () => _showRequestAccessDialog(context, album, user),
+          icon: const Icon(Icons.lock_open, size: 16),
+          label: const Text('Request Access'),
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.primary,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
+            ),
+          ),
+        );
+      },
+      loading: () => const SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      ),
+      error: (_, __) => TextButton.icon(
+        onPressed: () => _showRequestAccessDialog(context, album, user),
+        icon: const Icon(Icons.lock_open, size: 16),
+        label: const Text('Request Access'),
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primary,
+        ),
+      ),
+    );
+  }
+
+  void _showRequestAccessDialog(BuildContext context, AlbumModel album, UserModel user) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(
+          'Request Access',
+          style: AppTypography.headlineSmall.copyWith(color: AppColors.textPrimary),
+        ),
+        content: Text(
+          'Would you like to request access to ${user.name}\'s private photos? They will be notified of your request.',
+          style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _requestAccess(album, user);
+            },
+            child: const Text('Request', style: TextStyle(color: AppColors.primary)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _requestAccess(AlbumModel album, UserModel user) async {
+    try {
+      await ref.read(accessRequestsNotifierProvider.notifier).requestAccess(
+        album.id,
+        user.id,
+      );
+      // Refresh the status provider
+      ref.invalidate(albumAccessRequestStatusProvider(album.id));
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Request sent to ${user.name}'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send request: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showPhotoViewer(BuildContext context, String imageUrl) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => _PhotoViewerScreen(imageUrl: imageUrl),
+      ),
+    );
+  }
+
   Future<void> _handleLike(UserModel user) async {
     final isMatch = await ref.read(profilesNotifierProvider.notifier).likeUser(user.id);
 
@@ -616,5 +987,39 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
       case ZodiacSign.pisces:
         return 'Pisces';
     }
+  }
+}
+
+/// Photo viewer screen
+class _PhotoViewerScreen extends StatelessWidget {
+  final String imageUrl;
+
+  const _PhotoViewerScreen({required this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          child: CachedNetworkImage(
+            imageUrl: imageUrl,
+            fit: BoxFit.contain,
+            placeholder: (context, url) => const Center(
+              child: CircularProgressIndicator(),
+            ),
+            errorWidget: (context, url, error) => const Icon(
+              Icons.broken_image,
+              color: Colors.white,
+              size: 64,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

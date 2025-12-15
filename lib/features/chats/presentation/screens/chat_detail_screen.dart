@@ -18,6 +18,8 @@ import '../../domain/providers/chats_provider.dart';
 import '../widgets/video_player_screen.dart';
 import '../widgets/voice_recording_dialog.dart';
 import '../widgets/voice_player_widget.dart';
+import '../widgets/album_picker_dialog.dart';
+import '../widgets/timed_media_viewer.dart';
 
 /// Chat detail screen
 class ChatDetailScreen extends ConsumerStatefulWidget {
@@ -573,6 +575,16 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                 _showVoiceRecordingDialog();
               },
             ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.photo_album, color: AppColors.warning),
+              title: const Text('From Albums'),
+              subtitle: const Text('Send photos from your albums'),
+              onTap: () {
+                Navigator.pop(context);
+                _showAlbumPicker();
+              },
+            ),
             AppSpacing.vGapLg,
           ],
         ),
@@ -628,6 +640,62 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to send voice message: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploading = false);
+      }
+    }
+  }
+
+  Future<void> _showAlbumPicker() async {
+    final result = await AlbumPickerDialog.show(context);
+    if (result == null) return;
+
+    setState(() => _isUploading = true);
+
+    try {
+      final supabase = ref.read(supabaseServiceProvider);
+      final chatId = _actualChatId ?? widget.chatId;
+
+      // Send the photo from album
+      if (result.isPrivate) {
+        // Send as private media with timed/one-time viewing
+        await supabase.sendPrivateMediaMessage(
+          chatId: chatId,
+          mediaUrl: result.media.url,
+          messageType: 'image',
+          isPrivateMedia: true,
+          viewDurationSec: result.viewDurationSec,
+          oneTimeView: result.oneTimeView,
+        );
+      } else {
+        // Send as regular image
+        final messagesNotifier = ref.read(messagesNotifierProvider(chatId).notifier);
+        await messagesNotifier.sendMessage('', imageUrl: result.media.url);
+      }
+
+      // Refresh messages
+      ref.invalidate(messagesNotifierProvider(chatId));
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.isPrivate
+                ? 'Private photo sent${result.oneTimeView ? " (one-time view)" : result.viewDurationSec != null ? " (${result.viewDurationSec}s)" : ""}'
+                : 'Photo sent'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send photo: $e'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -995,6 +1063,18 @@ class _MessageBubble extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    // Handle private media
+    if (message.isPrivateMedia) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+        child: PrivateMediaBubble(
+          message: message,
+          isMe: isMe,
+          onTap: () => _showPrivateMedia(context),
+        ),
+      );
+    }
+
     switch (message.type) {
       case MessageType.image:
         return Padding(
@@ -1140,6 +1220,28 @@ class _MessageBubble extends StatelessWidget {
         builder: (context) => VideoPlayerScreen(videoUrl: videoUrl),
       ),
     );
+  }
+
+  void _showPrivateMedia(BuildContext context) {
+    // For sender, always show the image
+    if (isMe) {
+      _showFullScreenImage(context, message.mediaUrl!);
+      return;
+    }
+
+    // For receiver, check if can still view
+    if (!message.canBeViewed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This photo has already been viewed'),
+          backgroundColor: AppColors.textSecondary,
+        ),
+      );
+      return;
+    }
+
+    // Show timed viewer
+    TimedMediaViewer.show(context, message);
   }
 
   String _formatTime(DateTime date) {

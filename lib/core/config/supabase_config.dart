@@ -27,6 +27,8 @@ abstract class SupabaseConfig {
   static const String settingsTable = 'user_settings';
   static const String albumsTable = 'albums';
   static const String photosTable = 'photos';
+  static const String albumPhotosTable = 'album_photos';
+  static const String albumAccessRequestsTable = 'album_access_requests';
   static const String filtersTable = 'user_filters';
   static const String subscriptionsTable = 'subscriptions';
   static const String aiProfilesTable = 'ai_profiles';
