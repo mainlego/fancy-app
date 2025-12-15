@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_typography.dart';
 import '../../features/profile/domain/models/user_model.dart';
@@ -417,21 +418,21 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard> {
 
   /// Super Like icon (flame)
   Widget _buildFireIcon() {
-    return CustomPaint(
-      size: const Size(20, 20),
-      painter: _SuperLikeIconPainter(
-        color: AppColors.like,
-      ),
+    return Image.asset(
+      AppAssets.icSuperLike,
+      width: 20,
+      height: 20,
+      color: AppColors.like,
     );
   }
 
   /// Heart icon (like)
   Widget _buildHeartIcon() {
-    return CustomPaint(
-      size: const Size(20, 20),
-      painter: _HeartIconPainter(
-        color: AppColors.like,
-      ),
+    return Image.asset(
+      AppAssets.icLike,
+      width: 20,
+      height: 20,
+      color: AppColors.like,
     );
   }
 
@@ -563,172 +564,3 @@ class _MoreMenuDialog extends StatelessWidget {
   }
 }
 
-/// Super Like icon painter (flame with inner detail) - exact Figma SVG
-class _SuperLikeIconPainter extends CustomPainter {
-  final Color color;
-
-  _SuperLikeIconPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final scale = size.width / 28.0;
-
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    // Outer path from SVG
-    final path = Path();
-    path.moveTo(13.8003 * scale, 0.27832 * scale);
-    path.cubicTo(14.7342 * scale, 0.153301 * scale, 15.6754 * scale, 0.447197 * scale, 16.3726 * scale, 1.08105 * scale);
-    path.cubicTo(16.8644 * scale, 1.52839 * scale, 17.3524 * scale, 1.95689 * scale, 17.8315 * scale, 2.37109 * scale);
-    path.lineTo(19.2397 * scale, 3.57422 * scale);
-    path.cubicTo(23.2975 * scale, 7.02282 * scale, 26.6843 * scale, 9.91431 * scale, 26.689 * scale, 15.0664 * scale);
-    path.cubicTo(26.6975 * scale, 21.9 * scale, 21.2768 * scale, 27.5053 * scale, 14.4468 * scale, 27.7266 * scale);
-    path.lineTo(14.438 * scale, 27.7275 * scale);
-    path.cubicTo(14.298 * scale, 27.7373 * scale, 13.9362 * scale, 27.7402 * scale, 13.8979 * scale, 27.7402 * scale);
-    path.cubicTo(12.8264 * scale, 27.734 * scale, 11.7594 * scale, 27.5993 * scale, 10.7202 * scale, 27.3379 * scale);
-    path.cubicTo(5.14017 * scale, 25.8896 * scale, 1.26236 * scale, 20.8272 * scale, 1.31689 * scale, 15.0615 * scale);
-    path.lineTo(1.31689 * scale, 15.0576 * scale);
-    path.cubicTo(1.29427 * scale, 12.4968 * scale, 2.22314 * scale, 10.0248 * scale, 3.91357 * scale, 8.11719 * scale);
-    path.lineTo(4.26221 * scale, 7.74316 * scale);
-    path.lineTo(4.27002 * scale, 7.73438 * scale);
-    path.cubicTo(4.45531 * scale, 7.52645 * scale, 4.6805 * scale, 7.3577 * scale, 4.93213 * scale, 7.23828 * scale);
-    path.cubicTo(5.97158 * scale, 6.74492 * scale, 7.21416 * scale, 7.18808 * scale, 7.70752 * scale, 8.22754 * scale);
-    path.cubicTo(7.87447 * scale, 8.57176 * scale, 8.06717 * scale, 8.90023 * scale, 8.28369 * scale, 9.21289 * scale);
-    path.lineTo(8.61768 * scale, 9.69727 * scale);
-    path.lineTo(8.73389 * scale, 9.12012 * scale);
-    path.cubicTo(9.26126 * scale, 6.4947 * scale, 10.2334 * scale, 3.97883 * scale, 11.6079 * scale, 1.68066 * scale);
-    path.cubicTo(12.0944 * scale, 0.91144 * scale, 12.897 * scale, 0.397615 * scale, 13.7993 * scale, 0.27832 * scale);
-    path.close();
-
-    // Inner cutout (center flame detail)
-    path.moveTo(13.9985 * scale, 13.8564 * scale);
-    path.cubicTo(13.5991 * scale, 13.8553 * scale, 13.2165 * scale, 14.007 * scale, 12.9282 * scale, 14.2773 * scale);
-    path.lineTo(12.8101 * scale, 14.4014 * scale);
-    path.cubicTo(11.6089 * scale, 15.8101 * scale, 10.7074 * scale, 17.1463 * scale, 10.1304 * scale, 18.377 * scale);
-    path.cubicTo(9.59004 * scale, 19.5293 * scale, 9.32792 * scale, 20.6024 * scale, 9.38428 * scale, 21.5615 * scale);
-    path.lineTo(9.3999 * scale, 21.752 * scale);
-    path.cubicTo(9.56004 * scale, 22.9652 * scale, 10.1959 * scale, 24.0186 * scale, 11.1538 * scale, 24.7676 * scale);
-    path.lineTo(11.3501 * scale, 24.9131 * scale);
-    path.cubicTo(12.0349 * scale, 25.4612 * scale, 12.935 * scale, 25.8288 * scale, 13.8491 * scale, 25.8984 * scale);
-    path.cubicTo(14.0087 * scale, 25.9133 * scale, 14.2005 * scale, 25.897 * scale, 14.2964 * scale, 25.8877 * scale);
-    path.cubicTo(16.703 * scale, 25.6547 * scale, 18.6096 * scale, 23.7368 * scale, 18.6167 * scale, 21.2969 * scale);
-    path.lineTo(18.6021 * scale, 20.9414 * scale);
-    path.cubicTo(18.5335 * scale, 20.0974 * scale, 18.2279 * scale, 19.1468 * scale, 17.7183 * scale, 18.1318 * scale);
-    path.cubicTo(17.2075 * scale, 17.1145 * scale, 16.4866 * scale, 16.0208 * scale, 15.5767 * scale, 14.8877 * scale);
-    path.lineTo(15.1753 * scale, 14.4004 * scale);
-    path.cubicTo(14.8843 * scale, 14.053 * scale, 14.4535 * scale, 13.8538 * scale, 14.0005 * scale, 13.8564 * scale);
-    path.close();
-
-    // Inner white/background area
-    path.moveTo(14.0396 * scale, 2.0957 * scale);
-    path.cubicTo(13.6744 * scale, 2.14086 * scale, 13.3484 * scale, 2.34766 * scale, 13.1509 * scale, 2.6582 * scale);
-    path.cubicTo(11.8502 * scale, 4.85971 * scale, 10.9445 * scale, 7.2629 * scale, 10.4702 * scale, 9.76758 * scale);
-    path.cubicTo(10.3145 * scale, 10.5278 * scale, 9.72593 * scale, 11.1253 * scale, 8.96826 * scale, 11.293 * scale);
-    path.cubicTo(8.22489 * scale, 11.4673 * scale, 7.45189 * scale, 11.1836 * scale, 6.99951 * scale, 10.5723 * scale);
-    path.lineTo(6.73486 * scale, 10.2012 * scale);
-    path.cubicTo(6.48118 * scale, 9.82617 * scale, 6.25552 * scale, 9.43277 * scale, 6.05908 * scale, 9.02441 * scale);
-    path.lineTo(5.90674 * scale, 8.70801 * scale);
-    path.lineTo(5.65771 * scale, 8.95508 * scale);
-    path.cubicTo(4.03465 * scale, 10.5685 * scale, 3.13177 * scale, 12.7693 * scale, 3.15381 * scale, 15.0576 * scale);
-    path.cubicTo(3.135 * scale, 18.5593 * scale, 4.80549 * scale, 21.8555 * scale, 7.64111 * scale, 23.9102 * scale);
-    path.lineTo(8.37354 * scale, 24.4414 * scale);
-    path.lineTo(8.01709 * scale, 23.6094 * scale);
-    path.cubicTo(7.81825 * scale, 23.1452 * scale, 7.68098 * scale, 22.6573 * scale, 7.60889 * scale, 22.1582 * scale);
-    path.lineTo(7.58252 * scale, 21.9434 * scale);
-    path.cubicTo(7.32504 * scale, 19.4665 * scale, 8.58135 * scale, 16.5323 * scale, 11.4185 * scale, 13.209 * scale);
-    path.cubicTo(12.0631 * scale, 12.4541 * scale, 13.0068 * scale, 12.0198 * scale, 13.9995 * scale, 12.0215 * scale);
-    path.cubicTo(14.9947 * scale, 12.0223 * scale, 15.9347 * scale, 12.4593 * scale, 16.5737 * scale, 13.2158 * scale);
-    path.cubicTo(17.4643 * scale, 14.2737 * scale, 18.4366 * scale, 15.5823 * scale, 19.1851 * scale, 16.9863 * scale);
-    path.cubicTo(19.9347 * scale, 18.3927 * scale, 20.4506 * scale, 19.8774 * scale, 20.4507 * scale, 21.2939 * scale);
-    path.lineTo(20.4438 * scale, 21.5742 * scale);
-    path.cubicTo(20.4137 * scale, 22.229 * scale, 20.2829 * scale, 22.8759 * scale, 20.0562 * scale, 23.4922 * scale);
-    path.lineTo(19.77 * scale, 24.2705 * scale);
-    path.lineTo(20.439 * scale, 23.7803 * scale);
-    path.cubicTo(20.4604 * scale, 23.7646 * scale, 20.4823 * scale, 23.7496 * scale, 20.5083 * scale, 23.7324 * scale);
-    path.lineTo(20.6616 * scale, 23.6299 * scale);
-    path.cubicTo(23.2279 * scale, 21.6436 * scale, 24.7595 * scale, 18.612 * scale, 24.8433 * scale, 15.3789 * scale);
-    path.lineTo(24.8472 * scale, 15.0654 * scale);
-    path.cubicTo(24.8467 * scale, 10.726 * scale, 21.9212 * scale, 8.263 * scale, 18.0493 * scale, 4.97461 * scale);
-    path.cubicTo(17.3497 * scale, 4.38154 * scale, 16.6234 * scale, 3.76266 * scale, 15.8833 * scale, 3.10742 * scale);
-    path.lineTo(15.1392 * scale, 2.44043 * scale);
-    path.cubicTo(14.8787 * scale, 2.20256 * scale, 14.5378 * scale, 2.07581 * scale, 14.189 * scale, 2.08398 * scale);
-    path.close();
-
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Heart icon painter - exact Figma SVG
-class _HeartIconPainter extends CustomPainter {
-  final Color color;
-
-  _HeartIconPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final scale = size.width / 28.0;
-
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    final path = Path();
-
-    // Outer heart shape
-    path.moveTo(20.4014 * scale, 4.32031 * scale);
-    path.cubicTo(18.8599 * scale, 4.41458 * scale, 17.418 * scale, 5.1146 * scale, 16.3906 * scale, 6.26758 * scale);
-    path.cubicTo(15.3664 * scale, 7.41708 * scale, 14.8376 * scale, 8.92375 * scale, 14.917 * scale, 10.4609 * scale);
-    path.cubicTo(14.916 * scale, 10.7039 * scale, 14.8202 * scale, 10.9375 * scale, 14.6484 * scale, 11.1094 * scale);
-    path.cubicTo(14.4766 * scale, 11.2812 * scale, 14.243 * scale, 11.3779 * scale, 14 * scale, 11.3779 * scale);
-    path.cubicTo(13.7569 * scale, 11.3779 * scale, 13.5235 * scale, 11.2813 * scale, 13.3516 * scale, 11.1094 * scale);
-    path.cubicTo(13.1797 * scale, 10.9375 * scale, 13.083 * scale, 10.704 * scale, 13.083 * scale, 10.4609 * scale);
-    path.cubicTo(13.1624 * scale, 8.92367 * scale, 12.6327 * scale, 7.4171 * scale, 11.6084 * scale, 6.26758 * scale);
-    path.cubicTo(10.5811 * scale, 5.11472 * scale, 9.13993 * scale, 4.41464 * scale, 7.59863 * scale, 4.32031 * scale);
-    path.lineTo(7.58301 * scale, 4.31934 * scale);
-    path.lineTo(7.56738 * scale, 4.32031 * scale);
-    path.cubicTo(6.02613 * scale, 4.4147 * scale, 4.58491 * scale, 5.11473 * scale, 3.55762 * scale, 6.26758 * scale);
-    path.cubicTo(2.53028 * scale, 7.42049 * scale, 1.99976 * scale, 8.93264 * scale, 2.08301 * scale, 10.4746 * scale);
-    path.cubicTo(2.08747 * scale, 12.2423 * scale, 2.98152 * scale, 14.3427 * scale, 4.59766 * scale, 16.6113 * scale);
-    path.cubicTo(6.22227 * scale, 18.8919 * scale, 8.59668 * scale, 21.3708 * scale, 11.6045 * scale, 23.8945 * scale);
-    path.cubicTo(12.2749 * scale, 24.459 * scale, 13.1236 * scale, 24.7686 * scale, 14 * scale, 24.7686 * scale);
-    path.cubicTo(14.8762 * scale, 24.7685 * scale, 15.7242 * scale, 24.4588 * scale, 16.3945 * scale, 23.8945 * scale);
-    path.lineTo(16.4844 * scale, 23.8193 * scale);
-    path.cubicTo(19.4496 * scale, 21.3182 * scale, 21.793 * scale, 18.8675 * scale, 23.4014 * scale, 16.6104 * scale);
-    path.cubicTo(25.0175 * scale, 14.3423 * scale, 25.9116 * scale, 12.2423 * scale, 25.916 * scale, 10.4746 * scale);
-    path.cubicTo(25.9993 * scale, 8.93272 * scale, 25.4696 * scale, 7.42047 * scale, 24.4424 * scale, 6.26758 * scale);
-    path.cubicTo(23.415 * scale, 5.1146 * scale, 21.9731 * scale, 4.41458 * scale, 20.4316 * scale, 4.32031 * scale);
-    path.lineTo(20.416 * scale, 4.31934 * scale);
-    path.close();
-
-    // Inner cutout
-    path.moveTo(0.25 * scale, 10.4521 * scale);
-    path.cubicTo(0.173452 * scale, 8.42353 * scale, 0.902303 * scale, 6.44665 * scale, 2.27832 * scale, 4.9541 * scale);
-    path.cubicTo(3.6533 * scale, 3.46278 * scale, 5.56253 * scale, 2.57572 * scale, 7.58887 * scale, 2.48633 * scale);
-    path.cubicTo(8.85515 * scale, 2.50771 * scale, 10.0936 * scale, 2.86207 * scale, 11.1797 * scale, 3.51367 * scale);
-    path.cubicTo(12.2685 * scale, 4.16699 * scale, 13.1663 * scale, 5.09605 * scale, 13.7812 * scale, 6.20703 * scale);
-    path.lineTo(14 * scale, 6.60254 * scale);
-    path.lineTo(14.2188 * scale, 6.20703 * scale);
-    path.cubicTo(14.8337 * scale, 5.09618 * scale, 15.7306 * scale, 4.16695 * scale, 16.8193 * scale, 3.51367 * scale);
-    path.cubicTo(17.9051 * scale, 2.86223 * scale, 19.1433 * scale, 2.50798 * scale, 20.4092 * scale, 2.48633 * scale);
-    path.cubicTo(22.4361 * scale, 2.57534 * scale, 24.3454 * scale, 3.46245 * scale, 25.7207 * scale, 4.9541 * scale);
-    path.cubicTo(27.0968 * scale, 6.44668 * scale, 27.8266 * scale, 8.42344 * scale, 27.75 * scale, 10.4521 * scale);
-    path.lineTo(27.75 * scale, 10.4609 * scale);
-    path.cubicTo(27.75 * scale, 13.0311 * scale, 26.3939 * scale, 15.7521 * scale, 24.4238 * scale, 18.3398 * scale);
-    path.cubicTo(22.4583 * scale, 20.9216 * scale, 19.9067 * scale, 23.3387 * scale, 17.5723 * scale, 25.2969 * scale);
-    path.cubicTo(16.5718 * scale, 26.1375 * scale, 15.3068 * scale, 26.5986 * scale, 14 * scale, 26.5986 * scale);
-    path.cubicTo(12.6933 * scale, 26.5986 * scale, 11.4282 * scale, 26.1375 * scale, 10.4277 * scale, 25.2969 * scale);
-    path.cubicTo(8.09237 * scale, 23.3388 * scale, 5.54167 * scale, 20.9215 * scale, 3.57617 * scale, 18.3398 * scale);
-    path.cubicTo(1.60613 * scale, 15.7521 * scale, 0.25 * scale, 13.0311 * scale, 0.25 * scale, 10.4609 * scale);
-    path.close();
-
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}

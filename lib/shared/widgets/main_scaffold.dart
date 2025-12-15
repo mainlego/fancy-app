@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/icons/app_icons.dart';
 import '../../core/router/app_router.dart';
 import '../../core/services/realtime_service.dart';
 import '../../features/chats/domain/providers/chats_provider.dart';
@@ -139,28 +139,25 @@ class _BottomNavBar extends StatelessWidget {
       child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              // First: Home
+              // First: Discovery (Home)
               _NavItem(
-                iconPainter: HomeIconPainter(
-                  color: currentIndex == 0 ? AppColors.primary : AppColors.textSecondary,
-                ),
+                iconPath: AppAssets.icDiscovery,
+                color: currentIndex == 0 ? AppColors.primary : AppColors.textSecondary,
                 isActive: currentIndex == 0,
                 onTap: () => context.goToHome(),
               ),
               // Second: Chats
               _NavItem(
-                iconPainter: ChatsIconPainter(
-                  color: currentIndex == 1 ? AppColors.primary : AppColors.textSecondary,
-                ),
+                iconPath: AppAssets.icChats,
+                color: currentIndex == 1 ? AppColors.primary : AppColors.textSecondary,
                 isActive: currentIndex == 1,
                 badge: unreadCount > 0 ? unreadCount : null,
                 onTap: () => context.goToChats(),
               ),
               // Third: Profile
               _NavItem(
-                iconPainter: ProfileIconPainter(
-                  color: currentIndex == 2 ? AppColors.primary : AppColors.textSecondary,
-                ),
+                iconPath: AppAssets.icProfile,
+                color: currentIndex == 2 ? AppColors.primary : AppColors.textSecondary,
                 isActive: currentIndex == 2,
                 onTap: () => context.goToProfile(),
               ),
@@ -171,13 +168,15 @@ class _BottomNavBar extends StatelessWidget {
 }
 
 class _NavItem extends StatelessWidget {
-  final CustomPainter iconPainter;
+  final String iconPath;
+  final Color color;
   final bool isActive;
   final int? badge;
   final VoidCallback onTap;
 
   const _NavItem({
-    required this.iconPainter,
+    required this.iconPath,
+    required this.color,
     required this.isActive,
     this.badge,
     required this.onTap,
@@ -195,9 +194,11 @@ class _NavItem extends StatelessWidget {
           alignment: Alignment.center,
           clipBehavior: Clip.none,
           children: [
-            CustomPaint(
-              size: const Size(24, 24),
-              painter: iconPainter,
+            Image.asset(
+              iconPath,
+              width: 24,
+              height: 24,
+              color: color,
             ),
             if (badge != null)
               Positioned(
