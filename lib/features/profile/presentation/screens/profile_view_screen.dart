@@ -41,9 +41,8 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Use filteredProfilesProvider to include AI profiles
+    // First try to find in filtered profiles (discovery feed)
     final profiles = ref.watch(filteredProfilesProvider);
-
     UserModel? foundUser;
     try {
       foundUser = profiles.firstWhere((p) => p.id == widget.userId);
@@ -51,7 +50,31 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
       foundUser = null;
     }
 
-    if (foundUser == null) {
+    // If not found in discovery, load directly from database
+    final profileAsync = ref.watch(profileByIdProvider(widget.userId));
+
+    // Use found user or loaded profile
+    final user = foundUser ?? profileAsync.valueOrNull;
+
+    // Show loading while fetching from database
+    if (user == null && profileAsync.isLoading) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: AppColors.background,
+          leading: IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          ),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    // Profile not found anywhere
+    if (user == null) {
       return Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
@@ -69,8 +92,6 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
         ),
       );
     }
-
-    final user = foundUser;
 
     return Scaffold(
       backgroundColor: AppColors.background,

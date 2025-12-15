@@ -70,7 +70,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     final chats = chatsAsync.valueOrNull ?? [];
     ChatModel? chat;
 
-    // Try to find in cached chats list
+    // Try to find in cached chats list by chat ID
     for (final c in chats) {
       if (c.id == widget.chatId) {
         chat = c;
@@ -78,14 +78,30 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       }
     }
 
-    // If not found in cache, load directly from database
+    // Also try to find by participant ID (when navigating from match dialog)
+    if (chat == null) {
+      for (final c in chats) {
+        if (c.participantId == widget.chatId) {
+          chat = c;
+          break;
+        }
+      }
+    }
+
+    // If not found in cache, load directly from database by chat ID
     final singleChatAsync = ref.watch(singleChatProvider(widget.chatId));
     chat ??= singleChatAsync.valueOrNull;
 
-    final messagesAsync = ref.watch(messagesNotifierProvider(widget.chatId));
+    // If still not found, try to find by participant ID
+    final chatByParticipantAsync = ref.watch(chatByParticipantProvider(widget.chatId));
+    chat ??= chatByParticipantAsync.valueOrNull;
+
+    // Determine actual chat ID for messages (could be from participantId lookup)
+    final actualChatId = chat?.id ?? widget.chatId;
+    final messagesAsync = ref.watch(messagesNotifierProvider(actualChatId));
 
     // Show loading if chat is still being loaded
-    if (chat == null && (chatsAsync.isLoading || singleChatAsync.isLoading)) {
+    if (chat == null && (chatsAsync.isLoading || singleChatAsync.isLoading || chatByParticipantAsync.isLoading)) {
       return const Scaffold(
         backgroundColor: AppColors.background,
         body: Center(child: CircularProgressIndicator()),

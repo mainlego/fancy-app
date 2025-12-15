@@ -282,6 +282,24 @@ final singleChatProvider = FutureProvider.family<ChatModel?, String>((ref, chatI
   }
 });
 
+/// Chat by participant provider - finds chat with a specific user
+/// Used when navigating to chat from match dialog (using user ID instead of chat ID)
+final chatByParticipantProvider = FutureProvider.family<ChatModel?, String>((ref, participantId) async {
+  final supabase = ref.watch(supabaseServiceProvider);
+  final currentUserId = supabase.currentUser?.id;
+
+  if (currentUserId == null) return null;
+
+  try {
+    final data = await supabase.getChatByParticipant(participantId);
+    if (data == null) return null;
+    return ChatModel.fromSupabase(data, currentUserId);
+  } catch (e) {
+    print('Error loading chat by participant: $e');
+    return null;
+  }
+});
+
 /// Messages provider for a specific chat
 final messagesProvider = FutureProvider.family<List<MessageModel>, String>((ref, chatId) async {
   final supabase = ref.watch(supabaseServiceProvider);

@@ -216,14 +216,33 @@ class ChatModel extends Equatable {
   }
 
   /// From Supabase JSON (snake_case format)
-  /// Expects profile data from join: profiles!participant1_id or profiles!participant2_id
+  /// Handles both join formats: profiles!participant1_id or participant1/participant2
   factory ChatModel.fromSupabase(Map<String, dynamic> json, String currentUserId) {
     // Determine which participant is the other user
     final participant1Id = json['participant1_id'] as String?;
     final isParticipant1 = participant1Id == currentUserId;
 
-    final profileKey = isParticipant1 ? 'profiles!participant2_id' : 'profiles!participant1_id';
-    final participantProfile = json[profileKey] as Map<String, dynamic>?;
+    // Try different profile key formats (join vs separate load)
+    Map<String, dynamic>? participantProfile;
+
+    // Format 1: profiles!participantX_id (from join)
+    final joinKey = isParticipant1 ? 'profiles!participant2_id' : 'profiles!participant1_id';
+    participantProfile = json[joinKey] as Map<String, dynamic>?;
+
+    // Format 2: participantX (from separate load in getChats)
+    if (participantProfile == null) {
+      final separateKey = isParticipant1 ? 'participant2' : 'participant1';
+      participantProfile = json[separateKey] as Map<String, dynamic>?;
+    }
+
+    // Get avatar: prefer avatar_url, fallback to first photo
+    String? avatarUrl = participantProfile?['avatar_url'] as String?;
+    if (avatarUrl == null || avatarUrl.isEmpty) {
+      final photos = participantProfile?['photos'] as List<dynamic>?;
+      if (photos != null && photos.isNotEmpty) {
+        avatarUrl = photos.first as String?;
+      }
+    }
 
     // Get last message from messages array if available
     MessageModel? lastMessage;
@@ -247,7 +266,7 @@ class ChatModel extends Equatable {
           (isParticipant1 ? json['participant2_id'] as String : json['participant1_id'] as String),
       participantName: participantProfile?['name'] as String? ??
           participantProfile?['display_name'] as String? ?? 'Unknown',
-      participantAvatarUrl: participantProfile?['avatar_url'] as String?,
+      participantAvatarUrl: avatarUrl,
       participantOnline: participantProfile?['is_online'] as bool? ?? false,
       participantVerified: participantProfile?['is_verified'] as bool? ?? false,
       lastMessage: lastMessage,
@@ -331,11 +350,24 @@ class LikeModel extends Equatable {
   factory LikeModel.fromSupabase(Map<String, dynamic> json) {
     final profileData = json['profiles'] as Map<String, dynamic>?;
 
-    // Calculate age from birth_date
-    int age = 0;
+    // Calculate age from birth_date, default to 18
+    int age = 18;
     if (profileData?['birth_date'] != null) {
-      final birthDate = DateTime.parse(profileData!['birth_date'] as String);
-      age = DateTime.now().difference(birthDate).inDays ~/ 365;
+      try {
+        final birthDate = DateTime.parse(profileData!['birth_date'] as String);
+        age = DateTime.now().difference(birthDate).inDays ~/ 365;
+      } catch (_) {
+        // Keep default age 18
+      }
+    }
+
+    // Get avatar: prefer avatar_url, fallback to first photo
+    String? avatarUrl = profileData?['avatar_url'] as String?;
+    if (avatarUrl == null || avatarUrl.isEmpty) {
+      final photos = profileData?['photos'] as List<dynamic>?;
+      if (photos != null && photos.isNotEmpty) {
+        avatarUrl = photos.first as String?;
+      }
     }
 
     return LikeModel(
@@ -343,7 +375,7 @@ class LikeModel extends Equatable {
       userId: json['from_user_id'] as String? ?? profileData?['id'] as String? ?? '',
       userName: profileData?['name'] as String? ??
           profileData?['display_name'] as String? ?? 'Unknown',
-      userAvatarUrl: profileData?['avatar_url'] as String?,
+      userAvatarUrl: avatarUrl,
       userAge: age,
       isSuperLike: json['is_super_like'] as bool? ?? false,
       isMatched: false,
@@ -416,11 +448,24 @@ class FavoriteModel extends Equatable {
   factory FavoriteModel.fromSupabase(Map<String, dynamic> json) {
     final profileData = json['profiles'] as Map<String, dynamic>?;
 
-    // Calculate age from birth_date
-    int age = 0;
+    // Calculate age from birth_date, default to 18
+    int age = 18;
     if (profileData?['birth_date'] != null) {
-      final birthDate = DateTime.parse(profileData!['birth_date'] as String);
-      age = DateTime.now().difference(birthDate).inDays ~/ 365;
+      try {
+        final birthDate = DateTime.parse(profileData!['birth_date'] as String);
+        age = DateTime.now().difference(birthDate).inDays ~/ 365;
+      } catch (_) {
+        // Keep default age 18
+      }
+    }
+
+    // Get avatar: prefer avatar_url, fallback to first photo
+    String? avatarUrl = profileData?['avatar_url'] as String?;
+    if (avatarUrl == null || avatarUrl.isEmpty) {
+      final photos = profileData?['photos'] as List<dynamic>?;
+      if (photos != null && photos.isNotEmpty) {
+        avatarUrl = photos.first as String?;
+      }
     }
 
     return FavoriteModel(
@@ -428,7 +473,7 @@ class FavoriteModel extends Equatable {
       oderId: json['favorite_user_id'] as String? ?? profileData?['id'] as String? ?? '',
       userName: profileData?['name'] as String? ??
           profileData?['display_name'] as String? ?? 'Unknown',
-      userAvatarUrl: profileData?['avatar_url'] as String?,
+      userAvatarUrl: avatarUrl,
       userAge: age,
       isOnline: profileData?['is_online'] as bool? ?? false,
       createdAt: json['created_at'] != null

@@ -379,6 +379,21 @@ final matchesProvider = FutureProvider<List<UserModel>>((ref) async {
   }
 });
 
+/// Single profile provider by ID - loads directly from database
+/// Use this when you need to view a profile that may not be in the discovery feed
+final profileByIdProvider = FutureProvider.family<UserModel?, String>((ref, userId) async {
+  final supabase = ref.watch(supabaseServiceProvider);
+
+  try {
+    final data = await supabase.getProfile(userId);
+    if (data == null) return null;
+    return UserModel.fromSupabase(data);
+  } catch (e) {
+    print('Error loading profile by ID: $e');
+    return null;
+  }
+});
+
 /// Favorites provider
 final favoritesProvider = FutureProvider<List<UserModel>>((ref) async {
   final supabase = ref.watch(supabaseServiceProvider);

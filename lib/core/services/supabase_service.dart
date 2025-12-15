@@ -389,6 +389,41 @@ class SupabaseService {
     }
   }
 
+  /// Get chat by participant ID (finds chat with specific user)
+  Future<Map<String, dynamic>?> getChatByParticipant(String participantId) async {
+    final userId = currentUser?.id;
+    if (userId == null) return null;
+
+    try {
+      // Find chat where current user and participant are both participants
+      final response = await _client
+          .from(SupabaseConfig.chatsTable)
+          .select()
+          .or('and(participant1_id.eq.$userId,participant2_id.eq.$participantId),and(participant1_id.eq.$participantId,participant2_id.eq.$userId)')
+          .maybeSingle();
+
+      if (response == null) return null;
+
+      // Load participant profiles separately
+      final participant1Id = response['participant1_id'] as String?;
+      final participant2Id = response['participant2_id'] as String?;
+
+      if (participant1Id != null) {
+        final profile1 = await getProfile(participant1Id);
+        response['participant1'] = profile1;
+      }
+      if (participant2Id != null) {
+        final profile2 = await getProfile(participant2Id);
+        response['participant2'] = profile2;
+      }
+
+      return response;
+    } catch (e) {
+      print('Error getting chat by participant: $e');
+      return null;
+    }
+  }
+
   /// Get messages for a chat
   Future<List<Map<String, dynamic>>> getMessages(String chatId, {int limit = 50, int offset = 0}) async {
     final response = await _client
