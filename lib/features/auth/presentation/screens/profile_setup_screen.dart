@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geocoding/geocoding.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/router/app_router.dart';
+import '../../../../core/services/location_service.dart';
 import '../../../profile/domain/models/user_model.dart';
 import '../../../profile/domain/providers/current_profile_provider.dart';
 
@@ -28,12 +30,15 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   DatingGoal? _datingGoal;
   String? _city;
   final _bioController = TextEditingController();
+  final _cityController = TextEditingController();
+  bool _isDetectingLocation = false;
 
   @override
   void dispose() {
     _pageController.dispose();
     _nameController.dispose();
     _bioController.dispose();
+    _cityController.dispose();
     super.dispose();
   }
 
@@ -117,6 +122,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -551,26 +557,126 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
             ),
           ),
           AppSpacing.vGapLg,
-          TextField(
-            onChanged: (value) => setState(() => _city = value),
-            style: AppTypography.bodyLarge,
-            decoration: InputDecoration(
-              hintText: 'Your city (optional)',
-              hintStyle: AppTypography.bodyLarge.copyWith(
-                color: AppColors.textTertiary,
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _cityController,
+                  onChanged: (value) => setState(() => _city = value),
+                  style: AppTypography.bodyLarge,
+                  decoration: InputDecoration(
+                    hintText: 'Your city (optional)',
+                    hintStyle: AppTypography.bodyLarge.copyWith(
+                      color: AppColors.textTertiary,
+                    ),
+                    prefixIcon: const Icon(Icons.location_on, color: AppColors.textSecondary),
+                    filled: true,
+                    fillColor: AppColors.surfaceVariant,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.all(AppSpacing.lg),
+                  ),
+                ),
               ),
-              prefixIcon: const Icon(Icons.location_on, color: AppColors.textSecondary),
-              filled: true,
-              fillColor: AppColors.surfaceVariant,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                borderSide: BorderSide.none,
+              AppSpacing.hGapMd,
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                ),
+                child: IconButton(
+                  onPressed: _isDetectingLocation ? null : _detectLocation,
+                  icon: _isDetectingLocation
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                          ),
+                        )
+                      : const Icon(
+                          Icons.my_location,
+                          color: AppColors.primary,
+                        ),
+                  tooltip: 'Detect my location',
+                ),
               ),
-              contentPadding: const EdgeInsets.all(AppSpacing.lg),
-            ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _detectLocation() async {
+    setState(() => _isDetectingLocation = true);
+
+    try {
+      final locationService = ref.read(locationServiceProvider);
+      final position = await locationService.getCurrentPosition();
+
+      if (position != null) {
+        // Reverse geocode to get city name
+        try {
+          final placemarks = await placemarkFromCoordinates(
+            position.latitude,
+            position.longitude,
+          );
+
+          if (placemarks.isNotEmpty) {
+            final place = placemarks.first;
+            final cityName = place.locality ?? place.subAdministrativeArea ?? place.administrativeArea;
+
+            if (cityName != null && cityName.isNotEmpty) {
+              setState(() {
+                _city = cityName;
+                _cityController.text = cityName;
+              });
+            } else if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Could not determine city name'),
+                  backgroundColor: AppColors.warning,
+                ),
+              );
+            }
+          }
+        } catch (e) {
+          print('Geocoding error: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Could not determine city name'),
+                backgroundColor: AppColors.warning,
+              ),
+            );
+          }
+        }
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not get your location. Please enable location services.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Location error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isDetectingLocation = false);
+      }
+    }
   }
 }
