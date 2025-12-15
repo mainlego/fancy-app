@@ -268,27 +268,33 @@ final filteredProfilesProvider = Provider<List<UserModel>>((ref) {
   // Real users are shown FIRST, then AI profiles
   final allProfiles = [...realProfiles, ...aiProfiles];
 
+  // DEBUG: Log filter settings
+  print('DEBUG FILTER: lookingFor=${filter.lookingFor}, onlineOnly=${filter.onlineOnly}, withPhoto=${filter.withPhoto}, minAge=${filter.minAge}, maxAge=${filter.maxAge}');
+
   final filtered = allProfiles.where((profile) {
+    final isAI = profile.isAi;
+
     // Quick filter: dating goal
     if (quickGoal != null && profile.datingGoal != quickGoal) {
+      if (!isAI) print('DEBUG: ${profile.name} filtered by quickGoal');
       return false;
     }
 
     // Quick filter: relationship status
     if (quickStatus != null && profile.relationshipStatus != quickStatus) {
+      if (!isAI) print('DEBUG: ${profile.name} filtered by quickStatus');
       return false;
     }
 
-    // AI profiles always pass distance filter (they're always nearby)
-    final isAI = profile.isAi;
-
     // Distance filter (skip for AI profiles)
     if (!isAI && profile.distanceKm != null && profile.distanceKm! > filter.distanceKm) {
+      print('DEBUG: ${profile.name} filtered by distance (${profile.distanceKm} > ${filter.distanceKm})');
       return false;
     }
 
     // Age filter
     if (profile.age < filter.minAge || profile.age > filter.maxAge) {
+      if (!isAI) print('DEBUG: ${profile.name} filtered by age (${profile.age} not in ${filter.minAge}-${filter.maxAge})');
       return false;
     }
 
@@ -296,6 +302,7 @@ final filteredProfilesProvider = Provider<List<UserModel>>((ref) {
     if (filter.datingGoals.isNotEmpty &&
         profile.datingGoal != null &&
         !filter.datingGoals.contains(profile.datingGoal)) {
+      if (!isAI) print('DEBUG: ${profile.name} filtered by datingGoals');
       return false;
     }
 
@@ -303,27 +310,32 @@ final filteredProfilesProvider = Provider<List<UserModel>>((ref) {
     if (filter.relationshipStatuses.isNotEmpty &&
         profile.relationshipStatus != null &&
         !filter.relationshipStatuses.contains(profile.relationshipStatus)) {
+      if (!isAI) print('DEBUG: ${profile.name} filtered by relationshipStatuses');
       return false;
     }
 
     // Online only filter
     if (filter.onlineOnly && !profile.isOnline) {
+      if (!isAI) print('DEBUG: ${profile.name} filtered by onlineOnly (isOnline=${profile.isOnline})');
       return false;
     }
 
     // With photo filter
     if (filter.withPhoto && !profile.hasPhotos) {
+      if (!isAI) print('DEBUG: ${profile.name} filtered by withPhoto (hasPhotos=${profile.hasPhotos})');
       return false;
     }
 
     // Verified only filter
     if (filter.verifiedOnly && !profile.isVerified) {
+      if (!isAI) print('DEBUG: ${profile.name} filtered by verifiedOnly');
       return false;
     }
 
     // Looking for filter
     if (filter.lookingFor.isNotEmpty &&
         !filter.lookingFor.contains(profile.profileType)) {
+      if (!isAI) print('DEBUG: ${profile.name} filtered by lookingFor (profileType=${profile.profileType}, filter=${filter.lookingFor})');
       return false;
     }
 
