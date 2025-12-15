@@ -7,6 +7,28 @@ import '../../../../shared/widgets/widgets.dart';
 import '../../../profile/domain/models/user_model.dart';
 import '../../domain/providers/filter_provider.dart';
 
+/// Divider color for filters screen
+const _dividerColor = Color(0xFF404040);
+
+/// Available languages for filter
+const _availableLanguages = <String, String>{
+  'en': 'english',
+  'de': 'deutsch',
+  'fr': 'français',
+  'es': 'español',
+  'it': 'italiano',
+  'pt': 'português',
+  'ru': 'русский',
+  'uk': 'українська',
+  'pl': 'polski',
+  'nl': 'nederlands',
+  'tr': 'türkçe',
+  'ar': 'العربية',
+  'zh': '中文',
+  'ja': '日本語',
+  'ko': '한국어',
+};
+
 /// Filters screen
 class FiltersScreen extends ConsumerStatefulWidget {
   const FiltersScreen({super.key});
@@ -26,12 +48,12 @@ class _FiltersScreenState extends ConsumerState<FiltersScreen> {
     return filterAsync.when(
       loading: () => Scaffold(
         backgroundColor: AppColors.background,
-        appBar: AppBar(title: const Text('Filters')),
+        appBar: AppBar(title: const Text('preferences')),
         body: const Center(child: CircularProgressIndicator()),
       ),
       error: (error, stack) => Scaffold(
         backgroundColor: AppColors.background,
-        appBar: AppBar(title: const Text('Filters')),
+        appBar: AppBar(title: const Text('preferences')),
         body: Center(child: Text('Error: $error')),
       ),
       data: (filter) {
@@ -46,12 +68,12 @@ class _FiltersScreenState extends ConsumerState<FiltersScreen> {
         return Scaffold(
           backgroundColor: AppColors.background,
           appBar: AppBar(
-            title: const Text('Filters'),
+            title: const Text('preferences'),
             actions: [
               TextButton(
                 onPressed: _resetFilters,
                 child: const Text(
-                  'Reset',
+                  'reset',
                   style: TextStyle(color: AppColors.primary),
                 ),
               ),
@@ -60,9 +82,13 @@ class _FiltersScreenState extends ConsumerState<FiltersScreen> {
           body: ListView(
             padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
+              // Divider after header
+              _buildDivider(),
+              AppSpacing.vGapLg,
+
               // Dating goals
               _buildSection(
-                'Dating Goals',
+                'dating goals',
                 _buildMultiSelectChips<DatingGoal>(
                   values: DatingGoal.values,
                   selected: localFilter.datingGoals,
@@ -75,11 +101,13 @@ class _FiltersScreenState extends ConsumerState<FiltersScreen> {
                 ),
               ),
 
-              AppSpacing.vGapXl,
+              AppSpacing.vGapLg,
+              _buildDivider(),
+              AppSpacing.vGapLg,
 
               // Relationship status
               _buildSection(
-                'Relationship Status',
+                'relationship status',
                 _buildMultiSelectChips<RelationshipStatus>(
                   values: RelationshipStatus.values,
                   selected: localFilter.relationshipStatuses,
@@ -92,61 +120,80 @@ class _FiltersScreenState extends ConsumerState<FiltersScreen> {
                 ),
               ),
 
-              AppSpacing.vGapXl,
+              AppSpacing.vGapLg,
+              _buildDivider(),
+              AppSpacing.vGapLg,
 
-              // Distance slider
+              // Distance range slider
               _buildSection(
-                'Distance',
-                FancySlider(
+                'distance',
+                FancyRangeSlider(
                   label: '',
-                  value: localFilter.distanceKm.toDouble(),
-                  min: FilterModel.minDistance.toDouble(),
-                  max: FilterModel.maxDistance.toDouble(),
-                  divisions: FilterModel.maxDistance - FilterModel.minDistance,
-                  formatValue: (v) => v >= FilterModel.maxDistance ? '500+ km' : '${v.round()} km',
-                  onChanged: (value) {
+                  values: RangeValues(
+                    localFilter.minDistanceKm.toDouble(),
+                    localFilter.maxDistanceKm.toDouble(),
+                  ),
+                  min: FilterModel.minDistanceLimit.toDouble(),
+                  max: FilterModel.maxDistanceLimit.toDouble(),
+                  divisions: FilterModel.maxDistanceLimit - FilterModel.minDistanceLimit,
+                  formatValue: (v) => v >= FilterModel.maxDistanceLimit ? '500+' : '${v.round()}',
+                  onChanged: (values) {
                     setState(() {
-                      _localFilter = localFilter.copyWith(distanceKm: value.round());
+                      _localFilter = localFilter.copyWith(
+                        minDistanceKm: values.start.round(),
+                        maxDistanceKm: values.end.round(),
+                      );
                     });
                   },
+                  subtitle: localFilter.maxDistanceKm >= FilterModel.maxDistanceLimit
+                      ? 'search radius ${localFilter.minDistanceKm} - 500+ km'
+                      : 'search radius ${localFilter.minDistanceKm} - ${localFilter.maxDistanceKm} km',
                 ),
               ),
 
-              AppSpacing.vGapXl,
+              AppSpacing.vGapLg,
+              _buildDivider(),
+              AppSpacing.vGapLg,
 
               // Age range
               _buildSection(
-                'Age',
+                'age',
                 FancyRangeSlider(
                   label: '',
                   values: RangeValues(
                     localFilter.minAge.toDouble(),
-                    localFilter.maxAge.toDouble(),
+                    localFilter.maxAge.toDouble().clamp(18, 60), // UI shows max 60, but stores up to 99
                   ),
                   min: FilterModel.minAgeLimit.toDouble(),
-                  max: FilterModel.maxAgeLimit.toDouble(),
-                  divisions: FilterModel.maxAgeLimit - FilterModel.minAgeLimit,
-                  formatValue: (v) => '${v.round()}',
+                  max: 60, // Display limit is 60, 60+ means unlimited
+                  divisions: 60 - FilterModel.minAgeLimit,
+                  formatValue: (v) => v >= 60 ? '60+' : '${v.round()}',
                   onChanged: (values) {
                     setState(() {
                       _localFilter = localFilter.copyWith(
                         minAge: values.start.round(),
-                        maxAge: values.end.round(),
+                        // When slider is at 60, store 99 (unlimited)
+                        maxAge: values.end >= 60 ? 99 : values.end.round(),
                       );
                     });
                   },
+                  subtitle: localFilter.maxAge >= 60
+                      ? 'age range ${localFilter.minAge} - 60+ years'
+                      : 'age range ${localFilter.minAge} - ${localFilter.maxAge} years',
                 ),
               ),
 
-              AppSpacing.vGapXl,
+              AppSpacing.vGapLg,
+              _buildDivider(),
+              AppSpacing.vGapLg,
 
               // Special filters
               _buildSection(
-                'Special Filters',
+                'special',
                 Column(
                   children: [
                     _buildSwitchTile(
-                      'Online only',
+                      'online',
                       localFilter.onlineOnly,
                       (value) {
                         setState(() {
@@ -155,7 +202,7 @@ class _FiltersScreenState extends ConsumerState<FiltersScreen> {
                       },
                     ),
                     _buildSwitchTile(
-                      'With photo',
+                      'photo',
                       localFilter.withPhoto,
                       (value) {
                         setState(() {
@@ -164,7 +211,7 @@ class _FiltersScreenState extends ConsumerState<FiltersScreen> {
                       },
                     ),
                     _buildSwitchTile(
-                      'Verified photos only',
+                      'verified photo',
                       localFilter.verifiedOnly,
                       (value) {
                         setState(() {
@@ -176,11 +223,13 @@ class _FiltersScreenState extends ConsumerState<FiltersScreen> {
                 ),
               ),
 
-              AppSpacing.vGapXl,
+              AppSpacing.vGapLg,
+              _buildDivider(),
+              AppSpacing.vGapLg,
 
               // Looking for
               _buildSection(
-                'Looking For',
+                'looking for',
                 _buildMultiSelectChips<ProfileType>(
                   values: ProfileType.values,
                   selected: localFilter.lookingFor,
@@ -193,11 +242,13 @@ class _FiltersScreenState extends ConsumerState<FiltersScreen> {
                 ),
               ),
 
-              AppSpacing.vGapXl,
+              AppSpacing.vGapLg,
+              _buildDivider(),
+              AppSpacing.vGapLg,
 
               // Height range
               _buildSection(
-                'Height',
+                'height',
                 FancyRangeSlider(
                   label: '',
                   values: RangeValues(
@@ -219,11 +270,13 @@ class _FiltersScreenState extends ConsumerState<FiltersScreen> {
                 ),
               ),
 
-              AppSpacing.vGapXl,
+              AppSpacing.vGapLg,
+              _buildDivider(),
+              AppSpacing.vGapLg,
 
               // Weight range
               _buildSection(
-                'Weight',
+                'weight',
                 FancyRangeSlider(
                   label: '',
                   values: RangeValues(
@@ -245,11 +298,13 @@ class _FiltersScreenState extends ConsumerState<FiltersScreen> {
                 ),
               ),
 
-              AppSpacing.vGapXl,
+              AppSpacing.vGapLg,
+              _buildDivider(),
+              AppSpacing.vGapLg,
 
               // Zodiac signs
               _buildSection(
-                'Zodiac Signs',
+                'zodiac',
                 _buildMultiSelectChips<ZodiacSign>(
                   values: ZodiacSign.values,
                   selected: localFilter.zodiacSigns,
@@ -262,6 +317,16 @@ class _FiltersScreenState extends ConsumerState<FiltersScreen> {
                 ),
               ),
 
+              AppSpacing.vGapLg,
+              _buildDivider(),
+              AppSpacing.vGapLg,
+
+              // Language selection
+              _buildSection(
+                'language',
+                _buildLanguageSelector(localFilter),
+              ),
+
               AppSpacing.vGapXxl,
               AppSpacing.vGapXxl,
             ],
@@ -270,7 +335,7 @@ class _FiltersScreenState extends ConsumerState<FiltersScreen> {
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: FancyButton(
-                text: 'Apply Filters',
+                text: 'apply filters',
                 onPressed: _applyFilters,
               ),
             ),
@@ -293,6 +358,13 @@ class _FiltersScreenState extends ConsumerState<FiltersScreen> {
         AppSpacing.vGapMd,
         child,
       ],
+    );
+  }
+
+  Widget _buildDivider() {
+    return Container(
+      height: 1,
+      color: _dividerColor,
     );
   }
 
@@ -328,13 +400,157 @@ class _FiltersScreenState extends ConsumerState<FiltersScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title, style: AppTypography.bodyMedium),
+          Text(
+            title,
+            style: AppTypography.bodyMedium.copyWith(
+              color: const Color(0xFF737373),
+            ),
+          ),
           Switch(
             value: value,
             onChanged: onChanged,
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildLanguageSelector(FilterModel localFilter) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Dropdown button
+        GestureDetector(
+          onTap: () => _showLanguagePicker(localFilter),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceVariant,
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.language,
+                  color: AppColors.textSecondary,
+                  size: 20,
+                ),
+                AppSpacing.hGapMd,
+                Expanded(
+                  child: Text(
+                    'select languages',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+                const Icon(
+                  Icons.keyboard_arrow_down,
+                  color: AppColors.textSecondary,
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Selected languages chips
+        if (localFilter.languages.isNotEmpty) ...[
+          AppSpacing.vGapMd,
+          FancyChipWrap(
+            children: localFilter.languages.map((langCode) {
+              return FancyChip(
+                label: _availableLanguages[langCode] ?? langCode,
+                isSelected: true,
+                showRemove: true,
+                onRemove: () {
+                  final newLanguages = Set<String>.from(localFilter.languages);
+                  newLanguages.remove(langCode);
+                  setState(() {
+                    _localFilter = localFilter.copyWith(languages: newLanguages);
+                  });
+                },
+              );
+            }).toList(),
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _showLanguagePicker(FilterModel localFilter) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.zero,
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'select languages',
+                        style: AppTypography.titleMedium.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  AppSpacing.vGapMd,
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: _availableLanguages.length,
+                      itemBuilder: (context, index) {
+                        final entry = _availableLanguages.entries.elementAt(index);
+                        final isSelected = (_localFilter ?? localFilter).languages.contains(entry.key);
+                        return ListTile(
+                          title: Text(
+                            entry.value,
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                            ),
+                          ),
+                          trailing: isSelected
+                              ? const Icon(Icons.check, color: AppColors.primary)
+                              : null,
+                          onTap: () {
+                            final currentFilter = _localFilter ?? localFilter;
+                            final newLanguages = Set<String>.from(currentFilter.languages);
+                            if (isSelected) {
+                              newLanguages.remove(entry.key);
+                            } else {
+                              newLanguages.add(entry.key);
+                            }
+                            setState(() {
+                              _localFilter = currentFilter.copyWith(languages: newLanguages);
+                            });
+                            setModalState(() {});
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -356,72 +572,72 @@ class _FiltersScreenState extends ConsumerState<FiltersScreen> {
   String _getDatingGoalLabel(DatingGoal goal) {
     switch (goal) {
       case DatingGoal.anything:
-        return 'Anything';
+        return 'anything';
       case DatingGoal.casual:
-        return 'Casual';
+        return 'casual';
       case DatingGoal.virtual:
-        return 'Virtual';
+        return 'virtual';
       case DatingGoal.friendship:
-        return 'Friendship';
+        return 'friendship';
       case DatingGoal.longTerm:
-        return 'Long-term';
+        return 'long-term';
     }
   }
 
   String _getStatusLabel(RelationshipStatus status) {
     switch (status) {
       case RelationshipStatus.single:
-        return 'Single';
+        return 'single';
       case RelationshipStatus.complicated:
-        return 'Complicated';
+        return 'complicated';
       case RelationshipStatus.married:
-        return 'Married';
+        return 'married';
       case RelationshipStatus.inRelationship:
-        return 'In a relationship';
+        return 'in a relationship';
     }
   }
 
   String _getProfileTypeLabel(ProfileType type) {
     switch (type) {
       case ProfileType.woman:
-        return 'Woman';
+        return 'woman';
       case ProfileType.man:
-        return 'Man';
+        return 'man';
       case ProfileType.manAndWoman:
-        return 'Man & Woman';
+        return 'man & woman';
       case ProfileType.manPair:
-        return 'Man pair';
+        return 'man pair';
       case ProfileType.womanPair:
-        return 'Woman pair';
+        return 'woman pair';
     }
   }
 
   String _getZodiacLabel(ZodiacSign sign) {
     switch (sign) {
       case ZodiacSign.aries:
-        return 'Aries';
+        return 'aries';
       case ZodiacSign.taurus:
-        return 'Taurus';
+        return 'taurus';
       case ZodiacSign.gemini:
-        return 'Gemini';
+        return 'gemini';
       case ZodiacSign.cancer:
-        return 'Cancer';
+        return 'cancer';
       case ZodiacSign.leo:
-        return 'Leo';
+        return 'leo';
       case ZodiacSign.virgo:
-        return 'Virgo';
+        return 'virgo';
       case ZodiacSign.libra:
-        return 'Libra';
+        return 'libra';
       case ZodiacSign.scorpio:
-        return 'Scorpio';
+        return 'scorpio';
       case ZodiacSign.sagittarius:
-        return 'Sagittarius';
+        return 'sagittarius';
       case ZodiacSign.capricorn:
-        return 'Capricorn';
+        return 'capricorn';
       case ZodiacSign.aquarius:
-        return 'Aquarius';
+        return 'aquarius';
       case ZodiacSign.pisces:
-        return 'Pisces';
+        return 'pisces';
     }
   }
 }

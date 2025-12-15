@@ -32,21 +32,31 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
 
   void _showDatingGoalPicker(BuildContext context) {
     _removeOverlay();
-    final selectedGoal = ref.read(quickDatingGoalProvider);
 
     _overlayEntry = OverlayEntry(
       builder: (context) => _FilterOverlay(
-        onDismiss: _removeOverlay,
+        onDismiss: () {
+          // Save to database when closing
+          final currentFilter = ref.read(filterAsyncProvider).valueOrNull ?? FilterModel.defaultFilters;
+          final goals = ref.read(quickDatingGoalsProvider);
+          final updatedFilter = currentFilter.copyWith(datingGoals: goals);
+          ref.read(filterAsyncProvider.notifier).updateFilters(updatedFilter);
+          _removeOverlay();
+        },
         child: _DatingGoalPicker(
-          selected: selectedGoal,
-          onSelect: (goal) {
-            ref.read(quickDatingGoalProvider.notifier).state = goal;
-            // Also update the main filter and save to database
-            final currentFilter = ref.read(filterAsyncProvider).valueOrNull ?? FilterModel.defaultFilters;
-            final updatedGoals = goal != null ? {goal} : <DatingGoal>{};
-            final updatedFilter = currentFilter.copyWith(datingGoals: updatedGoals);
-            ref.read(filterAsyncProvider.notifier).updateFilters(updatedFilter);
-            _removeOverlay();
+          ref: ref,
+          onToggle: (goal) {
+            final current = Set<DatingGoal>.from(ref.read(quickDatingGoalsProvider));
+            if (goal == null) {
+              // "all goals" selected - clear all
+              ref.read(quickDatingGoalsProvider.notifier).state = <DatingGoal>{};
+            } else if (current.contains(goal)) {
+              current.remove(goal);
+              ref.read(quickDatingGoalsProvider.notifier).state = current;
+            } else {
+              current.add(goal);
+              ref.read(quickDatingGoalsProvider.notifier).state = current;
+            }
           },
         ),
       ),
@@ -57,21 +67,31 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
 
   void _showStatusPicker(BuildContext context) {
     _removeOverlay();
-    final selectedStatus = ref.read(quickRelationshipStatusProvider);
 
     _overlayEntry = OverlayEntry(
       builder: (context) => _FilterOverlay(
-        onDismiss: _removeOverlay,
+        onDismiss: () {
+          // Save to database when closing
+          final currentFilter = ref.read(filterAsyncProvider).valueOrNull ?? FilterModel.defaultFilters;
+          final statuses = ref.read(quickRelationshipStatusesProvider);
+          final updatedFilter = currentFilter.copyWith(relationshipStatuses: statuses);
+          ref.read(filterAsyncProvider.notifier).updateFilters(updatedFilter);
+          _removeOverlay();
+        },
         child: _StatusPicker(
-          selected: selectedStatus,
-          onSelect: (status) {
-            ref.read(quickRelationshipStatusProvider.notifier).state = status;
-            // Also update the main filter and save to database
-            final currentFilter = ref.read(filterAsyncProvider).valueOrNull ?? FilterModel.defaultFilters;
-            final updatedStatuses = status != null ? {status} : <RelationshipStatus>{};
-            final updatedFilter = currentFilter.copyWith(relationshipStatuses: updatedStatuses);
-            ref.read(filterAsyncProvider.notifier).updateFilters(updatedFilter);
-            _removeOverlay();
+          ref: ref,
+          onToggle: (status) {
+            final current = Set<RelationshipStatus>.from(ref.read(quickRelationshipStatusesProvider));
+            if (status == null) {
+              // "all statuses" selected - clear all
+              ref.read(quickRelationshipStatusesProvider.notifier).state = <RelationshipStatus>{};
+            } else if (current.contains(status)) {
+              current.remove(status);
+              ref.read(quickRelationshipStatusesProvider.notifier).state = current;
+            } else {
+              current.add(status);
+              ref.read(quickRelationshipStatusesProvider.notifier).state = current;
+            }
           },
         ),
       ),
@@ -102,8 +122,8 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
 
   @override
   Widget build(BuildContext context) {
-    final selectedGoal = ref.watch(quickDatingGoalProvider);
-    final selectedStatus = ref.watch(quickRelationshipStatusProvider);
+    final selectedGoals = ref.watch(quickDatingGoalsProvider);
+    final selectedStatuses = ref.watch(quickRelationshipStatusesProvider);
     final filter = ref.watch(filterAsyncProvider).valueOrNull ?? FilterModel.defaultFilters;
 
     return Container(
@@ -117,13 +137,14 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
               onTap: () => _showDatingGoalPicker(context),
               behavior: HitTestBehavior.opaque,
               child: Text(
-                _getDatingGoalText(selectedGoal),
+                _getDatingGoalsText(selectedGoals),
                 style: const TextStyle(
                   color: Color(0xFFD9D9D9),
                   fontSize: 16,
                   fontWeight: FontWeight.w200,
                 ),
                 textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ),
@@ -134,13 +155,14 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
               onTap: () => _showStatusPicker(context),
               behavior: HitTestBehavior.opaque,
               child: Text(
-                _getStatusText(selectedStatus),
+                _getStatusesText(selectedStatuses),
                 style: const TextStyle(
                   color: Color(0xFFD9D9D9),
                   fontSize: 16,
                   fontWeight: FontWeight.w200,
                 ),
                 textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ),
@@ -188,8 +210,16 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
     );
   }
 
-  String _getDatingGoalText(DatingGoal? goal) {
-    if (goal == null) return 'all goals';
+  String _getDatingGoalsText(Set<DatingGoal> goals) {
+    if (goals.isEmpty) return 'all goals';
+    if (goals.length == 1) {
+      return _getSingleGoalText(goals.first);
+    }
+    // Show count for multiple
+    return '${goals.length} goals';
+  }
+
+  String _getSingleGoalText(DatingGoal goal) {
     switch (goal) {
       case DatingGoal.anything:
         return 'anything';
@@ -204,8 +234,16 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
     }
   }
 
-  String _getStatusText(RelationshipStatus? status) {
-    if (status == null) return 'all statuses';
+  String _getStatusesText(Set<RelationshipStatus> statuses) {
+    if (statuses.isEmpty) return 'all statuses';
+    if (statuses.length == 1) {
+      return _getSingleStatusText(statuses.first);
+    }
+    // Show count for multiple
+    return '${statuses.length} statuses';
+  }
+
+  String _getSingleStatusText(RelationshipStatus status) {
     switch (status) {
       case RelationshipStatus.single:
         return 'single';
@@ -214,7 +252,7 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
       case RelationshipStatus.married:
         return 'married';
       case RelationshipStatus.inRelationship:
-        return 'in a relationship';
+        return 'in relationship';
     }
   }
 }
@@ -258,18 +296,20 @@ class _FilterOverlay extends StatelessWidget {
   }
 }
 
-/// Dating goal picker
-class _DatingGoalPicker extends StatelessWidget {
-  final DatingGoal? selected;
-  final ValueChanged<DatingGoal?> onSelect;
+/// Dating goal picker with multi-select support
+class _DatingGoalPicker extends ConsumerWidget {
+  final WidgetRef ref;
+  final ValueChanged<DatingGoal?> onToggle;
 
   const _DatingGoalPicker({
-    required this.selected,
-    required this.onSelect,
+    required this.ref,
+    required this.onToggle,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected = ref.watch(quickDatingGoalsProvider);
+
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.surface,
@@ -277,17 +317,17 @@ class _DatingGoalPicker extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildItem('all goals', null, selected == null),
+          _buildItem('all goals', null, selected.isEmpty),
           const Divider(height: 1, color: AppColors.divider),
-          _buildItem('anything', DatingGoal.anything, selected == DatingGoal.anything),
+          _buildItem('anything', DatingGoal.anything, selected.contains(DatingGoal.anything)),
           const Divider(height: 1, color: AppColors.divider),
-          _buildItem('casual', DatingGoal.casual, selected == DatingGoal.casual),
+          _buildItem('casual', DatingGoal.casual, selected.contains(DatingGoal.casual)),
           const Divider(height: 1, color: AppColors.divider),
-          _buildItem('virtual', DatingGoal.virtual, selected == DatingGoal.virtual),
+          _buildItem('virtual', DatingGoal.virtual, selected.contains(DatingGoal.virtual)),
           const Divider(height: 1, color: AppColors.divider),
-          _buildItem('friendship', DatingGoal.friendship, selected == DatingGoal.friendship),
+          _buildItem('friendship', DatingGoal.friendship, selected.contains(DatingGoal.friendship)),
           const Divider(height: 1, color: AppColors.divider),
-          _buildItem('long-term', DatingGoal.longTerm, selected == DatingGoal.longTerm),
+          _buildItem('long-term', DatingGoal.longTerm, selected.contains(DatingGoal.longTerm)),
         ],
       ),
     );
@@ -295,36 +335,50 @@ class _DatingGoalPicker extends StatelessWidget {
 
   Widget _buildItem(String text, DatingGoal? goal, bool isSelected) {
     return GestureDetector(
-      onTap: () => onSelect(goal),
+      onTap: () => onToggle(goal),
       behavior: HitTestBehavior.opaque,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
         color: isSelected ? AppColors.surfaceVariant : Colors.transparent,
-        child: Text(
-          text,
-          style: AppTypography.bodyMedium.copyWith(
-            color: isSelected ? AppColors.primary : AppColors.textPrimary,
-            fontSize: 15,
-          ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                text,
+                style: AppTypography.bodyMedium.copyWith(
+                  color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+            if (isSelected && goal != null)
+              const Icon(
+                Icons.check,
+                color: AppColors.primary,
+                size: 18,
+              ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Status picker
-class _StatusPicker extends StatelessWidget {
-  final RelationshipStatus? selected;
-  final ValueChanged<RelationshipStatus?> onSelect;
+/// Status picker with multi-select support
+class _StatusPicker extends ConsumerWidget {
+  final WidgetRef ref;
+  final ValueChanged<RelationshipStatus?> onToggle;
 
   const _StatusPicker({
-    required this.selected,
-    required this.onSelect,
+    required this.ref,
+    required this.onToggle,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected = ref.watch(quickRelationshipStatusesProvider);
+
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.surface,
@@ -332,15 +386,15 @@ class _StatusPicker extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildItem('all statuses', null, selected == null),
+          _buildItem('all statuses', null, selected.isEmpty),
           const Divider(height: 1, color: AppColors.divider),
-          _buildItem('single', RelationshipStatus.single, selected == RelationshipStatus.single),
+          _buildItem('single', RelationshipStatus.single, selected.contains(RelationshipStatus.single)),
           const Divider(height: 1, color: AppColors.divider),
-          _buildItem('complicated', RelationshipStatus.complicated, selected == RelationshipStatus.complicated),
+          _buildItem('complicated', RelationshipStatus.complicated, selected.contains(RelationshipStatus.complicated)),
           const Divider(height: 1, color: AppColors.divider),
-          _buildItem('married', RelationshipStatus.married, selected == RelationshipStatus.married),
+          _buildItem('married', RelationshipStatus.married, selected.contains(RelationshipStatus.married)),
           const Divider(height: 1, color: AppColors.divider),
-          _buildItem('in a relationship', RelationshipStatus.inRelationship, selected == RelationshipStatus.inRelationship),
+          _buildItem('in a relationship', RelationshipStatus.inRelationship, selected.contains(RelationshipStatus.inRelationship)),
         ],
       ),
     );
@@ -348,18 +402,30 @@ class _StatusPicker extends StatelessWidget {
 
   Widget _buildItem(String text, RelationshipStatus? status, bool isSelected) {
     return GestureDetector(
-      onTap: () => onSelect(status),
+      onTap: () => onToggle(status),
       behavior: HitTestBehavior.opaque,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
         color: isSelected ? AppColors.surfaceVariant : Colors.transparent,
-        child: Text(
-          text,
-          style: AppTypography.bodyMedium.copyWith(
-            color: isSelected ? AppColors.primary : AppColors.textPrimary,
-            fontSize: 15,
-          ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                text,
+                style: AppTypography.bodyMedium.copyWith(
+                  color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+            if (isSelected && status != null)
+              const Icon(
+                Icons.check,
+                color: AppColors.primary,
+                size: 18,
+              ),
+          ],
         ),
       ),
     );
@@ -405,7 +471,7 @@ class _DistanceSliderState extends State<_DistanceSlider> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Distance',
+                'distance',
                 style: AppTypography.bodyMedium.copyWith(
                   color: AppColors.textPrimary,
                   fontSize: 16,
@@ -425,8 +491,8 @@ class _DistanceSliderState extends State<_DistanceSlider> {
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
               activeTrackColor: AppColors.primary,
-              inactiveTrackColor: AppColors.surfaceVariant,
-              thumbColor: AppColors.primary,
+              inactiveTrackColor: const Color(0xFFF2F2F2),
+              thumbColor: const Color(0xFFF2F2F2),
               overlayColor: AppColors.primary.withValues(alpha: 0.2),
               trackHeight: 4,
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
@@ -468,12 +534,12 @@ class _DistanceSliderState extends State<_DistanceSlider> {
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: AppColors.primary,
                 borderRadius: BorderRadius.zero,
               ),
               child: Text(
-                'Done',
+                'done',
                 textAlign: TextAlign.center,
                 style: AppTypography.bodyMedium.copyWith(
                   color: Colors.white,

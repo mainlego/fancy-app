@@ -44,10 +44,18 @@ class FilterAsyncNotifier extends AsyncNotifier<FilterModel> {
     await _saveFilters(filters);
   }
 
-  /// Update distance
+  /// Update distance (max distance only for backward compatibility)
   Future<void> updateDistance(int distanceKm) async {
     final current = state.valueOrNull ?? FilterModel.defaultFilters;
-    final updated = current.copyWith(distanceKm: distanceKm);
+    final updated = current.copyWith(maxDistanceKm: distanceKm);
+    state = AsyncValue.data(updated);
+    await _saveFilters(updated);
+  }
+
+  /// Update distance range
+  Future<void> updateDistanceRange(int minDistanceKm, int maxDistanceKm) async {
+    final current = state.valueOrNull ?? FilterModel.defaultFilters;
+    final updated = current.copyWith(minDistanceKm: minDistanceKm, maxDistanceKm: maxDistanceKm);
     state = AsyncValue.data(updated);
     await _saveFilters(updated);
   }
@@ -241,9 +249,15 @@ class FilterNotifier extends StateNotifier<FilterModel> {
     await _saveFilters();
   }
 
-  /// Update distance
+  /// Update distance (max distance for backward compatibility)
   Future<void> updateDistance(int distanceKm) async {
-    state = state.copyWith(distanceKm: distanceKm);
+    state = state.copyWith(maxDistanceKm: distanceKm);
+    await _saveFilters();
+  }
+
+  /// Update distance range
+  Future<void> updateDistanceRange(int minDistanceKm, int maxDistanceKm) async {
+    state = state.copyWith(minDistanceKm: minDistanceKm, maxDistanceKm: maxDistanceKm);
     await _saveFilters();
   }
 

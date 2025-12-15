@@ -9,16 +9,20 @@ class FilterModel extends Equatable {
   // Relationship status (multi-select)
   final Set<RelationshipStatus> relationshipStatuses;
 
-  // Distance
-  final int distanceKm;
-  static const int minDistance = 1;
-  static const int maxDistance = 500;
+  // Distance range
+  final int minDistanceKm;
+  final int maxDistanceKm;
+  static const int minDistanceLimit = 1;
+  static const int maxDistanceLimit = 500;
+
+  // For backward compatibility
+  int get distanceKm => maxDistanceKm;
 
   // Age range
   final int minAge;
   final int maxAge;
   static const int minAgeLimit = 18;
-  static const int maxAgeLimit = 60;
+  static const int maxAgeLimit = 99; // 60+ shows as unlimited
 
   // Special filters
   final bool onlineOnly;
@@ -48,9 +52,10 @@ class FilterModel extends Equatable {
   const FilterModel({
     this.datingGoals = const {},
     this.relationshipStatuses = const {},
-    this.distanceKm = 50,
+    this.minDistanceKm = 1,
+    this.maxDistanceKm = 500,
     this.minAge = 18,
-    this.maxAge = 60,
+    this.maxAge = 99,
     this.onlineOnly = false,
     this.withPhoto = false,
     this.verifiedOnly = false,
@@ -70,7 +75,8 @@ class FilterModel extends Equatable {
   bool get hasActiveFilters {
     return datingGoals.isNotEmpty ||
         relationshipStatuses.isNotEmpty ||
-        distanceKm != 50 ||
+        minDistanceKm != minDistanceLimit ||
+        maxDistanceKm != maxDistanceLimit ||
         minAge != minAgeLimit ||
         maxAge != maxAgeLimit ||
         onlineOnly ||
@@ -90,7 +96,7 @@ class FilterModel extends Equatable {
     int count = 0;
     if (datingGoals.isNotEmpty) count++;
     if (relationshipStatuses.isNotEmpty) count++;
-    if (distanceKm != 50) count++;
+    if (minDistanceKm != minDistanceLimit || maxDistanceKm != maxDistanceLimit) count++;
     if (minAge != minAgeLimit || maxAge != maxAgeLimit) count++;
     if (onlineOnly) count++;
     if (withPhoto) count++;
@@ -107,7 +113,8 @@ class FilterModel extends Equatable {
   FilterModel copyWith({
     Set<DatingGoal>? datingGoals,
     Set<RelationshipStatus>? relationshipStatuses,
-    int? distanceKm,
+    int? minDistanceKm,
+    int? maxDistanceKm,
     int? minAge,
     int? maxAge,
     bool? onlineOnly,
@@ -124,7 +131,8 @@ class FilterModel extends Equatable {
     return FilterModel(
       datingGoals: datingGoals ?? this.datingGoals,
       relationshipStatuses: relationshipStatuses ?? this.relationshipStatuses,
-      distanceKm: distanceKm ?? this.distanceKm,
+      minDistanceKm: minDistanceKm ?? this.minDistanceKm,
+      maxDistanceKm: maxDistanceKm ?? this.maxDistanceKm,
       minAge: minAge ?? this.minAge,
       maxAge: maxAge ?? this.maxAge,
       onlineOnly: onlineOnly ?? this.onlineOnly,
@@ -161,7 +169,8 @@ class FilterModel extends Equatable {
               ?.map((e) => RelationshipStatus.values.byName(e as String))
               .toSet() ??
           {},
-      distanceKm: json['distanceKm'] as int? ?? 50,
+      minDistanceKm: json['minDistanceKm'] as int? ?? minDistanceLimit,
+      maxDistanceKm: json['maxDistanceKm'] as int? ?? json['distanceKm'] as int? ?? maxDistanceLimit,
       minAge: json['minAge'] as int? ?? minAgeLimit,
       maxAge: json['maxAge'] as int? ?? maxAgeLimit,
       onlineOnly: json['onlineOnly'] as bool? ?? false,
@@ -188,7 +197,8 @@ class FilterModel extends Equatable {
     return {
       'datingGoals': datingGoals.map((e) => e.name).toList(),
       'relationshipStatuses': relationshipStatuses.map((e) => e.name).toList(),
-      'distanceKm': distanceKm,
+      'minDistanceKm': minDistanceKm,
+      'maxDistanceKm': maxDistanceKm,
       'minAge': minAge,
       'maxAge': maxAge,
       'onlineOnly': onlineOnly,
@@ -208,7 +218,8 @@ class FilterModel extends Equatable {
   List<Object?> get props => [
         datingGoals,
         relationshipStatuses,
-        distanceKm,
+        minDistanceKm,
+        maxDistanceKm,
         minAge,
         maxAge,
         onlineOnly,

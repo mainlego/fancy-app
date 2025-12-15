@@ -3,6 +3,11 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
 import '../../core/constants/app_typography.dart';
 
+/// Slider thumb/track color
+const _sliderThumbColor = Color(0xFFF2F2F2);
+const _sliderInactiveTrackColor = Color(0xFFF2F2F2);
+const _subtitleColor = Color(0xFF737373);
+
 /// FANCY styled range slider
 class FancyRangeSlider extends StatelessWidget {
   final String label;
@@ -12,6 +17,7 @@ class FancyRangeSlider extends StatelessWidget {
   final int? divisions;
   final String Function(double value)? formatValue;
   final ValueChanged<RangeValues> onChanged;
+  final String? subtitle;
 
   const FancyRangeSlider({
     super.key,
@@ -22,6 +28,7 @@ class FancyRangeSlider extends StatelessWidget {
     this.divisions,
     this.formatValue,
     required this.onChanged,
+    this.subtitle,
   });
 
   @override
@@ -32,26 +39,30 @@ class FancyRangeSlider extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: AppTypography.titleSmall),
-            Text(
-              '$startLabel - $endLabel',
-              style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w600,
+        if (label.isNotEmpty)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: AppTypography.titleSmall),
+              Text(
+                '$startLabel - $endLabel',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-          ],
-        ),
-        AppSpacing.vGapSm,
+            ],
+          ),
+        if (label.isNotEmpty) AppSpacing.vGapSm,
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
             rangeThumbShape: const RoundRangeSliderThumbShape(
               enabledThumbRadius: 10,
             ),
             overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
+            thumbColor: _sliderThumbColor,
+            activeTrackColor: AppColors.primary,
+            inactiveTrackColor: _sliderInactiveTrackColor,
           ),
           child: RangeSlider(
             values: values,
@@ -61,6 +72,16 @@ class FancyRangeSlider extends StatelessWidget {
             onChanged: onChanged,
           ),
         ),
+        if (subtitle != null)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Text(
+              subtitle!,
+              style: AppTypography.bodySmall.copyWith(
+                color: _subtitleColor,
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -75,6 +96,7 @@ class FancySlider extends StatelessWidget {
   final int? divisions;
   final String Function(double value)? formatValue;
   final ValueChanged<double> onChanged;
+  final String? subtitle;
 
   const FancySlider({
     super.key,
@@ -85,6 +107,7 @@ class FancySlider extends StatelessWidget {
     this.divisions,
     this.formatValue,
     required this.onChanged,
+    this.subtitle,
   });
 
   @override
@@ -94,27 +117,47 @@ class FancySlider extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: AppTypography.titleSmall),
-            Text(
-              valueLabel,
-              style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w600,
+        if (label.isNotEmpty)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: AppTypography.titleSmall),
+              Text(
+                valueLabel,
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        if (label.isNotEmpty) AppSpacing.vGapSm,
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
+            thumbColor: _sliderThumbColor,
+            activeTrackColor: AppColors.primary,
+            inactiveTrackColor: _sliderInactiveTrackColor,
+          ),
+          child: Slider(
+            value: value,
+            min: min,
+            max: max,
+            divisions: divisions,
+            onChanged: onChanged,
+          ),
+        ),
+        if (subtitle != null)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Text(
+              subtitle!,
+              style: AppTypography.bodySmall.copyWith(
+                color: _subtitleColor,
               ),
             ),
-          ],
-        ),
-        AppSpacing.vGapSm,
-        Slider(
-          value: value,
-          min: min,
-          max: max,
-          divisions: divisions,
-          onChanged: onChanged,
-        ),
+          ),
       ],
     );
   }

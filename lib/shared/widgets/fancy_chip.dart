@@ -33,7 +33,7 @@ class FancyChip extends StatelessWidget {
           vertical: AppSpacing.sm,
         ),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : AppColors.surfaceVariant,
+          color: isSelected ? AppColors.primary : Colors.black,
           borderRadius: BorderRadius.zero,
           border: Border.all(
             color: isSelected ? AppColors.primary : AppColors.border,
@@ -48,16 +48,16 @@ class FancyChip extends StatelessWidget {
                 icon,
                 size: 16,
                 color: isSelected
-                    ? AppColors.textPrimary
+                    ? Colors.black
                     : AppColors.textSecondary,
               ),
               const SizedBox(width: 6),
             ],
             Text(
-              label,
+              label.toLowerCase(),
               style: AppTypography.labelMedium.copyWith(
                 color: isSelected
-                    ? AppColors.textPrimary
+                    ? Colors.black
                     : AppColors.textSecondary,
               ),
             ),
@@ -69,7 +69,7 @@ class FancyChip extends StatelessWidget {
                   Icons.close,
                   size: 14,
                   color: isSelected
-                      ? AppColors.textPrimary
+                      ? Colors.black
                       : AppColors.textTertiary,
                 ),
               ),

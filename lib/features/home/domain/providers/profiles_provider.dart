@@ -12,26 +12,37 @@ final filterProvider = Provider<FilterModel>((ref) {
   return ref.watch(filterNotifierProvider);
 });
 
-/// Quick filter for dating goals - synced with main filter
-final quickDatingGoalProvider = StateProvider<DatingGoal?>((ref) {
+/// Quick filter for dating goals - synced with main filter (supports multiple selection)
+final quickDatingGoalsProvider = StateProvider<Set<DatingGoal>>((ref) {
   // Initialize from saved filter if available
   final filterAsync = ref.watch(filterAsyncProvider);
   final filter = filterAsync.valueOrNull;
   if (filter != null && filter.datingGoals.isNotEmpty) {
-    return filter.datingGoals.first;
+    return filter.datingGoals;
   }
-  return null;
+  return <DatingGoal>{};
 });
 
-/// Quick filter for relationship status - synced with main filter
-final quickRelationshipStatusProvider = StateProvider<RelationshipStatus?>((ref) {
+/// Quick filter for relationship status - synced with main filter (supports multiple selection)
+final quickRelationshipStatusesProvider = StateProvider<Set<RelationshipStatus>>((ref) {
   // Initialize from saved filter if available
   final filterAsync = ref.watch(filterAsyncProvider);
   final filter = filterAsync.valueOrNull;
   if (filter != null && filter.relationshipStatuses.isNotEmpty) {
-    return filter.relationshipStatuses.first;
+    return filter.relationshipStatuses;
   }
-  return null;
+  return <RelationshipStatus>{};
+});
+
+/// Legacy single-select providers for backward compatibility
+final quickDatingGoalProvider = StateProvider<DatingGoal?>((ref) {
+  final goals = ref.watch(quickDatingGoalsProvider);
+  return goals.isEmpty ? null : goals.first;
+});
+
+final quickRelationshipStatusProvider = StateProvider<RelationshipStatus?>((ref) {
+  final statuses = ref.watch(quickRelationshipStatusesProvider);
+  return statuses.isEmpty ? null : statuses.first;
 });
 
 /// Profiles from Supabase
@@ -230,8 +241,8 @@ final filteredProfilesProvider = Provider<List<UserModel>>((ref) {
   final profilesAsync = ref.watch(profilesNotifierProvider);
   final aiProfiles = ref.watch(aiProfilesAsUsersProvider);
   final filter = ref.watch(filterProvider);
-  final quickGoal = ref.watch(quickDatingGoalProvider);
-  final quickStatus = ref.watch(quickRelationshipStatusProvider);
+  final quickGoals = ref.watch(quickDatingGoalsProvider);
+  final quickStatuses = ref.watch(quickRelationshipStatusesProvider);
 
   // Get real profiles (empty list if loading/error)
   final realProfiles = profilesAsync.valueOrNull ?? [];
@@ -243,13 +254,17 @@ final filteredProfilesProvider = Provider<List<UserModel>>((ref) {
   return allProfiles.where((profile) {
     final isAI = profile.isAi;
 
-    // Quick filter: dating goal
-    if (quickGoal != null && profile.datingGoal != quickGoal) {
+    // Quick filter: dating goals (supports multiple selection)
+    if (quickGoals.isNotEmpty &&
+        profile.datingGoal != null &&
+        !quickGoals.contains(profile.datingGoal)) {
       return false;
     }
 
-    // Quick filter: relationship status
-    if (quickStatus != null && profile.relationshipStatus != quickStatus) {
+    // Quick filter: relationship statuses (supports multiple selection)
+    if (quickStatuses.isNotEmpty &&
+        profile.relationshipStatus != null &&
+        !quickStatuses.contains(profile.relationshipStatus)) {
       return false;
     }
 
