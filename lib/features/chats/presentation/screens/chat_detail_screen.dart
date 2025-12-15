@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:http/http.dart' as http;
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
@@ -607,16 +609,31 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       final supabase = ref.read(supabaseServiceProvider);
       final chatId = _actualChatId ?? widget.chatId;
 
-      // Determine file extension and content type based on platform
-      final isWebFormat = result.filePath.endsWith('.webm');
-      final fileName = isWebFormat
-          ? 'voice_${DateTime.now().millisecondsSinceEpoch}.webm'
-          : 'voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
-      final contentType = isWebFormat ? 'audio/webm' : 'audio/mp4';
+      Uint8List bytes;
+      String fileName;
+      String contentType;
 
-      // Read the recorded file
-      final file = File(result.filePath);
-      final bytes = await file.readAsBytes();
+      if (kIsWeb) {
+        // On web, the filePath is a blob URL - fetch the data via HTTP
+        final response = await http.get(Uri.parse(result.filePath));
+        bytes = response.bodyBytes;
+        fileName = 'voice_${DateTime.now().millisecondsSinceEpoch}.webm';
+        contentType = 'audio/webm';
+      } else {
+        // On mobile, read from file system
+        final file = File(result.filePath);
+        bytes = await file.readAsBytes();
+        final isWebFormat = result.filePath.endsWith('.webm');
+        fileName = isWebFormat
+            ? 'voice_${DateTime.now().millisecondsSinceEpoch}.webm'
+            : 'voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        contentType = isWebFormat ? 'audio/webm' : 'audio/mp4';
+
+        // Clean up temp file
+        try {
+          await file.delete();
+        } catch (_) {}
+      }
 
       // Upload to Supabase storage
       final voiceUrl = await supabase.uploadChatMedia(
@@ -633,13 +650,6 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         type: MessageType.voice,
         durationMs: result.durationMs,
       );
-
-      // Clean up temp file (not on web)
-      if (!kIsWeb) {
-        try {
-          await file.delete();
-        } catch (_) {}
-      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
