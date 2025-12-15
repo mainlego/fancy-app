@@ -19,6 +19,7 @@ import '../../features/settings/presentation/screens/verification_screen.dart';
 import '../../features/settings/presentation/screens/premium_screen.dart';
 import '../../features/filters/presentation/screens/filters_screen.dart';
 import '../../features/albums/presentation/screens/albums_screen.dart';
+import '../../features/tutorial/presentation/screens/app_tutorial_screen.dart';
 import '../../shared/widgets/main_scaffold.dart';
 
 /// Route names
@@ -41,6 +42,7 @@ abstract class AppRoutes {
   static const String filters = '/filters';
   static const String albums = '/albums';
   static const String profileSetup = '/profile-setup';
+  static const String tutorial = '/tutorial';
 }
 
 /// Navigation shell key
@@ -54,6 +56,7 @@ const _authRoutes = [
   AppRoutes.onboarding,
   AppRoutes.splash,
   AppRoutes.profileSetup,
+  AppRoutes.tutorial,
 ];
 
 /// App router configuration
@@ -65,15 +68,16 @@ final appRouter = GoRouter(
     final isLoggedIn = session != null;
     final isAuthRoute = _authRoutes.contains(state.matchedLocation);
     final isProfileSetup = state.matchedLocation == AppRoutes.profileSetup;
+    final isTutorial = state.matchedLocation == AppRoutes.tutorial;
 
     // If not logged in and trying to access protected route, go to login
     if (!isLoggedIn && !isAuthRoute) {
       return AppRoutes.login;
     }
 
-    // If logged in and on auth route (except profile setup), go to home
+    // If logged in and on auth route (except profile setup and tutorial), go to home
     // Home screen will check if profile exists and redirect to profile setup if needed
-    if (isLoggedIn && isAuthRoute && !isProfileSetup) {
+    if (isLoggedIn && isAuthRoute && !isProfileSetup && !isTutorial) {
       return AppRoutes.home;
     }
 
@@ -106,6 +110,11 @@ final appRouter = GoRouter(
       path: AppRoutes.profileSetup,
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const ProfileSetupScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.tutorial,
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const AppTutorialScreen(),
     ),
 
     // Shell route for bottom navigation
@@ -227,4 +236,5 @@ extension NavigationExtension on BuildContext {
   void pushFilters() => push(AppRoutes.filters);
   void pushAlbums() => push(AppRoutes.albums);
   void goToProfileSetup() => go(AppRoutes.profileSetup);
+  void goToTutorial() => go(AppRoutes.tutorial);
 }

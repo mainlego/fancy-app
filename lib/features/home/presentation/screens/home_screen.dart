@@ -7,6 +7,7 @@ import '../../../../core/router/app_router.dart';
 import '../../../../shared/widgets/widgets.dart';
 import '../../../profile/domain/models/user_model.dart';
 import '../../../profile/domain/providers/current_profile_provider.dart';
+import '../../../tutorial/presentation/screens/app_tutorial_screen.dart';
 import '../../domain/providers/profiles_provider.dart';
 import '../widgets/home_header.dart';
 import '../widgets/match_dialog.dart';
@@ -58,7 +59,30 @@ class HomeScreen extends ConsumerWidget {
           );
         }
 
-        return _buildMainContent(context, ref);
+        // Check if tutorial has been completed
+        final tutorialCompletedAsync = ref.watch(tutorialCompletedProvider);
+        return tutorialCompletedAsync.when(
+          loading: () => const Scaffold(
+            backgroundColor: AppColors.background,
+            body: Center(child: CircularProgressIndicator()),
+          ),
+          error: (_, __) => _buildMainContent(context, ref), // On error, show main content
+          data: (tutorialCompleted) {
+            if (!tutorialCompleted) {
+              // Schedule navigation to tutorial after build
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (context.mounted) {
+                  context.goToTutorial();
+                }
+              });
+              return const Scaffold(
+                backgroundColor: AppColors.background,
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            return _buildMainContent(context, ref);
+          },
+        );
       },
     );
   }

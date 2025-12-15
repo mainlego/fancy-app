@@ -107,7 +107,8 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     setState(() => _isLoading = false);
 
     if (success && mounted) {
-      context.goToHome();
+      // Navigate to tutorial for first-time users
+      context.goToTutorial();
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
