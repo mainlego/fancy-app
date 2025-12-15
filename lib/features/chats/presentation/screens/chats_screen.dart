@@ -4,17 +4,58 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/router/app_router.dart';
+import '../../../../core/services/supabase_service.dart';
 import '../../../../shared/widgets/widgets.dart';
 import '../../domain/models/chat_model.dart';
 import '../../domain/providers/chats_provider.dart';
 
-/// Chats screen with tabs (Chats, Likes, Favs)
-class ChatsScreen extends ConsumerWidget {
+/// Chats screen with swipeable tabs (Chats, Likes, Favs)
+class ChatsScreen extends ConsumerStatefulWidget {
   const ChatsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final currentTab = ref.watch(chatsTabProvider);
+  ConsumerState<ChatsScreen> createState() => _ChatsScreenState();
+}
+
+class _ChatsScreenState extends ConsumerState<ChatsScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  late PageController _pageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _pageController = PageController();
+
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) {
+        _pageController.animateToPage(
+          _tabController.index,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+        _updateTabProvider(_tabController.index);
+      }
+    });
+  }
+
+  void _updateTabProvider(int index) {
+    final tab = ChatsTab.values[index];
+    ref.read(chatsTabProvider.notifier).state = tab;
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final unreadChats = ref.watch(unreadChatsCountProvider);
+    final newLikes = ref.watch(newLikesCountProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -29,22 +70,32 @@ class ChatsScreen extends ConsumerWidget {
       ),
       body: Column(
         children: [
-          // Tab bar
-          _buildTabBar(ref, currentTab),
+          // Custom Tab bar
+          _buildTabBar(unreadChats, newLikes),
 
-          // Tab content
+          // Swipeable Tab content
           Expanded(
-            child: _buildTabContent(context, ref, currentTab),
+            child: PageView(
+              controller: _pageController,
+              onPageChanged: (index) {
+                _tabController.animateTo(index);
+                _updateTabProvider(index);
+              },
+              children: [
+                _ChatsListView(
+                  onShowFavoriteDialog: _showFavoriteDialog,
+                ),
+                const _LikesListView(),
+                const _FavoritesListView(),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTabBar(WidgetRef ref, ChatsTab currentTab) {
-    final unreadChats = ref.watch(unreadChatsCountProvider);
-    final newLikes = ref.watch(newLikesCountProvider);
-
+  Widget _buildTabBar(int unreadChats, int newLikes) {
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.lg,
@@ -57,103 +108,235 @@ class ChatsScreen extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          _buildTab(
-            ref,
-            ChatsTab.chats,
-            'Chats',
-            currentTab == ChatsTab.chats,
-            badge: unreadChats > 0 ? unreadChats : null,
-          ),
+          _buildTab(0, 'Chats', badge: unreadChats > 0 ? unreadChats : null),
           AppSpacing.hGapLg,
-          _buildTab(
-            ref,
-            ChatsTab.likes,
-            'Likes',
-            currentTab == ChatsTab.likes,
-            badge: newLikes > 0 ? newLikes : null,
-          ),
+          _buildTab(1, 'Likes', badge: newLikes > 0 ? newLikes : null),
           AppSpacing.hGapLg,
-          _buildTab(
-            ref,
-            ChatsTab.favs,
-            'Favorites',
-            currentTab == ChatsTab.favs,
-          ),
+          _buildTab(2, 'Favorites'),
         ],
       ),
     );
   }
 
-  Widget _buildTab(
-    WidgetRef ref,
-    ChatsTab tab,
-    String label,
-    bool isActive, {
-    int? badge,
-  }) {
-    return GestureDetector(
-      onTap: () => ref.read(chatsTabProvider.notifier).state = tab,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.sm,
-        ),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: isActive ? AppColors.primary : Colors.transparent,
-              width: 2,
+  Widget _buildTab(int index, String label, {int? badge}) {
+    return AnimatedBuilder(
+      animation: _tabController,
+      builder: (context, child) {
+        final isActive = _tabController.index == index;
+        return GestureDetector(
+          onTap: () {
+            _tabController.animateTo(index);
+            _pageController.animateToPage(
+              index,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
             ),
-          ),
-        ),
-        child: Row(
-          children: [
-            Text(
-              label,
-              style: AppTypography.titleSmall.copyWith(
-                color: isActive ? AppColors.primary : AppColors.textSecondary,
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: isActive ? AppColors.primary : Colors.transparent,
+                  width: 2,
+                ),
               ),
             ),
-            if (badge != null) ...[
-              AppSpacing.hGapXs,
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 6,
-                  vertical: 2,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-                ),
-                child: Text(
-                  badge > 99 ? '99+' : badge.toString(),
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
+            child: Row(
+              children: [
+                Text(
+                  label,
+                  style: AppTypography.titleSmall.copyWith(
+                    color: isActive ? AppColors.primary : AppColors.textSecondary,
                   ),
                 ),
+                if (badge != null) ...[
+                  AppSpacing.hGapXs,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                    ),
+                    child: Text(
+                      badge > 99 ? '99+' : badge.toString(),
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showFavoriteDialog(ChatModel chat, bool isFavorite) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppSpacing.radiusLg),
+        ),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.textTertiary,
+                borderRadius: BorderRadius.circular(2),
               ),
-            ],
+            ),
+            ListTile(
+              leading: Icon(
+                isFavorite ? Icons.star_border : Icons.star,
+                color: AppColors.premium,
+              ),
+              title: Text(
+                isFavorite ? 'Remove from Favorites' : 'Add to Favorites',
+              ),
+              onTap: () async {
+                Navigator.pop(context);
+                await _toggleFavorite(chat, isFavorite);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: AppColors.error),
+              title: const Text('Delete Chat'),
+              onTap: () {
+                Navigator.pop(context);
+                _showDeleteConfirmation(chat);
+              },
+            ),
+            AppSpacing.vGapLg,
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTabContent(BuildContext context, WidgetRef ref, ChatsTab tab) {
-    switch (tab) {
-      case ChatsTab.chats:
-        return _buildChatsList(context, ref);
-      case ChatsTab.likes:
-        return _buildLikesList(context, ref);
-      case ChatsTab.favs:
-        return _buildFavoritesList(context, ref);
+  Future<void> _toggleFavorite(ChatModel chat, bool isFavorite) async {
+    try {
+      final supabase = ref.read(supabaseServiceProvider);
+      if (isFavorite) {
+        await supabase.removeFromFavorites(chat.participantId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${chat.participantName} removed from favorites'),
+              backgroundColor: AppColors.textSecondary,
+            ),
+          );
+        }
+      } else {
+        await supabase.addToFavorites(chat.participantId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${chat.participantName} added to favorites'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      }
+      // Refresh favorites list
+      ref.read(favoritesNotifierProvider.notifier).refresh();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update favorites: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
     }
   }
 
-  Widget _buildChatsList(BuildContext context, WidgetRef ref) {
+  void _showDeleteConfirmation(ChatModel chat) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(
+          'Delete Chat',
+          style: AppTypography.headlineSmall.copyWith(color: AppColors.textPrimary),
+        ),
+        content: Text(
+          'Delete chat with ${chat.participantName}? This cannot be undone.',
+          style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteChat(chat);
+            },
+            child: const Text('Delete', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteChat(ChatModel chat) async {
+    try {
+      final supabase = ref.read(supabaseServiceProvider);
+      await supabase.deleteChat(chat.id);
+      ref.read(chatsNotifierProvider.notifier).refresh();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Chat deleted'),
+            backgroundColor: AppColors.textSecondary,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete chat: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+}
+
+/// Chats list view
+class _ChatsListView extends ConsumerWidget {
+  final void Function(ChatModel chat, bool isFavorite) onShowFavoriteDialog;
+
+  const _ChatsListView({required this.onShowFavoriteDialog});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final chatsAsync = ref.watch(combinedChatsProvider);
+    final favoritesAsync = ref.watch(favoritesNotifierProvider);
+    final favoriteIds = favoritesAsync.valueOrNull?.map((f) => f.oderId).toSet() ?? {};
 
     return chatsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -178,8 +361,10 @@ class ChatsScreen extends ConsumerWidget {
           itemBuilder: (context, index) {
             final chat = chats[index];
             final isAIChat = chat.id.startsWith('ai_');
+            final isFavorite = favoriteIds.contains(chat.participantId);
             return _ChatListTile(
               chat: chat,
+              isFavorite: isFavorite,
               onTap: () {
                 if (isAIChat) {
                   context.pushAIChat(chat.id);
@@ -190,14 +375,21 @@ class ChatsScreen extends ConsumerWidget {
               onDismiss: () {
                 // Handle delete chat
               },
+              onLongPress: () => onShowFavoriteDialog(chat, isFavorite),
             );
           },
         );
       },
     );
   }
+}
 
-  Widget _buildLikesList(BuildContext context, WidgetRef ref) {
+/// Likes list view
+class _LikesListView extends ConsumerWidget {
+  const _LikesListView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final likesAsync = ref.watch(likesNotifierProvider);
 
     return likesAsync.when(
@@ -236,8 +428,14 @@ class ChatsScreen extends ConsumerWidget {
       },
     );
   }
+}
 
-  Widget _buildFavoritesList(BuildContext context, WidgetRef ref) {
+/// Favorites list view
+class _FavoritesListView extends ConsumerWidget {
+  const _FavoritesListView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final favoritesAsync = ref.watch(favoritesNotifierProvider);
 
     return favoritesAsync.when(
@@ -252,7 +450,7 @@ class ChatsScreen extends ConsumerWidget {
           return _buildEmptyState(
             icon: Icons.star_border,
             title: 'No favorites yet',
-            subtitle: 'Add people to favorites to find them quickly',
+            subtitle: 'Long-press on a chat to add to favorites',
           );
         }
 
@@ -272,80 +470,84 @@ class ChatsScreen extends ConsumerWidget {
       },
     );
   }
+}
 
-  Widget _buildEmptyState({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-  }) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            size: 64,
+Widget _buildEmptyState({
+  required IconData icon,
+  required String title,
+  required String subtitle,
+}) {
+  return Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          icon,
+          size: 64,
+          color: AppColors.textTertiary,
+        ),
+        AppSpacing.vGapLg,
+        Text(
+          title,
+          style: AppTypography.headlineSmall.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
+        AppSpacing.vGapSm,
+        Text(
+          subtitle,
+          style: AppTypography.bodyMedium.copyWith(
             color: AppColors.textTertiary,
           ),
-          AppSpacing.vGapLg,
-          Text(
-            title,
-            style: AppTypography.headlineSmall.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          AppSpacing.vGapSm,
-          Text(
-            subtitle,
-            style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textTertiary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
+          textAlign: TextAlign.center,
+        ),
+      ],
+    ),
+  );
+}
 
-  Widget _buildErrorState(WidgetRef ref, String message, VoidCallback onRetry) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.error_outline,
-            size: 64,
-            color: AppColors.error,
+Widget _buildErrorState(WidgetRef ref, String message, VoidCallback onRetry) {
+  return Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(
+          Icons.error_outline,
+          size: 64,
+          color: AppColors.error,
+        ),
+        AppSpacing.vGapLg,
+        Text(
+          message,
+          style: AppTypography.headlineSmall.copyWith(
+            color: AppColors.textSecondary,
           ),
-          AppSpacing.vGapLg,
-          Text(
-            message,
-            style: AppTypography.headlineSmall.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          AppSpacing.vGapMd,
-          FancyButton(
-            text: 'Retry',
-            variant: FancyButtonVariant.outline,
-            fullWidth: false,
-            onPressed: onRetry,
-          ),
-        ],
-      ),
-    );
-  }
+        ),
+        AppSpacing.vGapMd,
+        FancyButton(
+          text: 'Retry',
+          variant: FancyButtonVariant.outline,
+          fullWidth: false,
+          onPressed: onRetry,
+        ),
+      ],
+    ),
+  );
 }
 
 class _ChatListTile extends StatelessWidget {
   final ChatModel chat;
   final VoidCallback onTap;
   final VoidCallback onDismiss;
+  final VoidCallback? onLongPress;
+  final bool isFavorite;
 
   const _ChatListTile({
     required this.chat,
     required this.onTap,
     required this.onDismiss,
+    this.onLongPress,
+    this.isFavorite = false,
   });
 
   @override
@@ -377,11 +579,22 @@ class _ChatListTile extends StatelessWidget {
         title: Row(
           children: [
             Expanded(
-              child: Text(
-                chat.participantName,
-                style: AppTypography.titleSmall.copyWith(
-                  fontWeight: chat.hasUnread ? FontWeight.w600 : FontWeight.w400,
-                ),
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      chat.participantName,
+                      style: AppTypography.titleSmall.copyWith(
+                        fontWeight: chat.hasUnread ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (isFavorite) ...[
+                    AppSpacing.hGapXs,
+                    const Icon(Icons.star, color: AppColors.premium, size: 16),
+                  ],
+                ],
               ),
             ),
             Text(
@@ -430,6 +643,7 @@ class _ChatListTile extends StatelessWidget {
           ],
         ),
         onTap: onTap,
+        onLongPress: onLongPress,
       ),
     );
   }

@@ -93,22 +93,27 @@ class _VoiceRecordingDialogState extends State<VoiceRecordingDialog>
       }
 
       String path;
+      RecordConfig config;
+
       if (kIsWeb) {
-        // For web, use a temporary path that will be handled differently
-        path = 'voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        // For web, use opus encoder which is well supported
+        path = 'voice_${DateTime.now().millisecondsSinceEpoch}.webm';
+        config = const RecordConfig(
+          encoder: AudioEncoder.opus,
+          bitRate: 128000,
+          sampleRate: 48000,
+        );
       } else {
         final dir = await getTemporaryDirectory();
         path = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
-      }
-
-      await _recorder.start(
-        const RecordConfig(
+        config = const RecordConfig(
           encoder: AudioEncoder.aacLc,
           bitRate: 128000,
           sampleRate: 44100,
-        ),
-        path: path,
-      );
+        );
+      }
+
+      await _recorder.start(config, path: path);
 
       setState(() {
         _isRecording = true;

@@ -587,20 +587,26 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     setState(() => _isUploading = true);
 
     try {
-      // Read the recorded file
-      final file = File(result.filePath);
-      final bytes = await file.readAsBytes();
-      final fileName = 'voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
-
-      // Upload to Supabase storage
       final supabase = ref.read(supabaseServiceProvider);
       final chatId = _actualChatId ?? widget.chatId;
 
+      // Determine file extension and content type based on platform
+      final isWebFormat = result.filePath.endsWith('.webm');
+      final fileName = isWebFormat
+          ? 'voice_${DateTime.now().millisecondsSinceEpoch}.webm'
+          : 'voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      final contentType = isWebFormat ? 'audio/webm' : 'audio/mp4';
+
+      // Read the recorded file
+      final file = File(result.filePath);
+      final bytes = await file.readAsBytes();
+
+      // Upload to Supabase storage
       final voiceUrl = await supabase.uploadChatMedia(
         chatId: chatId,
         fileName: fileName,
         bytes: bytes,
-        contentType: 'audio/mp4',
+        contentType: contentType,
       );
 
       // Send voice message
@@ -611,10 +617,12 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         durationMs: result.durationMs,
       );
 
-      // Clean up temp file
-      try {
-        await file.delete();
-      } catch (_) {}
+      // Clean up temp file (not on web)
+      if (!kIsWeb) {
+        try {
+          await file.delete();
+        } catch (_) {}
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
