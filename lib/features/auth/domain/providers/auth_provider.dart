@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -213,6 +214,17 @@ class AuthNotifier extends StateNotifier<AuthStateModel> {
     state = state.copyWith(state: AuthState.loading, errorMessage: null);
 
     try {
+      // For web, use Supabase OAuth redirect flow
+      if (kIsWeb) {
+        await Supabase.instance.client.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: Uri.base.origin,
+        );
+        // The page will redirect, auth state will be handled by onAuthStateChange
+        return true;
+      }
+
+      // For mobile, use Google Sign-In package
       final googleSignIn = GoogleSignIn(
         clientId: _iosClientId,
         serverClientId: _webClientId,
