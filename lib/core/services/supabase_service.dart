@@ -1339,10 +1339,31 @@ class SupabaseService {
     final userId = currentUser?.id;
     if (userId == null) throw Exception('Not authenticated');
 
+    debugPrint('uploadAlbumPhoto: userId=$userId, albumId=$albumId');
+
+    // Verify the album exists and belongs to user
+    final albumCheck = await _client
+        .from(SupabaseConfig.albumsTable)
+        .select('id, user_id')
+        .eq('id', albumId)
+        .maybeSingle();
+
+    debugPrint('uploadAlbumPhoto: albumCheck=$albumCheck');
+
+    if (albumCheck == null) {
+      throw Exception('Album not found: $albumId');
+    }
+
+    if (albumCheck['user_id'] != userId) {
+      throw Exception('Album does not belong to user');
+    }
+
     // Generate unique filename
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final extension = fileName.split('.').last;
     final path = '$userId/$albumId/photo_$timestamp.$extension';
+
+    debugPrint('uploadAlbumPhoto: uploading to storage path=$path');
 
     // Upload to storage
     await _client.storage.from(SupabaseConfig.albumsBucket).uploadBinary(
@@ -1355,23 +1376,34 @@ class SupabaseService {
     );
 
     final publicUrl = _client.storage.from(SupabaseConfig.albumsBucket).getPublicUrl(path);
+    debugPrint('uploadAlbumPhoto: storage uploaded, publicUrl=$publicUrl');
 
     // Insert photo record
-    final response = await _client.from(SupabaseConfig.albumPhotosTable).insert({
-      'album_id': albumId,
-      'url': publicUrl,
-      'type': 'photo',
-      'is_private': isPrivate,
-      'created_at': DateTime.now().toIso8601String(),
-    }).select().single();
+    try {
+      final response = await _client.from(SupabaseConfig.albumPhotosTable).insert({
+        'album_id': albumId,
+        'url': publicUrl,
+        'type': 'photo',
+        'is_private': isPrivate,
+      }).select().single();
 
-    // Update album's updated_at
-    await _client
-        .from(SupabaseConfig.albumsTable)
-        .update({'updated_at': DateTime.now().toIso8601String()})
-        .eq('id', albumId);
+      debugPrint('uploadAlbumPhoto: photo record inserted, id=${response['id']}');
 
-    return response;
+      // Update album's updated_at
+      await _client
+          .from(SupabaseConfig.albumsTable)
+          .update({'updated_at': DateTime.now().toIso8601String()})
+          .eq('id', albumId);
+
+      return response;
+    } catch (e) {
+      debugPrint('uploadAlbumPhoto: Error inserting photo record: $e');
+      // Try to clean up uploaded file
+      try {
+        await _client.storage.from(SupabaseConfig.albumsBucket).remove([path]);
+      } catch (_) {}
+      rethrow;
+    }
   }
 
   /// Delete photo from album
@@ -1598,6 +1630,8 @@ class SupabaseService {
     final userId = currentUser?.id;
     if (userId == null) throw Exception('Not authenticated');
 
+    debugPrint('getOrCreateDefaultAlbums: userId=$userId');
+
     // Get existing albums
     final existing = await _client
         .from(SupabaseConfig.albumsTable)
@@ -1605,10 +1639,13 @@ class SupabaseService {
         .eq('user_id', userId)
         .inFilter('name', ['Public', 'Private']);
 
+    debugPrint('getOrCreateDefaultAlbums: found ${(existing as List).length} existing albums');
+
     Map<String, dynamic>? publicAlbum;
     Map<String, dynamic>? privateAlbum;
 
-    for (final album in existing as List) {
+    for (final album in existing) {
+      debugPrint('getOrCreateDefaultAlbums: found album ${album['name']} with id ${album['id']}');
       if (album['name'] == 'Public') {
         publicAlbum = Map<String, dynamic>.from(album);
       } else if (album['name'] == 'Private') {
@@ -1618,14 +1655,18 @@ class SupabaseService {
 
     // Create public album if not exists
     if (publicAlbum == null) {
+      debugPrint('getOrCreateDefaultAlbums: creating Public album');
       publicAlbum = await createAlbum(name: 'Public', privacy: 'public');
       publicAlbum['album_photos'] = [];
+      debugPrint('getOrCreateDefaultAlbums: created Public album with id ${publicAlbum['id']}');
     }
 
     // Create private album if not exists
     if (privateAlbum == null) {
+      debugPrint('getOrCreateDefaultAlbums: creating Private album');
       privateAlbum = await createAlbum(name: 'Private', privacy: 'private');
       privateAlbum['album_photos'] = [];
+      debugPrint('getOrCreateDefaultAlbums: created Private album with id ${privateAlbum['id']}');
     }
 
     return {
