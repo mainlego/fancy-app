@@ -6,6 +6,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/router/app_router.dart';
+import '../../../../core/services/supabase_service.dart';
 import '../../../../shared/widgets/widgets.dart';
 import '../../../albums/domain/models/album_model.dart';
 import '../../../albums/domain/models/access_request_model.dart';
@@ -865,12 +866,28 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
 
   Future<void> _requestAccess(AlbumModel album, UserModel user) async {
     try {
+      final supabase = ref.read(supabaseServiceProvider);
+
+      // Create access request
       await ref.read(accessRequestsNotifierProvider.notifier).requestAccess(
         album.id,
         user.id,
       );
       // Refresh the status provider
       ref.invalidate(albumAccessRequestStatusProvider(album.id));
+
+      // Also send a message to chat requesting access (if chat exists)
+      final chatData = await supabase.getChatByParticipant(user.id);
+      if (chatData != null) {
+        final chatId = chatData['id'] as String;
+        // Send access request message
+        await supabase.sendMessage(
+          chatId: chatId,
+          content: '🔐 Requesting access to view your private photos',
+        );
+        // Refresh chats
+        ref.read(chatsNotifierProvider.notifier).refresh();
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

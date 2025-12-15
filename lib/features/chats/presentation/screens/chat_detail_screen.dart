@@ -303,6 +303,10 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                     return _MessageBubble(
                       message: message,
                       isMe: isMe,
+                      onPrivateMediaViewed: () {
+                        // Refresh messages to update the viewed state
+                        ref.invalidate(messagesNotifierProvider(actualChatId));
+                      },
                     );
                   },
                 );
@@ -1001,10 +1005,12 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
 class _MessageBubble extends StatelessWidget {
   final MessageModel message;
   final bool isMe;
+  final VoidCallback? onPrivateMediaViewed;
 
   const _MessageBubble({
     required this.message,
     required this.isMe,
+    this.onPrivateMediaViewed,
   });
 
   @override
@@ -1255,8 +1261,12 @@ class _MessageBubble extends StatelessWidget {
       return;
     }
 
-    // Show timed viewer
-    TimedMediaViewer.show(context, message);
+    // Show timed viewer with callback to refresh messages
+    TimedMediaViewer.show(
+      context,
+      message,
+      onViewed: onPrivateMediaViewed,
+    );
   }
 
   String _formatTime(DateTime date) {

@@ -277,20 +277,40 @@ class _AlbumPickerDialogState extends ConsumerState<AlbumPickerDialog>
           AppSpacing.vGapMd,
 
           // One-time view toggle
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('One-time view'),
-            subtitle: const Text('Photo disappears after viewing'),
-            value: _oneTimeView,
-            onChanged: (value) {
-              setState(() {
-                _oneTimeView = value;
-                if (value) {
-                  _viewDurationSec = null; // One-time view doesn't need duration
-                }
-              });
-            },
-            activeColor: AppColors.primary,
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'One-time view',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Photo disappears after viewing',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: _oneTimeView,
+                onChanged: (value) {
+                  setState(() {
+                    _oneTimeView = value;
+                    if (value) {
+                      _viewDurationSec = null; // One-time view doesn't need duration
+                    }
+                  });
+                },
+              ),
+            ],
           ),
 
           // Duration picker (only if not one-time view)

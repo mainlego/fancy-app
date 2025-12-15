@@ -353,10 +353,13 @@ class PrivateMediaBubble extends StatelessWidget {
     final hasBeenViewed = message.hasBeenViewed;
     final isOneTime = message.oneTimeView;
     final duration = message.viewDurationSec;
+    final hasTimed = duration != null && duration > 0;
 
-    // Already viewed one-time photo
-    if (isOneTime && hasBeenViewed && !isMe) {
-      return _buildViewedPlaceholder();
+    // Already viewed private photo (one-time or timed) - show placeholder for receiver
+    // For one-time view: photo is unavailable after viewing
+    // For timed view: photo is unavailable after the timer expires (viewing marks it as viewed)
+    if (hasBeenViewed && !isMe && (isOneTime || hasTimed)) {
+      return _buildViewedPlaceholder(isOneTime: isOneTime);
     }
 
     return GestureDetector(
@@ -411,7 +414,7 @@ class PrivateMediaBubble extends StatelessWidget {
                   AppSpacing.vGapSm,
                   Text(
                     isMe
-                        ? (isOneTime ? 'One-time photo' : 'Private photo')
+                        ? (isOneTime ? 'One-time photo' : hasTimed ? 'Timed photo (${duration}s)' : 'Private photo')
                         : 'Tap to view',
                     style: AppTypography.labelMedium.copyWith(
                       color: isMe ? Colors.white : AppColors.textPrimary,
@@ -440,7 +443,7 @@ class PrivateMediaBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildViewedPlaceholder() {
+  Widget _buildViewedPlaceholder({required bool isOneTime}) {
     return Container(
       width: 200,
       height: 60,
@@ -461,7 +464,7 @@ class PrivateMediaBubble extends StatelessWidget {
           AppSpacing.hGapSm,
           Expanded(
             child: Text(
-              'Photo viewed',
+              isOneTime ? 'Photo viewed' : 'Photo expired',
               style: AppTypography.bodySmall.copyWith(
                 color: AppColors.textTertiary,
                 fontStyle: FontStyle.italic,
