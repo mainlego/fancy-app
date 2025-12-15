@@ -303,6 +303,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                     return _MessageBubble(
                       message: message,
                       isMe: isMe,
+                      participantAvatarUrl: currentChat.participantAvatarUrl,
                       onPrivateMediaViewed: () {
                         // Refresh messages to update the viewed state
                         ref.invalidate(messagesNotifierProvider(actualChatId));
@@ -346,14 +347,8 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
             ),
 
           Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // Attachment button
-              IconButton(
-                icon: const Icon(Icons.add_circle_outline),
-                color: AppColors.textSecondary,
-                onPressed: _isUploading ? null : () => _showAttachmentOptions(context),
-              ),
-
               // Text field with keyboard handling
               Expanded(
                 child: Focus(
@@ -361,15 +356,22 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                   onKeyEvent: _handleKeyEvent,
                   child: TextField(
                     controller: _messageController,
-                    style: AppTypography.bodyMedium,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      height: 18 / 14,
+                      letterSpacing: -0.28,
+                    ),
                     decoration: InputDecoration(
                       hintText: 'Type a message...',
-                      hintStyle: AppTypography.bodyMedium.copyWith(
+                      hintStyle: TextStyle(
                         color: AppColors.textTertiary,
+                        fontSize: 14,
+                        height: 18 / 14,
+                        letterSpacing: -0.28,
                       ),
                       filled: true,
                       fillColor: AppColors.surfaceVariant,
-                      border: OutlineInputBorder(
+                      border: const OutlineInputBorder(
                         borderRadius: BorderRadius.zero,
                         borderSide: BorderSide.none,
                       ),
@@ -385,13 +387,33 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                   ),
                 ),
               ),
-              AppSpacing.hGapSm,
+              const SizedBox(width: 8),
+
+              // Microphone button
+              IconButton(
+                icon: const Icon(Icons.mic_none),
+                color: AppColors.textSecondary,
+                onPressed: _isUploading ? null : _showVoiceRecordingDialog,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+              ),
+
+              // Attachment button (plus)
+              IconButton(
+                icon: const Icon(Icons.add),
+                color: AppColors.textSecondary,
+                onPressed: _isUploading ? null : () => _showAttachmentOptions(context),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+              ),
 
               // Send button
               IconButton(
                 icon: const Icon(Icons.send),
                 color: AppColors.primary,
                 onPressed: _isUploading ? null : _sendMessage,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
               ),
             ],
           ),
@@ -574,14 +596,6 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
               onTap: () {
                 Navigator.pop(context);
                 _pickAndSendVideo(source: ImageSource.camera);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.mic, color: AppColors.success),
-              title: const Text('Voice message'),
-              onTap: () {
-                Navigator.pop(context);
-                _showVoiceRecordingDialog();
               },
             ),
             const Divider(),
@@ -998,79 +1012,98 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
   }
 }
 
+/// Message bubble colors per Figma design
+const _myMessageBgColor = Color(0xFF5E576C);
+const _otherMessageBgColor = Color(0xFFECE6F0);
+const _otherMessageTextColor = Color(0xFF1C1B1F);
+
 class _MessageBubble extends StatelessWidget {
   final MessageModel message;
   final bool isMe;
+  final String? participantAvatarUrl;
   final VoidCallback? onPrivateMediaViewed;
 
   const _MessageBubble({
     required this.message,
     required this.isMe,
+    this.participantAvatarUrl,
     this.onPrivateMediaViewed,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.sm,
-        ),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
-        ),
-        decoration: BoxDecoration(
-          color: isMe ? AppColors.primary : AppColors.surfaceVariant,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(AppSpacing.radiusMd),
-            topRight: const Radius.circular(AppSpacing.radiusMd),
-            bottomLeft: Radius.circular(isMe ? AppSpacing.radiusMd : 4),
-            bottomRight: Radius.circular(isMe ? 4 : AppSpacing.radiusMd),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            // Media content based on type
-            _buildMediaContent(context),
-            // Text
-            if (message.text != null && message.text!.isNotEmpty)
-              Text(
-                message.text!,
-                style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textPrimary,
-                ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Row(
+        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // Avatar for other user's messages
+          if (!isMe) ...[
+            FancyAvatar(
+              imageUrl: participantAvatarUrl,
+              size: AvatarSize.small,
+            ),
+            const SizedBox(width: 8),
+          ],
+          // Message bubble
+          Flexible(
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.7,
               ),
-            AppSpacing.vGapXs,
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _formatTime(message.createdAt),
-                  style: AppTypography.labelSmall.copyWith(
-                    color: isMe
-                        ? AppColors.textPrimary.withOpacity(0.7)
-                        : AppColors.textTertiary,
-                    fontSize: 10,
-                  ),
-                ),
-                if (isMe) ...[
-                  const SizedBox(width: 4),
-                  Icon(
-                    message.isRead ? Icons.done_all : Icons.done,
-                    size: 14,
-                    color: message.isRead
-                        ? AppColors.info
-                        : AppColors.textPrimary.withOpacity(0.7),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isMe ? _myMessageBgColor : _otherMessageBgColor,
+                borderRadius: BorderRadius.zero,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Media content based on type
+                  _buildMediaContent(context),
+                  // Text
+                  if (message.text != null && message.text!.isNotEmpty)
+                    Text(
+                      message.text!,
+                      style: TextStyle(
+                        color: isMe ? Colors.white : _otherMessageTextColor,
+                        fontSize: 14,
+                        height: 18 / 14,
+                        letterSpacing: -0.28, // -2%
+                      ),
+                    ),
+                  const SizedBox(height: 4),
+                  // Time inside bubble
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _formatDateTime(message.createdAt),
+                        style: TextStyle(
+                          color: isMe
+                              ? Colors.white.withValues(alpha: 0.7)
+                              : _otherMessageTextColor.withValues(alpha: 0.6),
+                          fontSize: 11,
+                        ),
+                      ),
+                      if (isMe) ...[
+                        const SizedBox(width: 4),
+                        Icon(
+                          message.isRead ? Icons.done_all : Icons.done,
+                          size: 14,
+                          color: message.isRead
+                              ? AppColors.info
+                              : Colors.white.withValues(alpha: 0.7),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
-              ],
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -1265,10 +1298,27 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
-  String _formatTime(DateTime date) {
+  String _formatDateTime(DateTime date) {
+    final now = DateTime.now();
     final hour = date.hour.toString().padLeft(2, '0');
     final minute = date.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
+    final time = '$hour:$minute';
+
+    // Check if it's today
+    if (date.year == now.year && date.month == now.month && date.day == now.day) {
+      return time;
+    }
+
+    // Check if it's yesterday
+    final yesterday = now.subtract(const Duration(days: 1));
+    if (date.year == yesterday.year && date.month == yesterday.month && date.day == yesterday.day) {
+      return '$time yesterday';
+    }
+
+    // Otherwise show date
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return '$time $day.$month';
   }
 }
 
