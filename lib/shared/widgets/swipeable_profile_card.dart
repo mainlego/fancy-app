@@ -270,79 +270,74 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard> {
   /// Bottom info panel - 90px height
   Widget _buildInfoPanel() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+      padding: const EdgeInsets.all(16),
       color: AppColors.surface,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Row with info text and action buttons
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Left side - text info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+          // Left side - text info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Dating goal • relationship status
+                _buildInfoRow([
+                  if (widget.user.datingGoal != null)
+                    _getDatingGoalText(widget.user.datingGoal!),
+                  if (widget.user.relationshipStatus != null)
+                    _getStatusText(widget.user.relationshipStatus!),
+                ]),
+                const SizedBox(height: 2),
+
+                // online • verified
+                _buildStatusRow(),
+                const SizedBox(height: 2),
+
+                // location • distance + dots menu
+                Row(
                   children: [
-                    // Dating goal • relationship status
-                    _buildInfoRow([
-                      if (widget.user.datingGoal != null)
-                        _getDatingGoalText(widget.user.datingGoal!),
-                      if (widget.user.relationshipStatus != null)
-                        _getStatusText(widget.user.relationshipStatus!),
-                    ]),
-                    const SizedBox(height: 1),
-
-                    // online • verified
-                    _buildStatusRow(),
-                    const SizedBox(height: 1),
-
-                    // location • distance
-                    _buildLocationRow(),
+                    Expanded(child: _buildLocationRow()),
+                    // Three dots menu
+                    GestureDetector(
+                      onTap: _showMoreMenu,
+                      behavior: HitTestBehavior.opaque,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildDot(),
+                            const SizedBox(width: 4),
+                            _buildDot(),
+                            const SizedBox(width: 4),
+                            _buildDot(),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-              ),
-
-              // Right side - action buttons
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Fire button (Super Like)
-                  _ActionButton(
-                    svgPath: AppAssets.icSuperLikeOutline,
-                    onTap: widget.onSuperLike,
-                  ),
-                  const SizedBox(width: 8),
-                  // Heart button (Like)
-                  _ActionButton(
-                    svgPath: AppAssets.icLikeOutline,
-                    onTap: widget.onLike,
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
 
-          const SizedBox(height: 4),
-
-          // Three dots menu - centered
-          GestureDetector(
-            onTap: _showMoreMenu,
-            behavior: HitTestBehavior.opaque,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 20),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildDot(),
-                  const SizedBox(width: 4),
-                  _buildDot(),
-                  const SizedBox(width: 4),
-                  _buildDot(),
-                ],
+          // Right side - action buttons with 24px gap
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Fire button (Super Like)
+              _ActionButton(
+                svgPath: AppAssets.icSuperLikeOutline,
+                onTap: widget.onSuperLike,
               ),
-            ),
+              const SizedBox(width: 24),
+              // Heart button (Like)
+              _ActionButton(
+                svgPath: AppAssets.icLikeOutline,
+                onTap: widget.onLike,
+              ),
+            ],
           ),
         ],
       ),
@@ -588,8 +583,8 @@ class _ActionButtonState extends State<_ActionButton>
           );
         },
         child: Container(
-          width: 44,
-          height: 44,
+          width: 56,
+          height: 56,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(
@@ -600,8 +595,8 @@ class _ActionButtonState extends State<_ActionButton>
           child: Center(
             child: SvgPicture.asset(
               widget.svgPath,
-              width: 22,
-              height: 22,
+              width: 24,
+              height: 24,
             ),
           ),
         ),

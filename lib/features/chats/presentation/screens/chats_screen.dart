@@ -60,71 +60,70 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen>
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Chats'),
-        actions: [
-          IconButton(
-            icon: Image.asset(
-              AppAssets.icSettings,
-              width: 24,
-              height: 24,
-              color: AppColors.textPrimary,
-            ),
-            onPressed: () => context.pushSettings(),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Custom Tab bar
-          _buildTabBar(unreadChats, newLikes),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Custom Tab bar with settings icon (no AppBar title)
+            _buildTabBar(unreadChats, newLikes),
 
-          // Swipeable Tab content
-          Expanded(
-            child: PageView(
-              controller: _pageController,
-              onPageChanged: (index) {
-                _tabController.animateTo(index);
-                _updateTabProvider(index);
-              },
-              children: [
-                _ChatsListView(
-                  onShowFavoriteDialog: _showFavoriteDialog,
-                ),
-                const _LikesListView(),
-                const _FavoritesListView(),
-              ],
+            // Swipeable Tab content
+            Expanded(
+              child: PageView(
+                controller: _pageController,
+                onPageChanged: (index) {
+                  _tabController.animateTo(index);
+                  _updateTabProvider(index);
+                },
+                children: [
+                  _ChatsListView(
+                    onShowFavoriteDialog: _showFavoriteDialog,
+                  ),
+                  const _LikesListView(),
+                  const _FavoritesListView(),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildTabBar(int unreadChats, int newLikes) {
+    const tabTextColor = Color(0xFFD9D9D9);
+
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.lg,
         vertical: AppSpacing.sm,
       ),
-      decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: AppColors.divider),
-        ),
-      ),
       child: Row(
         children: [
-          _buildTab(0, 'Chats', badge: unreadChats > 0 ? unreadChats : null),
+          _buildTab(0, 'chats', badge: unreadChats > 0 ? unreadChats : null),
           AppSpacing.hGapLg,
-          _buildTab(1, 'Likes', badge: newLikes > 0 ? newLikes : null),
+          _buildTab(1, 'likes', badge: newLikes > 0 ? newLikes : null),
           AppSpacing.hGapLg,
-          _buildTab(2, 'Favorites'),
+          _buildTab(2, 'favs'),
+          const Spacer(),
+          // Settings icon
+          GestureDetector(
+            onTap: () => context.pushSettings(),
+            child: Image.asset(
+              AppAssets.icSettings,
+              width: 24,
+              height: 24,
+              color: tabTextColor,
+            ),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildTab(int index, String label, {int? badge}) {
+    const tabTextColor = Color(0xFFD9D9D9);
+    const activeTabTextColor = AppColors.primary;
+
     return AnimatedBuilder(
       animation: _tabController,
       builder: (context, child) {
@@ -140,23 +139,15 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen>
           },
           child: Container(
             padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
               vertical: AppSpacing.sm,
-            ),
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: isActive ? AppColors.primary : Colors.transparent,
-                  width: 2,
-                ),
-              ),
             ),
             child: Row(
               children: [
                 Text(
                   label,
-                  style: AppTypography.titleSmall.copyWith(
-                    color: isActive ? AppColors.primary : AppColors.textSecondary,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: isActive ? activeTabTextColor : tabTextColor,
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
                 if (badge != null) ...[
@@ -166,7 +157,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen>
                       horizontal: 6,
                       vertical: 2,
                     ),
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: AppColors.primary,
                       borderRadius: BorderRadius.zero,
                     ),
@@ -361,7 +352,10 @@ class _ChatsListView extends ConsumerWidget {
         return ListView.separated(
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
           itemCount: chats.length,
-          separatorBuilder: (context, index) => const Divider(height: 1),
+          separatorBuilder: (context, index) => const Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: Divider(height: 1),
+          ),
           itemBuilder: (context, index) {
             final chat = chats[index];
             final isAIChat = chat.id.startsWith('ai_');
@@ -388,7 +382,7 @@ class _ChatsListView extends ConsumerWidget {
   }
 }
 
-/// Likes list view
+/// Likes list view - displays as list like chats
 class _LikesListView extends ConsumerWidget {
   const _LikesListView();
 
@@ -412,18 +406,16 @@ class _LikesListView extends ConsumerWidget {
           );
         }
 
-        return GridView.builder(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: AppSpacing.md,
-            mainAxisSpacing: AppSpacing.md,
-            childAspectRatio: 0.75,
-          ),
+        return ListView.separated(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
           itemCount: likes.length,
+          separatorBuilder: (context, index) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: const Divider(height: 1),
+          ),
           itemBuilder: (context, index) {
             final like = likes[index];
-            return _LikeCard(
+            return _LikeListTile(
               like: like,
               onTap: () => context.pushProfileView(like.userId),
             );
@@ -461,7 +453,10 @@ class _FavoritesListView extends ConsumerWidget {
         return ListView.separated(
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
           itemCount: favorites.length,
-          separatorBuilder: (context, index) => const Divider(height: 1),
+          separatorBuilder: (context, index) => const Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: Divider(height: 1),
+          ),
           itemBuilder: (context, index) {
             final fav = favorites[index];
             return _FavoriteListTile(
@@ -685,106 +680,79 @@ class _ChatListTile extends StatelessWidget {
   }
 }
 
-class _LikeCard extends StatelessWidget {
+/// Like list tile for list view
+class _LikeListTile extends StatelessWidget {
   final LikeModel like;
   final VoidCallback onTap;
 
-  const _LikeCard({
+  const _LikeListTile({
     required this.like,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.zero,
-          color: AppColors.surface,
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Avatar
-            if (like.userAvatarUrl != null)
-              Image.network(
-                like.userAvatarUrl!,
-                fit: BoxFit.cover,
-              )
-            else
-              Container(
-                color: AppColors.surfaceVariant,
-                child: const Center(
-                  child: Icon(
-                    Icons.person,
-                    size: 48,
-                    color: AppColors.textTertiary,
-                  ),
-                ),
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.sm,
+      ),
+      leading: FancyAvatar(
+        imageUrl: like.userAvatarUrl,
+        name: like.userName,
+      ),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '${like.userName}, ${like.userAge}',
+              style: AppTypography.titleSmall,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (like.isSuperLike)
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
+                color: AppColors.superLike,
+                shape: BoxShape.circle,
               ),
-
-            // Gradient overlay
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                height: 80,
-                decoration: const BoxDecoration(
-                  gradient: AppColors.cardGradient,
-                ),
+              child: const Icon(
+                Icons.local_fire_department,
+                color: AppColors.textPrimary,
+                size: 12,
               ),
             ),
-
-            // Super like badge
-            if (like.isSuperLike)
-              Positioned(
-                top: AppSpacing.sm,
-                right: AppSpacing.sm,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: AppColors.superLike,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.star,
-                    color: AppColors.textPrimary,
-                    size: 14,
-                  ),
-                ),
-              ),
-
-            // User info
-            Positioned(
-              bottom: AppSpacing.sm,
-              left: AppSpacing.sm,
-              right: AppSpacing.sm,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${like.userName}, ${like.userAge}',
-                    style: AppTypography.titleSmall.copyWith(
-                      shadows: [
-                        Shadow(
-                          color: Colors.black.withOpacity(0.5),
-                          blurRadius: 4,
-                        ),
-                      ],
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
+        ],
+      ),
+      subtitle: Text(
+        _formatTime(like.createdAt),
+        style: AppTypography.bodySmall.copyWith(
+          color: AppColors.textTertiary,
         ),
       ),
+      trailing: Container(
+        width: 8,
+        height: 8,
+        decoration: const BoxDecoration(
+          color: AppColors.primary,
+          shape: BoxShape.circle,
+        ),
+      ),
+      onTap: onTap,
     );
+  }
+
+  String _formatTime(DateTime? date) {
+    if (date == null) return '';
+    final now = DateTime.now();
+    final diff = now.difference(date);
+
+    if (diff.inMinutes < 1) return 'now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m';
+    if (diff.inDays < 1) return '${diff.inHours}h';
+    if (diff.inDays < 7) return '${diff.inDays}d';
+    return '${date.day}/${date.month}';
   }
 }
 

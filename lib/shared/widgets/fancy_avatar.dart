@@ -5,7 +5,11 @@ import '../../core/constants/app_spacing.dart';
 
 enum AvatarSize { small, medium, large, xlarge }
 
-/// FANCY styled avatar with online indicator
+/// Avatar frame color
+const _avatarFrameColor = Color(0xFF1F1D1B);
+
+/// FANCY styled avatar - square with frame
+/// Avatar: 56x56, Frame: 88x88 (for chat list)
 class FancyAvatar extends StatelessWidget {
   final String? imageUrl;
   final String? name;
@@ -26,16 +30,31 @@ class FancyAvatar extends StatelessWidget {
     this.onTap,
   });
 
-  double get _size {
+  /// Avatar image size (square)
+  double get _imageSize {
     switch (size) {
       case AvatarSize.small:
-        return AppSpacing.avatarSm;
+        return 32;
       case AvatarSize.medium:
-        return AppSpacing.avatarMd;
+        return 56; // Per Figma spec
       case AvatarSize.large:
-        return AppSpacing.avatarLg;
+        return 72;
       case AvatarSize.xlarge:
-        return AppSpacing.avatarXl;
+        return 96;
+    }
+  }
+
+  /// Frame size around avatar
+  double get _frameSize {
+    switch (size) {
+      case AvatarSize.small:
+        return 44;
+      case AvatarSize.medium:
+        return 88; // Per Figma spec (88x88 frame)
+      case AvatarSize.large:
+        return 96;
+      case AvatarSize.xlarge:
+        return 120;
     }
   }
 
@@ -58,30 +77,38 @@ class FancyAvatar extends StatelessWidget {
       onTap: onTap,
       child: Stack(
         children: [
+          // Frame container
           Container(
-            width: _size,
-            height: _size,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: showBorder
-                  ? Border.all(color: AppColors.primary, width: 2)
-                  : null,
-            ),
-            child: ClipOval(
-              child: imageUrl != null
-                  ? CachedNetworkImage(
-                      imageUrl: imageUrl!,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => _buildPlaceholder(),
-                      errorWidget: (context, url, error) => _buildPlaceholder(),
-                    )
-                  : _buildPlaceholder(),
+            width: _frameSize,
+            height: _frameSize,
+            color: _avatarFrameColor,
+            child: Center(
+              // Square avatar inside frame
+              child: Container(
+                width: _imageSize,
+                height: _imageSize,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.zero,
+                  border: showBorder
+                      ? Border.all(color: AppColors.primary, width: 2)
+                      : null,
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: imageUrl != null
+                    ? CachedNetworkImage(
+                        imageUrl: imageUrl!,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => _buildPlaceholder(),
+                        errorWidget: (context, url, error) => _buildPlaceholder(),
+                      )
+                    : _buildPlaceholder(),
+              ),
             ),
           ),
           if (isOnline)
             Positioned(
-              right: 0,
-              bottom: 0,
+              left: (_frameSize - _imageSize) / 2,
+              bottom: (_frameSize - _imageSize) / 2,
               child: Container(
                 width: _indicatorSize,
                 height: _indicatorSize,
@@ -97,8 +124,8 @@ class FancyAvatar extends StatelessWidget {
             ),
           if (isVerified && !isOnline)
             Positioned(
-              right: 0,
-              bottom: 0,
+              right: (_frameSize - _imageSize) / 2,
+              bottom: (_frameSize - _imageSize) / 2,
               child: Container(
                 width: _indicatorSize,
                 height: _indicatorSize,
@@ -131,14 +158,14 @@ class FancyAvatar extends StatelessWidget {
                 name!.substring(0, 1).toUpperCase(),
                 style: TextStyle(
                   color: AppColors.textSecondary,
-                  fontSize: _size * 0.4,
+                  fontSize: _imageSize * 0.4,
                   fontWeight: FontWeight.w600,
                 ),
               )
             : Icon(
                 Icons.person,
                 color: AppColors.textTertiary,
-                size: _size * 0.5,
+                size: _imageSize * 0.5,
               ),
       ),
     );
