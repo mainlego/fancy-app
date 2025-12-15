@@ -34,6 +34,7 @@ class ChatsNotifier extends StateNotifier<AsyncValue<List<ChatModel>>> {
   RealtimeChannel? _subscription;
 
   ChatsNotifier(this._supabase, this._ref) : super(const AsyncValue.loading()) {
+    print('💬 ChatsNotifier created');
     loadChats();
     _subscribeToChats();
   }
@@ -41,16 +42,20 @@ class ChatsNotifier extends StateNotifier<AsyncValue<List<ChatModel>>> {
   Future<void> loadChats() async {
     final currentUserId = _supabase.currentUser?.id;
     if (currentUserId == null) {
+      print('💬 No current user, returning empty chats');
       state = const AsyncValue.data([]);
       return;
     }
 
+    print('💬 Loading chats for user: $currentUserId');
     state = const AsyncValue.loading();
     try {
       final data = await _supabase.getChats();
       final chats = data.map((json) => ChatModel.fromSupabase(json, currentUserId)).toList();
+      print('💬 Loaded ${chats.length} chats');
       state = AsyncValue.data(chats);
     } catch (e, st) {
+      print('❌ Error loading chats: $e');
       state = AsyncValue.error(e, st);
     }
   }
@@ -59,19 +64,30 @@ class ChatsNotifier extends StateNotifier<AsyncValue<List<ChatModel>>> {
     final currentUserId = _supabase.currentUser?.id;
     if (currentUserId == null) return;
 
+    print('💬 Setting up chats realtime subscription');
+
     // Subscribe to new messages to update chat list
-    _subscription = Supabase.instance.client
-        .channel('chats_updates')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'messages',
-          callback: (payload) {
-            // Refresh chats when a new message arrives
-            loadChats();
-          },
-        )
-        .subscribe();
+    final channel = Supabase.instance.client.channel('chats_updates');
+
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.all,
+      schema: 'public',
+      table: 'messages',
+      callback: (payload) {
+        print('💬 Chats: Received message update event');
+        // Refresh chats when a new message arrives
+        loadChats();
+      },
+    );
+
+    channel.subscribe((status, error) {
+      print('💬 Chats subscription status: $status');
+      if (error != null) {
+        print('❌ Chats subscription error: $error');
+      }
+    });
+
+    _subscription = channel;
   }
 
   Future<void> refresh() async {
@@ -80,6 +96,7 @@ class ChatsNotifier extends StateNotifier<AsyncValue<List<ChatModel>>> {
 
   @override
   void dispose() {
+    print('💬 ChatsNotifier disposing');
     _subscription?.unsubscribe();
     super.dispose();
   }
@@ -320,31 +337,40 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<MessageModel>>> {
   RealtimeChannel? _subscription;
 
   MessagesNotifier(this._supabase, this.chatId) : super(const AsyncValue.loading()) {
+    print('📱 MessagesNotifier created for chat: $chatId');
     loadMessages();
     _subscribeToMessages();
   }
 
   Future<void> loadMessages() async {
+    print('📱 Loading messages for chat: $chatId');
     state = const AsyncValue.loading();
     try {
       final data = await _supabase.getMessages(chatId);
       final messages = data.map((json) => MessageModel.fromSupabase(json)).toList();
+      print('📱 Loaded ${messages.length} messages for chat: $chatId');
       state = AsyncValue.data(messages);
       // Mark messages as read
       await _supabase.markMessagesAsRead(chatId);
     } catch (e, st) {
+      print('❌ Error loading messages: $e');
       state = AsyncValue.error(e, st);
     }
   }
 
   void _subscribeToMessages() {
+    print('📱 Setting up message subscription for chat: $chatId');
     _subscription = _supabase.subscribeToMessages(chatId, (newMessage) {
+      print('📨 MessagesNotifier received new message in chat $chatId: ${newMessage['id']}');
       // Add new message to the list
       state.whenData((messages) {
         final message = MessageModel.fromSupabase(newMessage);
         // Add to beginning since messages are ordered by created_at desc
         if (!messages.any((m) => m.id == message.id)) {
+          print('📱 Adding new message to state: ${message.id}');
           state = AsyncValue.data([message, ...messages]);
+        } else {
+          print('📱 Message already exists in state: ${message.id}');
         }
         // Mark new messages as read immediately since user is viewing the chat
         _supabase.markMessagesAsRead(chatId);
@@ -408,6 +434,7 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<MessageModel>>> {
 
   @override
   void dispose() {
+    print('📱 MessagesNotifier disposing for chat: $chatId');
     _subscription?.unsubscribe();
     super.dispose();
   }

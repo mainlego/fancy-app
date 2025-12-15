@@ -542,22 +542,36 @@ class SupabaseService {
 
   /// Subscribe to new messages in a chat
   RealtimeChannel subscribeToMessages(String chatId, void Function(Map<String, dynamic>) onMessage) {
-    return _client
-        .channel('messages:$chatId')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.insert,
-          schema: 'public',
-          table: SupabaseConfig.messagesTable,
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'chat_id',
-            value: chatId,
-          ),
-          callback: (payload) {
-            onMessage(payload.newRecord);
-          },
-        )
-        .subscribe();
+    print('🔔 Setting up realtime subscription for chat: $chatId');
+
+    final channel = _client.channel('messages:$chatId');
+
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: SupabaseConfig.messagesTable,
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'chat_id',
+        value: chatId,
+      ),
+      callback: (payload) {
+        print('📨 Realtime: New message received in chat $chatId');
+        onMessage(payload.newRecord);
+      },
+    );
+
+    channel.subscribe((status, error) {
+      print('🔔 Realtime subscription status for chat $chatId: $status');
+      if (error != null) {
+        print('❌ Realtime subscription error: $error');
+      }
+      if (status == RealtimeSubscribeStatus.subscribed) {
+        print('✅ Successfully subscribed to chat $chatId messages');
+      }
+    });
+
+    return channel;
   }
 
   /// Mark messages as read
