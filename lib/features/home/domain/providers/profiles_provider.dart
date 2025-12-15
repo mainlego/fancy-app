@@ -258,8 +258,8 @@ final filteredProfilesProvider = Provider<List<UserModel>>((ref) {
       return false;
     }
 
-    // Age filter - skip if birth_date is not set (age = 0)
-    if (profile.age > 0 && (profile.age < filter.minAge || profile.age > filter.maxAge)) {
+    // Age filter
+    if (profile.age < filter.minAge || profile.age > filter.maxAge) {
       return false;
     }
 

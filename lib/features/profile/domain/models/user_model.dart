@@ -249,15 +249,15 @@ class UserModel extends Equatable {
 
   /// From Supabase JSON (snake_case format)
   factory UserModel.fromSupabase(Map<String, dynamic> json) {
-    // Calculate age from birth_date
-    int age = 0;
+    // Calculate age from birth_date, default to 18 if not set
+    int age = 18; // Default age for profiles without birth_date
     final birthDateRaw = json['birth_date'];
     if (birthDateRaw != null) {
       try {
         final birthDate = DateTime.parse(birthDateRaw as String);
         age = DateTime.now().difference(birthDate).inDays ~/ 365;
       } catch (e) {
-        // Invalid date format - keep age as 0
+        // Invalid date format - use default age 18
       }
     }
 

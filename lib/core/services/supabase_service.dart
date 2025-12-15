@@ -167,13 +167,8 @@ class SupabaseService {
           .limit((limit + excludeIds.length) * 2) // Get extra to account for filtering
           .order('last_online', ascending: false);
 
-      print('DEBUG: Raw response count: ${(response as List).length}');
-      for (final p in response) {
-        print('DEBUG: Raw profile: ${p['name']} (${p['profile_type']}) looking_for: ${p['looking_for']} excluded: ${excludeIds.contains(p['id'])}');
-      }
-
       // Filter out excluded users and apply bidirectional matching
-      var profiles = (response)
+      var profiles = (response as List)
           .where((p) => !excludeIds.contains(p['id'] as String?))
           .where((p) {
             // Bidirectional filter: only show profiles who are looking for my profile type
@@ -182,8 +177,6 @@ class SupabaseService {
 
             // Get the profile's looking_for array
             final theirLookingFor = (p['looking_for'] as List<dynamic>?)?.cast<String>() ?? [];
-
-            print('DEBUG: Checking ${p['name']}: theirLookingFor=$theirLookingFor, myProfileType=$myProfileType, contains=${theirLookingFor.contains(myProfileType)}');
 
             // If their looking_for is empty, assume they're looking for everyone (haven't set preference)
             if (theirLookingFor.isEmpty) return true;
@@ -209,7 +202,6 @@ class SupabaseService {
         }).toList();
       }
 
-      print('Discovery: Found ${profiles.length} profiles (excluded ${excludeIds.length - 1} users, looking for: $lookingFor, my type: $myProfileType)');
       return profiles;
     } catch (e) {
       print('Error getting discovery profiles: $e');
