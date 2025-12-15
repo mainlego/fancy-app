@@ -20,27 +20,50 @@ class HomeScreen extends ConsumerWidget {
     // Check if user needs to complete profile setup
     final currentProfileAsync = ref.watch(currentProfileProvider);
 
-    // If profile is loading, show loading indicator
-    if (currentProfileAsync.isLoading) {
-      return const Scaffold(
+    return currentProfileAsync.when(
+      loading: () => const Scaffold(
         backgroundColor: AppColors.background,
         body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    // If no profile exists, redirect to profile setup
-    final currentProfile = currentProfileAsync.valueOrNull;
-    if (currentProfile == null) {
-      // Schedule navigation after build
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        context.goToProfileSetup();
-      });
-      return const Scaffold(
+      ),
+      error: (error, _) => Scaffold(
         backgroundColor: AppColors.background,
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+              AppSpacing.vGapMd,
+              Text('Error loading profile', style: AppTypography.bodyMedium),
+              AppSpacing.vGapSm,
+              FancyButton(
+                text: 'Retry',
+                onPressed: () => ref.refresh(currentProfileProvider),
+              ),
+            ],
+          ),
+        ),
+      ),
+      data: (currentProfile) {
+        // If no profile exists, redirect to profile setup
+        if (currentProfile == null) {
+          // Schedule navigation after build
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) {
+              context.goToProfileSetup();
+            }
+          });
+          return const Scaffold(
+            backgroundColor: AppColors.background,
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
 
+        return _buildMainContent(context, ref);
+      },
+    );
+  }
+
+  Widget _buildMainContent(BuildContext context, WidgetRef ref) {
     final profilesAsync = ref.watch(profilesNotifierProvider);
     final profiles = ref.watch(filteredProfilesProvider);
 
