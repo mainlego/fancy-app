@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'supabase_service.dart';
 
@@ -201,6 +203,44 @@ class LocationService {
   /// Open location settings
   Future<bool> openLocationSettings() async {
     return await Geolocator.openLocationSettings();
+  }
+
+  /// Reverse geocode coordinates to get city name (works on web)
+  /// Uses OpenStreetMap Nominatim API (free, no API key required)
+  Future<String?> reverseGeocode(double latitude, double longitude) async {
+    try {
+      final url = Uri.parse(
+        'https://nominatim.openstreetmap.org/reverse?lat=$latitude&lon=$longitude&format=json&accept-language=en',
+      );
+
+      final response = await http.get(
+        url,
+        headers: {
+          'User-Agent': 'FancyApp/1.0',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final address = data['address'] as Map<String, dynamic>?;
+
+        if (address != null) {
+          // Try to get city name from various fields
+          final city = address['city'] ??
+              address['town'] ??
+              address['village'] ??
+              address['municipality'] ??
+              address['county'] ??
+              address['state'];
+
+          return city?.toString();
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Reverse geocoding error: $e');
+      return null;
+    }
   }
 }
 

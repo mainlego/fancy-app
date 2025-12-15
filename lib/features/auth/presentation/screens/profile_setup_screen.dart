@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geocoding/geocoding.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
@@ -620,41 +619,24 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       final position = await locationService.getCurrentPosition();
 
       if (position != null) {
-        // Reverse geocode to get city name
-        try {
-          final placemarks = await placemarkFromCoordinates(
-            position.latitude,
-            position.longitude,
+        // Reverse geocode to get city name using web-compatible API
+        final cityName = await locationService.reverseGeocode(
+          position.latitude,
+          position.longitude,
+        );
+
+        if (cityName != null && cityName.isNotEmpty && mounted) {
+          setState(() {
+            _city = cityName;
+            _cityController.text = cityName;
+          });
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not determine city name'),
+              backgroundColor: AppColors.warning,
+            ),
           );
-
-          if (placemarks.isNotEmpty) {
-            final place = placemarks.first;
-            final cityName = place.locality ?? place.subAdministrativeArea ?? place.administrativeArea;
-
-            if (cityName != null && cityName.isNotEmpty) {
-              setState(() {
-                _city = cityName;
-                _cityController.text = cityName;
-              });
-            } else if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Could not determine city name'),
-                  backgroundColor: AppColors.warning,
-                ),
-              );
-            }
-          }
-        } catch (e) {
-          print('Geocoding error: $e');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Could not determine city name'),
-                backgroundColor: AppColors.warning,
-              ),
-            );
-          }
         }
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -665,7 +647,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
         );
       }
     } catch (e) {
-      print('Location error: $e');
+      debugPrint('Location error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
