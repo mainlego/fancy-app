@@ -165,17 +165,17 @@ class AppTheme {
       ),
 
       // Chip
-      chipTheme: const ChipThemeData(
+      chipTheme: ChipThemeData(
         backgroundColor: AppColors.surfaceVariant,
         selectedColor: AppColors.primary,
         disabledColor: AppColors.surfaceVariant,
         labelStyle: AppTypography.labelMedium,
         secondaryLabelStyle: AppTypography.labelMedium,
-        padding: EdgeInsets.symmetric(
+        padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
           vertical: AppSpacing.xs,
         ),
-        shape: RoundedRectangleBorder(
+        shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.zero,
         ),
         side: BorderSide.none,
@@ -246,10 +246,10 @@ class AppTheme {
       ),
 
       // Dialog
-      dialogTheme: const DialogThemeData(
+      dialogTheme: DialogThemeData(
         backgroundColor: AppColors.surface,
         elevation: 0,
-        shape: RoundedRectangleBorder(
+        shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.zero,
         ),
         titleTextStyle: AppTypography.headlineSmall,
@@ -257,10 +257,10 @@ class AppTheme {
       ),
 
       // Snackbar
-      snackBarTheme: const SnackBarThemeData(
+      snackBarTheme: SnackBarThemeData(
         backgroundColor: AppColors.surfaceElevated,
         contentTextStyle: AppTypography.bodyMedium,
-        shape: RoundedRectangleBorder(
+        shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.zero,
         ),
         behavior: SnackBarBehavior.floating,
@@ -284,8 +284,8 @@ class AppTheme {
       ),
 
       // Tooltip
-      tooltipTheme: const TooltipThemeData(
-        decoration: BoxDecoration(
+      tooltipTheme: TooltipThemeData(
+        decoration: const BoxDecoration(
           color: AppColors.surfaceElevated,
           borderRadius: BorderRadius.zero,
         ),
@@ -293,10 +293,10 @@ class AppTheme {
       ),
 
       // Popup Menu
-      popupMenuTheme: const PopupMenuThemeData(
+      popupMenuTheme: PopupMenuThemeData(
         color: AppColors.surfaceElevated,
         elevation: 4,
-        shape: RoundedRectangleBorder(
+        shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.zero,
         ),
         textStyle: AppTypography.bodyMedium,
