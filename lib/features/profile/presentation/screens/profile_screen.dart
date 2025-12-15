@@ -205,7 +205,7 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
       children: [
         // Avatar
         ClipRRect(
-          borderRadius: BorderRadius.circular(0),
+          borderRadius: BorderRadius.zero,
           child: Image.network(
             widget.user.displayAvatar ?? '',
             width: 120,
@@ -313,7 +313,7 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
                           color: Colors.black.withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.zero,
                         ),
                         child: const Icon(
                           Icons.edit,

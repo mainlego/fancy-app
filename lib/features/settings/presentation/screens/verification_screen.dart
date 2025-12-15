@@ -225,7 +225,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
           height: 300,
           decoration: BoxDecoration(
             color: AppColors.surfaceVariant,
-            borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+            borderRadius: BorderRadius.zero,
             border: Border.all(
               color: AppColors.border,
               width: 2,
@@ -247,7 +247,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
                 ),
                 decoration: BoxDecoration(
                   color: AppColors.verified.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -317,7 +317,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
           height: 300,
           decoration: BoxDecoration(
             color: AppColors.surfaceVariant,
-            borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+            borderRadius: BorderRadius.zero,
             border: Border.all(
               color: AppColors.border,
               width: 2,
@@ -339,7 +339,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
                 ),
                 decoration: BoxDecoration(
                   color: AppColors.verified.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -432,7 +432,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
           padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
             color: AppColors.surfaceVariant,
-            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            borderRadius: BorderRadius.zero,
           ),
           child: Row(
             children: [
@@ -481,7 +481,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
       height: 180,
       decoration: BoxDecoration(
         color: AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.border),
       ),
       child: Column(

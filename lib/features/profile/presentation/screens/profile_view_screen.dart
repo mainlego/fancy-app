@@ -174,7 +174,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
                               color: AppColors.overlay,
-                              borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                              borderRadius: BorderRadius.zero,
                             ),
                             child: const Icon(
                               Icons.arrow_back,
@@ -194,7 +194,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
                               color: AppColors.overlay,
-                              borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                              borderRadius: BorderRadius.zero,
                             ),
                             child: const Icon(
                               Icons.more_horiz,
@@ -328,7 +328,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
               color: index == _currentPhotoIndex
                   ? AppColors.textPrimary
                   : AppColors.textPrimary.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(2),
+              borderRadius: BorderRadius.zero,
             ),
           ),
         ),
@@ -366,7 +366,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: AppColors.online,
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: const Text(
                   'Online',
@@ -382,7 +382,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: Text(
                   _formatLastSeen(lastSeen),
@@ -645,7 +645,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
           return GestureDetector(
             onTap: () => _showPhotoViewer(context, media.url),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+              borderRadius: BorderRadius.zero,
               child: CachedNetworkImage(
                 imageUrl: media.displayUrl,
                 width: 100,
@@ -691,7 +691,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
                     ? () => _showPhotoViewer(context, media.url)
                     : () => _showRequestAccessDialog(context, album, user),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                  borderRadius: BorderRadius.zero,
                   child: Stack(
                     children: [
                       // Blurred image
@@ -716,7 +716,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
                       if (!hasAccess)
                         Positioned.fill(
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                            borderRadius: BorderRadius.zero,
                             child: BackdropFilter(
                               filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
                               child: Container(
@@ -760,7 +760,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
             ),
             decoration: BoxDecoration(
               color: AppColors.surfaceVariant,
-              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              borderRadius: BorderRadius.zero,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -786,7 +786,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
             ),
             decoration: BoxDecoration(
               color: AppColors.surfaceVariant,
-              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              borderRadius: BorderRadius.zero,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -953,9 +953,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
       context: context,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppSpacing.radiusLg),
-        ),
+        borderRadius: BorderRadius.zero,
       ),
       builder: (context) => SafeArea(
         child: Column(
@@ -967,7 +965,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
               margin: const EdgeInsets.symmetric(vertical: AppSpacing.md),
               decoration: BoxDecoration(
                 color: AppColors.textTertiary,
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.zero,
               ),
             ),
             ListTile(

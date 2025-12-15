@@ -168,7 +168,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen>
                     ),
                     decoration: BoxDecoration(
                       color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                      borderRadius: BorderRadius.zero,
                     ),
                     child: Text(
                       badge > 99 ? '99+' : badge.toString(),
@@ -193,9 +193,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen>
       context: context,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppSpacing.radiusLg),
-        ),
+        borderRadius: BorderRadius.zero,
       ),
       builder: (context) => SafeArea(
         child: Column(
@@ -207,7 +205,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen>
               margin: const EdgeInsets.symmetric(vertical: AppSpacing.md),
               decoration: BoxDecoration(
                 color: AppColors.textTertiary,
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.zero,
               ),
             ),
             ListTile(
@@ -635,7 +633,7 @@ class _ChatListTile extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: Text(
                   chat.unreadCount > 99 ? '99+' : chat.unreadCount.toString(),
@@ -702,7 +700,7 @@ class _LikeCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          borderRadius: BorderRadius.zero,
           color: AppColors.surface,
         ),
         clipBehavior: Clip.antiAlias,

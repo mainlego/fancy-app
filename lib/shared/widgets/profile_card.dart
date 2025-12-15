@@ -33,8 +33,8 @@ class _ProfileCardState extends State<ProfileCard> {
     return GestureDetector(
       onTap: widget.onTap,
       child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        decoration: const BoxDecoration(
+          borderRadius: BorderRadius.zero,
           color: AppColors.surface,
         ),
         clipBehavior: Clip.antiAlias,
@@ -178,7 +178,7 @@ class _ProfileCardState extends State<ProfileCard> {
               color: index == _currentPhotoIndex
                   ? AppColors.textPrimary
                   : AppColors.textPrimary.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(2),
+              borderRadius: BorderRadius.zero,
             ),
           ),
         ),
@@ -196,9 +196,9 @@ class _ProfileCardState extends State<ProfileCard> {
               horizontal: 8,
               vertical: 4,
             ),
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: AppColors.online,
-              borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+              borderRadius: BorderRadius.zero,
             ),
             child: const Text(
               'Online',
@@ -233,9 +233,9 @@ class _ProfileCardState extends State<ProfileCard> {
       onTap: widget.onMore,
       child: Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: AppColors.overlay,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+          borderRadius: BorderRadius.zero,
         ),
         child: const Icon(
           Icons.more_horiz,
@@ -275,9 +275,9 @@ class _ProfileCardState extends State<ProfileCard> {
                   horizontal: 6,
                   vertical: 2,
                 ),
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: AppColors.premium,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: const Text(
                   'PRO',
@@ -336,9 +336,9 @@ class _ProfileCardState extends State<ProfileCard> {
         horizontal: 8,
         vertical: 4,
       ),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppColors.overlay,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+        borderRadius: BorderRadius.zero,
       ),
       child: Text(
         text,

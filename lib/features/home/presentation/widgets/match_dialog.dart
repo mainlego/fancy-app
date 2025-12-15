@@ -103,7 +103,7 @@ class _MatchDialogState extends State<MatchDialog>
                       AppColors.primaryDark,
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,

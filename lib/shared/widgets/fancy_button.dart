@@ -86,8 +86,8 @@ class FancyButton extends StatelessWidget {
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: AppColors.textPrimary,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.zero,
             ),
           ),
           child: child,
@@ -99,8 +99,8 @@ class FancyButton extends StatelessWidget {
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.surfaceVariant,
             foregroundColor: AppColors.textPrimary,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.zero,
             ),
           ),
           child: child,
@@ -112,8 +112,8 @@ class FancyButton extends StatelessWidget {
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.textPrimary,
             side: const BorderSide(color: AppColors.border),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.zero,
             ),
           ),
           child: child,
@@ -124,8 +124,8 @@ class FancyButton extends StatelessWidget {
           onPressed: isLoading ? null : onPressed,
           style: TextButton.styleFrom(
             foregroundColor: AppColors.textPrimary,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.zero,
             ),
           ),
           child: child,

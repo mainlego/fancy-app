@@ -303,7 +303,7 @@ class SettingsScreen extends ConsumerWidget {
             Color(0xFFE06B7A),
           ],
         ),
-        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        borderRadius: BorderRadius.zero,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -350,7 +350,7 @@ class SettingsScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
               color: AppColors.verified.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              borderRadius: BorderRadius.zero,
             ),
             child: const Icon(
               Icons.verified_user,

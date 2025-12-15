@@ -219,7 +219,7 @@ class _AppTutorialScreenState extends ConsumerState<AppTutorialScreen>
                         color: index <= _currentStep
                             ? AppColors.primary
                             : AppColors.surfaceVariant,
-                        borderRadius: BorderRadius.circular(2),
+                        borderRadius: BorderRadius.zero,
                       ),
                     ),
                   ),
@@ -250,7 +250,7 @@ class _AppTutorialScreenState extends ConsumerState<AppTutorialScreen>
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                      borderRadius: BorderRadius.zero,
                     ),
                   ),
                   child: Text(
@@ -332,7 +332,7 @@ class _AppTutorialScreenState extends ConsumerState<AppTutorialScreen>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(30),
+          borderRadius: BorderRadius.zero,
           boxShadow: [
             BoxShadow(
               color: AppColors.primary.withOpacity(0.4),
@@ -364,7 +364,7 @@ class _AppTutorialScreenState extends ConsumerState<AppTutorialScreen>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+            borderRadius: BorderRadius.zero,
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.3),
@@ -383,7 +383,7 @@ class _AppTutorialScreenState extends ConsumerState<AppTutorialScreen>
                 height: 12,
                 decoration: BoxDecoration(
                   color: Colors.grey[700],
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.zero,
                 ),
               ),
             ],
@@ -438,7 +438,7 @@ class _AppTutorialScreenState extends ConsumerState<AppTutorialScreen>
               )
             : null,
         color: isActive ? null : Colors.grey[800],
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.zero,
         border: isActive ? Border.all(color: AppColors.primary, width: 2) : null,
       ),
       child: Icon(
@@ -493,7 +493,7 @@ class _AppTutorialScreenState extends ConsumerState<AppTutorialScreen>
               )
             : null,
         color: highlight ? null : Colors.grey[800],
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.zero,
       ),
       child: Row(
         children: [
@@ -503,7 +503,7 @@ class _AppTutorialScreenState extends ConsumerState<AppTutorialScreen>
             margin: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: highlight ? Colors.white.withOpacity(0.3) : Colors.grey[700],
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.zero,
             ),
           ),
           Column(
@@ -515,7 +515,7 @@ class _AppTutorialScreenState extends ConsumerState<AppTutorialScreen>
                 height: 10,
                 decoration: BoxDecoration(
                   color: highlight ? Colors.white.withOpacity(0.5) : Colors.grey[700],
-                  borderRadius: BorderRadius.circular(5),
+                  borderRadius: BorderRadius.zero,
                 ),
               ),
               AppSpacing.vGapXs,
@@ -524,7 +524,7 @@ class _AppTutorialScreenState extends ConsumerState<AppTutorialScreen>
                 height: 8,
                 decoration: BoxDecoration(
                   color: highlight ? Colors.white.withOpacity(0.3) : Colors.grey[700],
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.zero,
                 ),
               ),
             ],
@@ -545,7 +545,7 @@ class _AppTutorialScreenState extends ConsumerState<AppTutorialScreen>
             gradient: LinearGradient(
               colors: [Colors.grey[800]!, Colors.grey[900]!],
             ),
-            borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+            borderRadius: BorderRadius.zero,
           ),
         ),
         // Double tap indicator

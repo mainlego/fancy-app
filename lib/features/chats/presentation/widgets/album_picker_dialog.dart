@@ -33,9 +33,7 @@ class AlbumPickerDialog extends ConsumerStatefulWidget {
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppSpacing.radiusLg),
-        ),
+        borderRadius: BorderRadius.zero,
       ),
       builder: (context) => DraggableScrollableSheet(
         initialChildSize: 0.7,
@@ -84,7 +82,7 @@ class _AlbumPickerDialogState extends ConsumerState<AlbumPickerDialog>
           margin: const EdgeInsets.symmetric(vertical: AppSpacing.md),
           decoration: BoxDecoration(
             color: AppColors.textTertiary,
-            borderRadius: BorderRadius.circular(2),
+            borderRadius: BorderRadius.zero,
           ),
         ),
 
@@ -184,7 +182,7 @@ class _AlbumPickerDialogState extends ConsumerState<AlbumPickerDialog>
           onTap: () => _selectMedia(item, isPrivate),
           child: Container(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+              borderRadius: BorderRadius.zero,
               border: isSelected
                   ? Border.all(color: AppColors.primary, width: 3)
                   : null,
@@ -215,7 +213,7 @@ class _AlbumPickerDialogState extends ConsumerState<AlbumPickerDialog>
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         color: AppColors.overlay,
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.zero,
                       ),
                       child: const Icon(
                         Icons.lock,
@@ -410,7 +408,7 @@ class _DurationChip extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary : AppColors.surface,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          borderRadius: BorderRadius.zero,
           border: Border.all(
             color: isSelected ? AppColors.primary : AppColors.border,
           ),

@@ -269,7 +269,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
             fit: StackFit.expand,
             children: [
               ClipRRect(
-                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                borderRadius: BorderRadius.zero,
                 child: Image.network(
                   user.photos[index],
                   fit: BoxFit.cover,
@@ -319,7 +319,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.zero,
                     ),
                     child: Text(
                       'Main',
@@ -338,7 +338,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
           child: Container(
             decoration: BoxDecoration(
               color: AppColors.surfaceVariant,
-              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+              borderRadius: BorderRadius.zero,
               border: Border.all(color: AppColors.border),
             ),
             child: Center(
@@ -368,7 +368,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
       context: context,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppSpacing.radiusLg)),
+        borderRadius: BorderRadius.zero,
       ),
       builder: (context) => SafeArea(
         child: Padding(
@@ -529,7 +529,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
         padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
           color: AppColors.surfaceVariant,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          borderRadius: BorderRadius.zero,
         ),
         child: Row(
           children: [

@@ -267,7 +267,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.surfaceVariant,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+          borderRadius: BorderRadius.zero,
           border: Border.all(
             color: AppColors.border,
             style: BorderStyle.solid,
@@ -335,9 +335,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
       context: context,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppSpacing.radiusLg),
-        ),
+        borderRadius: BorderRadius.zero,
       ),
       builder: (context) => SafeArea(
         child: Column(
@@ -349,7 +347,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
               margin: const EdgeInsets.symmetric(vertical: AppSpacing.md),
               decoration: BoxDecoration(
                 color: AppColors.textTertiary,
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.zero,
               ),
             ),
             Padding(
@@ -462,9 +460,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
       context: context,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppSpacing.radiusLg),
-        ),
+        borderRadius: BorderRadius.zero,
       ),
       builder: (context) => SafeArea(
         child: Column(
@@ -476,7 +472,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
               margin: const EdgeInsets.symmetric(vertical: AppSpacing.md),
               decoration: BoxDecoration(
                 color: AppColors.textTertiary,
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.zero,
               ),
             ),
             ListTile(
@@ -587,7 +583,7 @@ class _TabButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary : AppColors.surfaceVariant,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          borderRadius: BorderRadius.zero,
         ),
         child: Center(
           child: Row(
@@ -605,7 +601,7 @@ class _TabButton extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: AppColors.error,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.zero,
                   ),
                   child: Text(
                     badge.toString(),
@@ -645,7 +641,7 @@ class _MediaTile extends StatelessWidget {
       onLongPress: onLongPress,
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+          borderRadius: BorderRadius.zero,
           color: AppColors.surfaceVariant,
         ),
         clipBehavior: Clip.antiAlias,
@@ -676,7 +672,7 @@ class _MediaTile extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: AppColors.overlay,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.zero,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -708,7 +704,7 @@ class _MediaTile extends StatelessWidget {
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
                     color: AppColors.overlay,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.zero,
                   ),
                   child: const Icon(
                     Icons.lock,

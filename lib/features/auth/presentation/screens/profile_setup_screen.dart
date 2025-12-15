@@ -150,7 +150,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                 value: (_currentStep + 1) / 5,
                 backgroundColor: AppColors.surfaceVariant,
                 valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.zero,
               ),
             ),
             AppSpacing.vGapLg,
@@ -186,7 +186,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                     backgroundColor: AppColors.primary,
                     disabledBackgroundColor: AppColors.primary.withOpacity(0.3),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                      borderRadius: BorderRadius.zero,
                     ),
                   ),
                   child: _isLoading
@@ -244,7 +244,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
               filled: true,
               fillColor: AppColors.surfaceVariant,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderRadius: BorderRadius.zero,
                 borderSide: BorderSide.none,
               ),
               contentPadding: const EdgeInsets.all(AppSpacing.lg),
@@ -284,7 +284,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
               padding: const EdgeInsets.all(AppSpacing.lg),
               decoration: BoxDecoration(
                 color: AppColors.surfaceVariant,
-                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderRadius: BorderRadius.zero,
                 border: isUnder18
                     ? Border.all(color: AppColors.error)
                     : null,
@@ -410,7 +410,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
         padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary.withOpacity(0.1) : AppColors.surfaceVariant,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          borderRadius: BorderRadius.zero,
           border: Border.all(
             color: isSelected ? AppColors.primary : Colors.transparent,
             width: 2,
@@ -483,7 +483,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
         padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary.withOpacity(0.1) : AppColors.surfaceVariant,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          borderRadius: BorderRadius.zero,
           border: Border.all(
             color: isSelected ? AppColors.primary : Colors.transparent,
             width: 2,
@@ -547,7 +547,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
               filled: true,
               fillColor: AppColors.surfaceVariant,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderRadius: BorderRadius.zero,
                 borderSide: BorderSide.none,
               ),
               contentPadding: const EdgeInsets.all(AppSpacing.lg),
@@ -573,7 +573,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                     filled: true,
                     fillColor: AppColors.surfaceVariant,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                      borderRadius: BorderRadius.zero,
                       borderSide: BorderSide.none,
                     ),
                     contentPadding: const EdgeInsets.all(AppSpacing.lg),
@@ -584,7 +584,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
               Container(
                 decoration: BoxDecoration(
                   color: AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: IconButton(
                   onPressed: _isDetectingLocation ? null : _detectLocation,

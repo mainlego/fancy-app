@@ -214,7 +214,7 @@ class _VoiceRecordingDialogState extends State<VoiceRecordingDialog>
     return Dialog(
       backgroundColor: AppColors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        borderRadius: BorderRadius.zero,
       ),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.xl),

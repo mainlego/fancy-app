@@ -196,7 +196,7 @@ class _TimedMediaViewerState extends ConsumerState<TimedMediaViewer>
                           ),
                           decoration: BoxDecoration(
                             color: AppColors.overlay,
-                            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                            borderRadius: BorderRadius.zero,
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -225,7 +225,7 @@ class _TimedMediaViewerState extends ConsumerState<TimedMediaViewer>
                           ),
                           decoration: BoxDecoration(
                             color: AppColors.overlay,
-                            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                            borderRadius: BorderRadius.zero,
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -274,7 +274,7 @@ class _TimedMediaViewerState extends ConsumerState<TimedMediaViewer>
                             margin: const EdgeInsets.only(bottom: AppSpacing.md),
                             decoration: BoxDecoration(
                               color: AppColors.overlay,
-                              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                              borderRadius: BorderRadius.zero,
                             ),
                             child: Text(
                               'Timer paused',
@@ -369,7 +369,7 @@ class PrivateMediaBubble extends StatelessWidget {
         height: 150,
         decoration: BoxDecoration(
           color: AppColors.surfaceVariant,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          borderRadius: BorderRadius.zero,
         ),
         child: Stack(
           fit: StackFit.expand,
@@ -377,7 +377,7 @@ class PrivateMediaBubble extends StatelessWidget {
             // Blurred preview (optional - can show actual image for sender)
             if (isMe && message.mediaUrl != null)
               ClipRRect(
-                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderRadius: BorderRadius.zero,
                 child: CachedNetworkImage(
                   imageUrl: message.mediaUrl!,
                   fit: BoxFit.cover,
@@ -393,7 +393,7 @@ class PrivateMediaBubble extends StatelessWidget {
               Container(
                 decoration: BoxDecoration(
                   color: AppColors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                  borderRadius: BorderRadius.zero,
                 ),
               ),
 
@@ -401,7 +401,7 @@ class PrivateMediaBubble extends StatelessWidget {
             Container(
               decoration: BoxDecoration(
                 color: isMe ? Colors.black.withOpacity(0.3) : AppColors.surfaceVariant,
-                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderRadius: BorderRadius.zero,
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -450,7 +450,7 @@ class PrivateMediaBubble extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.surfaceVariant.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.border),
       ),
       child: Row(

@@ -233,7 +233,7 @@ class _AIChatScreenState extends ConsumerState<AIChatScreen> {
                   filled: true,
                   fillColor: AppColors.surfaceVariant,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                    borderRadius: BorderRadius.zero,
                     borderSide: BorderSide.none,
                   ),
                   contentPadding: const EdgeInsets.symmetric(
@@ -325,9 +325,7 @@ class _AIChatScreenState extends ConsumerState<AIChatScreen> {
       context: context,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppSpacing.radiusLg),
-        ),
+        borderRadius: BorderRadius.zero,
       ),
       builder: (context) => SafeArea(
         child: Column(
@@ -339,7 +337,7 @@ class _AIChatScreenState extends ConsumerState<AIChatScreen> {
               margin: const EdgeInsets.symmetric(vertical: AppSpacing.md),
               decoration: BoxDecoration(
                 color: AppColors.textTertiary,
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.zero,
               ),
             ),
             ListTile(
@@ -530,7 +528,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
         ),
         decoration: BoxDecoration(
           color: AppColors.surfaceVariant,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          borderRadius: BorderRadius.zero,
         ),
         child: AnimatedBuilder(
           animation: _controller,

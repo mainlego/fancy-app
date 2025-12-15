@@ -126,7 +126,7 @@ class _VoicePlayerWidgetState extends State<VoicePlayerWidget> {
           color: widget.isMe
               ? AppColors.primary.withOpacity(0.8)
               : AppColors.surface,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+          borderRadius: BorderRadius.zero,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -151,7 +151,7 @@ class _VoicePlayerWidgetState extends State<VoicePlayerWidget> {
         color: widget.isMe
             ? AppColors.primary.withOpacity(0.8)
             : AppColors.surface,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+        borderRadius: BorderRadius.zero,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

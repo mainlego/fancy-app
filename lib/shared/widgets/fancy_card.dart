@@ -27,10 +27,10 @@ class FancyCard extends StatelessWidget {
       margin: margin,
       child: Material(
         color: backgroundColor ?? AppColors.surface,
-        borderRadius: borderRadius ?? BorderRadius.circular(AppSpacing.radiusMd),
+        borderRadius: borderRadius ?? BorderRadius.zero,
         child: InkWell(
           onTap: onTap,
-          borderRadius: borderRadius ?? BorderRadius.circular(AppSpacing.radiusMd),
+          borderRadius: borderRadius ?? BorderRadius.zero,
           child: Container(
             padding: padding ?? AppSpacing.cardPaddingAll,
             child: child,

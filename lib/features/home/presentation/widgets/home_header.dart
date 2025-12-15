@@ -464,7 +464,7 @@ class _DistanceSliderState extends State<_DistanceSlider> {
               padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
                 color: AppColors.primary,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.zero,
               ),
               child: Text(
                 'Done',

@@ -370,7 +370,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                       filled: true,
                       fillColor: AppColors.surfaceVariant,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                        borderRadius: BorderRadius.zero,
                         borderSide: BorderSide.none,
                       ),
                       contentPadding: const EdgeInsets.symmetric(
@@ -529,9 +529,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       context: context,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppSpacing.radiusLg),
-        ),
+        borderRadius: BorderRadius.zero,
       ),
       builder: (context) => SafeArea(
         child: Column(
@@ -543,7 +541,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
               margin: const EdgeInsets.symmetric(vertical: AppSpacing.md),
               decoration: BoxDecoration(
                 color: AppColors.textTertiary,
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.zero,
               ),
             ),
             ListTile(
@@ -731,9 +729,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       context: context,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppSpacing.radiusLg),
-        ),
+        borderRadius: BorderRadius.zero,
       ),
       builder: (context) => SafeArea(
         child: Column(
@@ -745,7 +741,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
               margin: const EdgeInsets.symmetric(vertical: AppSpacing.md),
               decoration: BoxDecoration(
                 color: AppColors.textTertiary,
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.zero,
               ),
             ),
             ListTile(
@@ -1103,7 +1099,7 @@ class _MessageBubble extends StatelessWidget {
           child: GestureDetector(
             onTap: () => _showFullScreenImage(context, message.mediaUrl!),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+              borderRadius: BorderRadius.zero,
               child: CachedNetworkImage(
                 imageUrl: message.mediaUrl!,
                 fit: BoxFit.cover,
@@ -1138,7 +1134,7 @@ class _MessageBubble extends StatelessWidget {
                   height: 150,
                   decoration: BoxDecoration(
                     color: AppColors.surfaceVariant,
-                    borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                    borderRadius: BorderRadius.zero,
                   ),
                   child: const Icon(Icons.movie, size: 48, color: AppColors.textTertiary),
                 ),
@@ -1170,7 +1166,7 @@ class _MessageBubble extends StatelessWidget {
         return Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            borderRadius: BorderRadius.zero,
             child: CachedNetworkImage(
               imageUrl: message.mediaUrl!,
               fit: BoxFit.cover,
@@ -1199,7 +1195,7 @@ class _MessageBubble extends StatelessWidget {
             child: GestureDetector(
               onTap: () => _showFullScreenImage(context, message.mediaUrl!),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                borderRadius: BorderRadius.zero,
                 child: CachedNetworkImage(
                   imageUrl: message.mediaUrl!,
                   fit: BoxFit.cover,

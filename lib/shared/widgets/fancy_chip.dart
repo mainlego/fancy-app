@@ -34,7 +34,7 @@ class FancyChip extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary : AppColors.surfaceVariant,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+          borderRadius: BorderRadius.zero,
           border: Border.all(
             color: isSelected ? AppColors.primary : AppColors.border,
             width: 1,

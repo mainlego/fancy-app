@@ -220,7 +220,7 @@ class PremiumScreen extends ConsumerWidget {
           height: 48,
           decoration: BoxDecoration(
             color: iconColor.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            borderRadius: BorderRadius.zero,
           ),
           child: Icon(
             icon,
@@ -273,7 +273,7 @@ class PremiumScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary.withOpacity(0.1) : AppColors.surface,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+          borderRadius: BorderRadius.zero,
           border: Border.all(
             color: isSelected ? AppColors.primary : AppColors.border,
             width: isSelected ? 2 : 1,
@@ -329,7 +329,7 @@ class PremiumScreen extends ConsumerWidget {
                               ),
                               decoration: BoxDecoration(
                                 color: AppColors.verified,
-                                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                                borderRadius: BorderRadius.zero,
                               ),
                               child: Text(
                                 savings,
@@ -375,7 +375,7 @@ class PremiumScreen extends ConsumerWidget {
                   ),
                   decoration: BoxDecoration(
                     gradient: AppColors.primaryGradient,
-                    borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                    borderRadius: BorderRadius.zero,
                   ),
                   child: Text(
                     'MOST POPULAR',
@@ -408,7 +408,7 @@ class PremiumScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
                 color: AppColors.surfaceVariant,
-                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderRadius: BorderRadius.zero,
               ),
               child: Row(
                 children: [
@@ -485,7 +485,7 @@ class PremiumScreen extends ConsumerWidget {
         backgroundColor: AppColors.surfaceElevated,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          borderRadius: BorderRadius.zero,
         ),
       ),
     );
@@ -509,7 +509,7 @@ class PremiumScreen extends ConsumerWidget {
         backgroundColor: AppColors.surfaceElevated,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          borderRadius: BorderRadius.zero,
         ),
       ),
     );

@@ -130,8 +130,8 @@ class FancySearchInput extends StatelessWidget {
             : null,
         filled: true,
         fillColor: AppColors.surfaceVariant,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+        border: const OutlineInputBorder(
+          borderRadius: BorderRadius.zero,
           borderSide: BorderSide.none,
         ),
         contentPadding: const EdgeInsets.symmetric(
