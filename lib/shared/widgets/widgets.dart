@@ -7,5 +7,4 @@ export 'fancy_input.dart';
 export 'main_scaffold.dart';
 export 'profile_card.dart';
 export 'responsive_builder.dart';
-export 'custom_icons.dart';
 export 'swipeable_profile_card.dart';
