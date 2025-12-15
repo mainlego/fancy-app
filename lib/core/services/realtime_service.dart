@@ -290,15 +290,21 @@ class RealtimeService {
   /// Update user's online status
   Future<void> setOnlineStatus(bool isOnline) async {
     final userId = _currentUserId;
-    if (userId == null) return;
+    if (userId == null) {
+      print('🟢 Cannot set online status: no user ID');
+      return;
+    }
+
+    print('🟢 Setting online status: $isOnline for user $userId');
 
     try {
       await _client.from(SupabaseConfig.profilesTable).update({
         'is_online': isOnline,
         'last_seen': DateTime.now().toIso8601String(),
       }).eq('id', userId);
+      print('✅ Online status updated successfully');
     } catch (e) {
-      print('Error updating online status: $e');
+      print('❌ Error updating online status: $e');
     }
   }
 

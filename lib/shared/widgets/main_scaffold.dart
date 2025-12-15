@@ -19,14 +19,59 @@ class MainScaffold extends ConsumerStatefulWidget {
   ConsumerState<MainScaffold> createState() => _MainScaffoldState();
 }
 
-class _MainScaffoldState extends ConsumerState<MainScaffold> {
+class _MainScaffoldState extends ConsumerState<MainScaffold> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    // Add lifecycle observer for online status tracking
+    WidgetsBinding.instance.addObserver(this);
+
     // Initialize realtime service for message notifications
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _setupRealtimeListeners();
+      // Set user online when app starts
+      _setOnlineStatus(true);
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    // Set user offline when scaffold is disposed
+    _setOnlineStatus(false);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // App is visible and responding to user input
+        _setOnlineStatus(true);
+        break;
+      case AppLifecycleState.inactive:
+        // App is inactive (transitioning)
+        break;
+      case AppLifecycleState.paused:
+        // App is not visible (background)
+        _setOnlineStatus(false);
+        break;
+      case AppLifecycleState.detached:
+        // App is about to be terminated
+        _setOnlineStatus(false);
+        break;
+      case AppLifecycleState.hidden:
+        // App is hidden
+        _setOnlineStatus(false);
+        break;
+    }
+  }
+
+  void _setOnlineStatus(bool isOnline) {
+    final realtimeService = ref.read(realtimeServiceProvider);
+    realtimeService.setOnlineStatus(isOnline);
   }
 
   void _setupRealtimeListeners() {
