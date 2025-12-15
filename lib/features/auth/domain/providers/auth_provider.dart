@@ -4,8 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/supabase_service.dart';
 
 /// Web Client ID for Google Sign-In (from Google Cloud Console)
-/// TODO: Replace with your actual Web Client ID from Google Cloud Console
-const String _webClientId = 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com';
+const String _webClientId = '918196345376-dm97cbi45s3hng0ud0063beroka84blm.apps.googleusercontent.com';
 
 /// iOS Client ID for Google Sign-In (from Google Cloud Console)
 /// TODO: Replace with your actual iOS Client ID from Google Cloud Console
