@@ -312,6 +312,30 @@ class SupabaseService {
   // CHAT OPERATIONS
   // ===================
 
+  /// Delete a chat and all its messages
+  Future<void> deleteChat(String chatId) async {
+    final userId = currentUser?.id;
+    if (userId == null) return;
+
+    // First delete all messages in the chat
+    await _client
+        .from(SupabaseConfig.messagesTable)
+        .delete()
+        .eq('chat_id', chatId);
+
+    // Then delete the chat itself
+    await _client
+        .from(SupabaseConfig.chatsTable)
+        .delete()
+        .eq('id', chatId);
+
+    // Also delete the match if exists
+    await _client
+        .from(SupabaseConfig.matchesTable)
+        .delete()
+        .or('and(user1_id.eq.$userId),and(user2_id.eq.$userId)');
+  }
+
   /// Create a chat between two users
   Future<String> _createChat(String userId1, String userId2) async {
     final response = await _client.from(SupabaseConfig.chatsTable).insert({
@@ -500,7 +524,7 @@ class SupabaseService {
     final response = await _client.from(SupabaseConfig.messagesTable).insert({
       'chat_id': chatId,
       'sender_id': userId,
-      'content': content,
+      'content': content ?? '', // Empty string if no content (required by DB)
       'image_url': mediaUrl, // Using image_url for all media for simplicity
       'message_type': messageType,
       'media_duration_ms': mediaDurationMs,

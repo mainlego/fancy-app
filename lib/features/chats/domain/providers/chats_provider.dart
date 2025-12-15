@@ -343,7 +343,11 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<MessageModel>>> {
       state.whenData((messages) {
         final message = MessageModel.fromSupabase(newMessage);
         // Add to beginning since messages are ordered by created_at desc
-        state = AsyncValue.data([message, ...messages]);
+        if (!messages.any((m) => m.id == message.id)) {
+          state = AsyncValue.data([message, ...messages]);
+        }
+        // Mark new messages as read immediately since user is viewing the chat
+        _supabase.markMessagesAsRead(chatId);
       });
     });
   }

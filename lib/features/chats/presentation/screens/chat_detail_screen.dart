@@ -622,6 +622,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
               title: const Text('Report'),
               onTap: () {
                 Navigator.pop(context);
+                _showReportDialog(participantId);
               },
             ),
             ListTile(
@@ -629,6 +630,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
               title: const Text('Block user'),
               onTap: () {
                 Navigator.pop(context);
+                _showBlockConfirmation(participantId);
               },
             ),
             ListTile(
@@ -636,7 +638,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
               title: const Text('Delete chat'),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.pop(context);
+                _showDeleteChatConfirmation();
               },
             ),
             AppSpacing.vGapLg,
@@ -644,6 +646,220 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         ),
       ),
     );
+  }
+
+  void _showReportDialog(String userId) {
+    final reasons = [
+      'Inappropriate content',
+      'Spam or scam',
+      'Harassment',
+      'Fake profile',
+      'Other',
+    ];
+    String? selectedReason;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: Text(
+            'Report User',
+            style: AppTypography.headlineSmall.copyWith(color: AppColors.textPrimary),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Why are you reporting this user?',
+                style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+              ),
+              AppSpacing.vGapMd,
+              ...reasons.map((reason) => RadioListTile<String>(
+                title: Text(reason, style: AppTypography.bodyMedium),
+                value: reason,
+                groupValue: selectedReason,
+                onChanged: (value) => setState(() => selectedReason = value),
+                activeColor: AppColors.primary,
+                contentPadding: EdgeInsets.zero,
+              )),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+            ),
+            TextButton(
+              onPressed: selectedReason == null
+                  ? null
+                  : () async {
+                      Navigator.pop(context);
+                      await _reportUser(userId, selectedReason!);
+                    },
+              child: Text(
+                'Report',
+                style: TextStyle(
+                  color: selectedReason == null ? AppColors.textTertiary : AppColors.error,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _reportUser(String userId, String reason) async {
+    try {
+      final supabase = ref.read(supabaseServiceProvider);
+      await supabase.reportUser(
+        reportedUserId: userId,
+        reason: reason,
+        reportedByUserId: supabase.currentUser?.id,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('User reported. Thank you for helping keep our community safe.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to report user: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showBlockConfirmation(String userId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(
+          'Block User',
+          style: AppTypography.headlineSmall.copyWith(color: AppColors.textPrimary),
+        ),
+        content: Text(
+          'This user will no longer be able to contact you. You won\'t see each other in discovery. This action can be undone in Settings.',
+          style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _blockUser(userId);
+            },
+            child: const Text('Block', style: TextStyle(color: AppColors.warning)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _blockUser(String userId) async {
+    try {
+      final supabase = ref.read(supabaseServiceProvider);
+      await supabase.blockUser(userId);
+
+      // Also delete the chat after blocking
+      final chatId = _actualChatId ?? widget.chatId;
+      await supabase.deleteChat(chatId);
+
+      // Refresh chats list
+      ref.read(chatsNotifierProvider.notifier).refresh();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('User blocked'),
+            backgroundColor: AppColors.warning,
+          ),
+        );
+        Navigator.pop(context); // Go back to chats list
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to block user: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showDeleteChatConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(
+          'Delete Chat',
+          style: AppTypography.headlineSmall.copyWith(color: AppColors.textPrimary),
+        ),
+        content: Text(
+          'This will permanently delete all messages in this chat. This action cannot be undone.',
+          style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteChat();
+            },
+            child: const Text('Delete', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteChat() async {
+    try {
+      final supabase = ref.read(supabaseServiceProvider);
+      final chatId = _actualChatId ?? widget.chatId;
+      await supabase.deleteChat(chatId);
+
+      // Refresh chats list
+      ref.read(chatsNotifierProvider.notifier).refresh();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Chat deleted'),
+            backgroundColor: AppColors.textSecondary,
+          ),
+        );
+        Navigator.pop(context); // Go back to chats list
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete chat: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 }
 
