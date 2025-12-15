@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
@@ -1429,14 +1430,47 @@ class SupabaseService {
     final userId = currentUser?.id;
     if (userId == null) return [];
 
-    final response = await _client
-        .from(SupabaseConfig.albumAccessRequestsTable)
-        .select('*, profiles!requester_id(*), albums(*)')
-        .eq('owner_id', userId)
-        .eq('status', 'pending')
-        .order('created_at', ascending: false);
+    try {
+      final response = await _client
+          .from(SupabaseConfig.albumAccessRequestsTable)
+          .select()
+          .eq('owner_id', userId)
+          .eq('status', 'pending')
+          .order('created_at', ascending: false);
 
-    return List<Map<String, dynamic>>.from(response);
+      // Fetch requester profiles and album names separately
+      final requests = List<Map<String, dynamic>>.from(response);
+      for (var request in requests) {
+        // Get requester profile
+        try {
+          final profile = await _client
+              .from(SupabaseConfig.profilesTable)
+              .select('name, avatar_url, photos')
+              .eq('id', request['requester_id'])
+              .maybeSingle();
+          if (profile != null) {
+            request['profiles'] = profile;
+          }
+        } catch (_) {}
+
+        // Get album name
+        try {
+          final album = await _client
+              .from(SupabaseConfig.albumsTable)
+              .select('name')
+              .eq('id', request['album_id'])
+              .maybeSingle();
+          if (album != null) {
+            request['albums'] = album;
+          }
+        } catch (_) {}
+      }
+
+      return requests;
+    } catch (e) {
+      debugPrint('Error getting access requests: $e');
+      return [];
+    }
   }
 
   /// Get access request status for a specific album (as requester)
