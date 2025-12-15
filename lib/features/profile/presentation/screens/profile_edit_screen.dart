@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -24,6 +25,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
   late ProfileType _selectedProfileType;
   late Set<String> _selectedInterests;
   late List<String> _selectedLanguages;
+  DateTime? _birthDate;
 
   final List<String> _availableInterests = [
     'Travel',
@@ -66,6 +68,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     _selectedProfileType = user?.profileType ?? ProfileType.man;
     _selectedInterests = Set.from(user?.interests ?? []);
     _selectedLanguages = List.from(user?.languages ?? []);
+    _birthDate = user?.birthDate;
   }
 
   @override
@@ -101,6 +104,13 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
               maxLines: 4,
               maxLength: 300,
             ),
+          ),
+          AppSpacing.vGapXl,
+
+          // Birth Date
+          _buildSection(
+            'Birth Date',
+            _buildBirthDatePicker(),
           ),
           AppSpacing.vGapXl,
 
@@ -499,6 +509,118 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     }
   }
 
+  int _calculateAge(DateTime birthDate) {
+    final now = DateTime.now();
+    int age = now.year - birthDate.year;
+    if (now.month < birthDate.month ||
+        (now.month == birthDate.month && now.day < birthDate.day)) {
+      age--;
+    }
+    return age;
+  }
+
+  Widget _buildBirthDatePicker() {
+    final age = _birthDate != null ? _calculateAge(_birthDate!) : null;
+
+    return GestureDetector(
+      onTap: _showDatePicker,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceVariant,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.calendar_today,
+              color: AppColors.textSecondary,
+            ),
+            AppSpacing.hGapMd,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _birthDate != null
+                        ? '${_birthDate!.day}/${_birthDate!.month}/${_birthDate!.year}'
+                        : 'Select your birth date',
+                    style: AppTypography.titleSmall.copyWith(
+                      color: _birthDate != null
+                          ? AppColors.textPrimary
+                          : AppColors.textTertiary,
+                    ),
+                  ),
+                  if (age != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      '$age years old',
+                      style: AppTypography.labelSmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right,
+              color: AppColors.textTertiary,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDatePicker() {
+    final now = DateTime.now();
+    final minDate = DateTime(now.year - 100);
+    final maxDate = DateTime(now.year - 18, now.month, now.day);
+    final initialDate = _birthDate ?? DateTime(now.year - 25);
+
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => Container(
+        height: 300,
+        color: AppColors.surface,
+        child: Column(
+          children: [
+            Container(
+              height: 50,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Done'),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: CupertinoDatePicker(
+                mode: CupertinoDatePickerMode.date,
+                initialDateTime: initialDate.isBefore(maxDate) ? initialDate : maxDate,
+                minimumDate: minDate,
+                maximumDate: maxDate,
+                onDateTimeChanged: (date) {
+                  setState(() => _birthDate = date);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildSingleSelect<T>({
     required List<T> values,
     required T? selected,
@@ -531,6 +653,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
       final success = await ref.read(currentProfileProvider.notifier).updateProfile(
         bio: _bioController.text.trim(),
         occupation: _occupationController.text.trim(),
+        birthDate: _birthDate,
         datingGoal: _selectedGoal,
         relationshipStatus: _selectedStatus,
         profileType: _selectedProfileType,

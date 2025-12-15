@@ -59,7 +59,6 @@ class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
     _ref.listen<AsyncValue<UserModel?>>(currentProfileProvider, (previous, next) {
       // When profile becomes available, reload profiles with proper filters
       if (next.hasValue && next.value != null) {
-        print('DEBUG: Profile changed, reloading profiles...');
         loadProfiles();
       }
     });
@@ -74,19 +73,13 @@ class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
 
   Future<void> loadProfiles() async {
     // Prevent concurrent loads
-    if (_isLoading) {
-      print('DEBUG: Already loading, skipping...');
-      return;
-    }
+    if (_isLoading) return;
 
     // Get current user's profile for bidirectional matching
     final currentProfile = _ref.read(currentProfileProvider).valueOrNull;
 
     // Don't load without profile - wait for it
-    if (currentProfile == null) {
-      print('DEBUG: No profile yet, waiting...');
-      return;
-    }
+    if (currentProfile == null) return;
 
     _isLoading = true;
     state = const AsyncValue.loading();
@@ -94,11 +87,6 @@ class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
     try {
       final lookingFor = currentProfile.lookingFor;
       final myProfileType = currentProfile.profileType;
-
-      // DEBUG: Print full profile info
-      print('DEBUG: currentProfile = ${currentProfile.name}');
-      print('DEBUG: currentProfile.lookingFor = $lookingFor');
-      print('DEBUG: currentProfile.profileType = $myProfileType');
 
       // Convert Set<ProfileType> to List<String> for the query
       List<String>? lookingForStrings;
@@ -109,24 +97,15 @@ class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
       // Get my profile type for bidirectional matching
       String? myProfileTypeString = myProfileType.name;
 
-      print('Loading profiles with lookingFor: $lookingForStrings, myProfileType: $myProfileTypeString');
-
       final data = await _supabase.getDiscoveryProfiles(
         limit: 50,
         lookingFor: lookingForStrings,
         myProfileType: myProfileTypeString,
       );
-      print('Loaded ${data.length} real profiles from Supabase');
-
-      // DEBUG: Print each profile loaded
-      for (final json in data) {
-        print('DEBUG: Loaded profile: ${json['name']} (${json['profile_type']}) looking_for: ${json['looking_for']}');
-      }
 
       final profiles = data.map((json) => UserModel.fromSupabase(json)).toList();
       state = AsyncValue.data(profiles);
     } catch (e, st) {
-      print('Error loading real profiles: $e');
       state = AsyncValue.error(e, st);
     } finally {
       _isLoading = false;
@@ -257,44 +236,30 @@ final filteredProfilesProvider = Provider<List<UserModel>>((ref) {
   // Get real profiles (empty list if loading/error)
   final realProfiles = profilesAsync.valueOrNull ?? [];
 
-  // DEBUG: Log what we have
-  print('DEBUG filteredProfilesProvider: realProfiles=${realProfiles.length}, aiProfiles=${aiProfiles.length}');
-  print('DEBUG filteredProfilesProvider: profilesAsync state=${profilesAsync.isLoading ? "loading" : profilesAsync.hasError ? "error" : "data"}');
-  for (final p in realProfiles) {
-    print('DEBUG filteredProfilesProvider: Real profile: ${p.name} (${p.profileType})');
-  }
-
   // Combine real profiles with AI profiles
   // Real users are shown FIRST, then AI profiles
   final allProfiles = [...realProfiles, ...aiProfiles];
 
-  // DEBUG: Log filter settings
-  print('DEBUG FILTER: lookingFor=${filter.lookingFor}, onlineOnly=${filter.onlineOnly}, withPhoto=${filter.withPhoto}, minAge=${filter.minAge}, maxAge=${filter.maxAge}');
-
-  final filtered = allProfiles.where((profile) {
+  return allProfiles.where((profile) {
     final isAI = profile.isAi;
 
     // Quick filter: dating goal
     if (quickGoal != null && profile.datingGoal != quickGoal) {
-      if (!isAI) print('DEBUG: ${profile.name} filtered by quickGoal');
       return false;
     }
 
     // Quick filter: relationship status
     if (quickStatus != null && profile.relationshipStatus != quickStatus) {
-      if (!isAI) print('DEBUG: ${profile.name} filtered by quickStatus');
       return false;
     }
 
     // Distance filter (skip for AI profiles)
     if (!isAI && profile.distanceKm != null && profile.distanceKm! > filter.distanceKm) {
-      print('DEBUG: ${profile.name} filtered by distance (${profile.distanceKm} > ${filter.distanceKm})');
       return false;
     }
 
-    // Age filter
-    if (profile.age < filter.minAge || profile.age > filter.maxAge) {
-      if (!isAI) print('DEBUG: ${profile.name} filtered by age (${profile.age} not in ${filter.minAge}-${filter.maxAge})');
+    // Age filter - skip if birth_date is not set (age = 0)
+    if (profile.age > 0 && (profile.age < filter.minAge || profile.age > filter.maxAge)) {
       return false;
     }
 
@@ -302,7 +267,6 @@ final filteredProfilesProvider = Provider<List<UserModel>>((ref) {
     if (filter.datingGoals.isNotEmpty &&
         profile.datingGoal != null &&
         !filter.datingGoals.contains(profile.datingGoal)) {
-      if (!isAI) print('DEBUG: ${profile.name} filtered by datingGoals');
       return false;
     }
 
@@ -310,32 +274,27 @@ final filteredProfilesProvider = Provider<List<UserModel>>((ref) {
     if (filter.relationshipStatuses.isNotEmpty &&
         profile.relationshipStatus != null &&
         !filter.relationshipStatuses.contains(profile.relationshipStatus)) {
-      if (!isAI) print('DEBUG: ${profile.name} filtered by relationshipStatuses');
       return false;
     }
 
     // Online only filter
     if (filter.onlineOnly && !profile.isOnline) {
-      if (!isAI) print('DEBUG: ${profile.name} filtered by onlineOnly (isOnline=${profile.isOnline})');
       return false;
     }
 
     // With photo filter
     if (filter.withPhoto && !profile.hasPhotos) {
-      if (!isAI) print('DEBUG: ${profile.name} filtered by withPhoto (hasPhotos=${profile.hasPhotos})');
       return false;
     }
 
     // Verified only filter
     if (filter.verifiedOnly && !profile.isVerified) {
-      if (!isAI) print('DEBUG: ${profile.name} filtered by verifiedOnly');
       return false;
     }
 
     // Looking for filter
     if (filter.lookingFor.isNotEmpty &&
         !filter.lookingFor.contains(profile.profileType)) {
-      if (!isAI) print('DEBUG: ${profile.name} filtered by lookingFor (profileType=${profile.profileType}, filter=${filter.lookingFor})');
       return false;
     }
 
@@ -372,9 +331,6 @@ final filteredProfilesProvider = Provider<List<UserModel>>((ref) {
 
     return true;
   }).toList();
-
-  print('DEBUG filteredProfilesProvider: Final filtered count=${filtered.length}');
-  return filtered;
 });
 
 /// Likes received by current user

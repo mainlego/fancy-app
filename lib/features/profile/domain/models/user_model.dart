@@ -252,14 +252,12 @@ class UserModel extends Equatable {
     // Calculate age from birth_date
     int age = 0;
     final birthDateRaw = json['birth_date'];
-    print('DEBUG fromSupabase: name=${json['name']}, birth_date raw=$birthDateRaw (${birthDateRaw?.runtimeType})');
     if (birthDateRaw != null) {
       try {
         final birthDate = DateTime.parse(birthDateRaw as String);
         age = DateTime.now().difference(birthDate).inDays ~/ 365;
-        print('DEBUG fromSupabase: parsed birthDate=$birthDate, calculated age=$age');
       } catch (e) {
-        print('DEBUG fromSupabase: ERROR parsing birth_date: $e');
+        // Invalid date format - keep age as 0
       }
     }
 
