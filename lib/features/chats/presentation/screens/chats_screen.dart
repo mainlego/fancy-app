@@ -99,12 +99,16 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen>
       ),
       child: Row(
         children: [
-          _buildTab(0, 'chats', badge: unreadChats > 0 ? unreadChats : null),
-          AppSpacing.hGapLg,
-          _buildTab(1, 'likes', badge: newLikes > 0 ? newLikes : null),
-          AppSpacing.hGapLg,
-          _buildTab(2, 'favs'),
-          const Spacer(),
+          // Tabs distributed evenly
+          Expanded(
+            child: _buildTab(0, 'chats', badge: unreadChats > 0 ? unreadChats : null),
+          ),
+          Expanded(
+            child: _buildTab(1, 'likes', badge: newLikes > 0 ? newLikes : null),
+          ),
+          Expanded(
+            child: _buildTab(2, 'favs'),
+          ),
           // Settings icon
           GestureDetector(
             onTap: () => context.pushSettings(),
@@ -137,11 +141,15 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen>
               curve: Curves.easeInOut,
             );
           },
+          behavior: HitTestBehavior.opaque,
           child: Container(
             padding: const EdgeInsets.symmetric(
               vertical: AppSpacing.sm,
             ),
+            alignment: Alignment.center,
             child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   label,
