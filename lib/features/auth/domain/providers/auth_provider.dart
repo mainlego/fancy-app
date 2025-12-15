@@ -1,6 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/supabase_service.dart';
+
+/// Web Client ID for Google Sign-In (from Google Cloud Console)
+/// TODO: Replace with your actual Web Client ID from Google Cloud Console
+const String _webClientId = 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com';
+
+/// iOS Client ID for Google Sign-In (from Google Cloud Console)
+/// TODO: Replace with your actual iOS Client ID from Google Cloud Console
+const String _iosClientId = 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com';
 
 /// Auth state enum
 enum AuthState {
@@ -196,6 +205,70 @@ class AuthNotifier extends StateNotifier<AuthStateModel> {
       return true;
     } catch (e) {
       state = state.copyWith(errorMessage: e.toString());
+      return false;
+    }
+  }
+
+  /// Sign in with Google
+  Future<bool> signInWithGoogle() async {
+    state = state.copyWith(state: AuthState.loading, errorMessage: null);
+
+    try {
+      final googleSignIn = GoogleSignIn(
+        clientId: _iosClientId,
+        serverClientId: _webClientId,
+      );
+
+      final googleUser = await googleSignIn.signIn();
+      if (googleUser == null) {
+        // User cancelled the sign-in
+        state = const AuthStateModel(state: AuthState.unauthenticated);
+        return false;
+      }
+
+      final googleAuth = await googleUser.authentication;
+      final accessToken = googleAuth.accessToken;
+      final idToken = googleAuth.idToken;
+
+      if (accessToken == null || idToken == null) {
+        state = const AuthStateModel(
+          state: AuthState.error,
+          errorMessage: 'Failed to get Google credentials',
+        );
+        return false;
+      }
+
+      // Sign in to Supabase with Google credentials
+      final response = await Supabase.instance.client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
+      );
+
+      if (response.user != null) {
+        state = AuthStateModel(
+          state: AuthState.authenticated,
+          user: response.user,
+        );
+        return true;
+      } else {
+        state = const AuthStateModel(
+          state: AuthState.error,
+          errorMessage: 'Failed to sign in with Google',
+        );
+        return false;
+      }
+    } on AuthException catch (e) {
+      state = AuthStateModel(
+        state: AuthState.error,
+        errorMessage: e.message,
+      );
+      return false;
+    } catch (e) {
+      state = AuthStateModel(
+        state: AuthState.error,
+        errorMessage: e.toString(),
+      );
       return false;
     }
   }
