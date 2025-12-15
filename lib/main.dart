@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,6 +16,13 @@ import 'shared/widgets/pwa_update_dialog.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Set up error handling
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    debugPrint('🔴 Flutter Error: ${details.exception}');
+    debugPrint('🔴 Stack: ${details.stack}');
+  };
 
   // Initialize Supabase
   await Supabase.initialize(
@@ -53,10 +62,19 @@ Future<void> main() async {
     await NotificationService().init();
   }
 
-  runApp(
-    const ProviderScope(
-      child: FancyApp(),
-    ),
+  // Run app with zone error handling
+  runZonedGuarded(
+    () {
+      runApp(
+        const ProviderScope(
+          child: FancyApp(),
+        ),
+      );
+    },
+    (error, stackTrace) {
+      debugPrint('🔴 Uncaught Error: $error');
+      debugPrint('🔴 Stack: $stackTrace');
+    },
   );
 }
 
