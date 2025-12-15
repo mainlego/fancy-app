@@ -103,7 +103,7 @@ class _FiltersScreenState extends ConsumerState<FiltersScreen> {
                   min: FilterModel.minDistance.toDouble(),
                   max: FilterModel.maxDistance.toDouble(),
                   divisions: FilterModel.maxDistance - FilterModel.minDistance,
-                  formatValue: (v) => '${v.round()} km',
+                  formatValue: (v) => v >= FilterModel.maxDistance ? '500+ km' : '${v.round()} km',
                   onChanged: (value) {
                     setState(() {
                       _localFilter = localFilter.copyWith(distanceKm: value.round());

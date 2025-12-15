@@ -149,7 +149,7 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
               onTap: () => _showDistanceSlider(context),
               behavior: HitTestBehavior.opaque,
               child: Text(
-                '${filter.distanceKm} km',
+                filter.distanceKm >= 500 ? '500+ km' : '${filter.distanceKm} km',
                 style: AppTypography.bodyMedium.copyWith(
                   color: AppColors.textPrimary,
                   fontSize: 14,
@@ -406,7 +406,7 @@ class _DistanceSliderState extends State<_DistanceSlider> {
                 ),
               ),
               Text(
-                '${_currentValue.round()} km',
+                _currentValue >= 500 ? '500+ km' : '${_currentValue.round()} km',
                 style: AppTypography.bodyMedium.copyWith(
                   color: AppColors.primary,
                   fontSize: 16,
@@ -448,7 +448,7 @@ class _DistanceSliderState extends State<_DistanceSlider> {
                 ),
               ),
               Text(
-                '500 km',
+                '500+',
                 style: AppTypography.bodySmall.copyWith(
                   color: AppColors.textTertiary,
                   fontSize: 12,
