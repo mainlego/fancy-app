@@ -308,15 +308,23 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Fire button (Super Like)
-                  _buildOutlineButton(
+                  GestureDetector(
                     onTap: widget.onSuperLike,
-                    child: _buildFireIcon(),
+                    child: Image.asset(
+                      AppAssets.icSuperLike,
+                      width: 40,
+                      height: 40,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   // Heart button (Like)
-                  _buildOutlineButton(
+                  GestureDetector(
                     onTap: widget.onLike,
-                    child: _buildHeartIcon(),
+                    child: Image.asset(
+                      AppAssets.icLike,
+                      width: 40,
+                      height: 40,
+                    ),
                   ),
                 ],
               ),
@@ -391,48 +399,6 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard> {
         color: AppColors.textSecondary,
         fontSize: 12,
       ),
-    );
-  }
-
-  /// Outline circle button
-  Widget _buildOutlineButton({
-    required VoidCallback? onTap,
-    required Widget child,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: AppColors.border,
-            width: 1.5,
-          ),
-        ),
-        child: Center(child: child),
-      ),
-    );
-  }
-
-  /// Super Like icon (flame)
-  Widget _buildFireIcon() {
-    return Image.asset(
-      AppAssets.icSuperLike,
-      width: 20,
-      height: 20,
-      color: AppColors.like,
-    );
-  }
-
-  /// Heart icon (like)
-  Widget _buildHeartIcon() {
-    return Image.asset(
-      AppAssets.icLike,
-      width: 20,
-      height: 20,
-      color: AppColors.like,
     );
   }
 
