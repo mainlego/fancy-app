@@ -6,6 +6,7 @@ import '../../../../core/constants/app_typography.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../shared/widgets/widgets.dart';
 import '../../../profile/domain/models/user_model.dart';
+import '../../../profile/domain/providers/current_profile_provider.dart';
 import '../../domain/providers/profiles_provider.dart';
 import '../widgets/home_header.dart';
 import '../widgets/match_dialog.dart';
@@ -16,6 +17,30 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Check if user needs to complete profile setup
+    final currentProfileAsync = ref.watch(currentProfileProvider);
+
+    // If profile is loading, show loading indicator
+    if (currentProfileAsync.isLoading) {
+      return const Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // If no profile exists, redirect to profile setup
+    final currentProfile = currentProfileAsync.valueOrNull;
+    if (currentProfile == null) {
+      // Schedule navigation after build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        context.goToProfileSetup();
+      });
+      return const Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final profilesAsync = ref.watch(profilesNotifierProvider);
     final profiles = ref.watch(filteredProfilesProvider);
 

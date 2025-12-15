@@ -64,14 +64,16 @@ final appRouter = GoRouter(
     final session = Supabase.instance.client.auth.currentSession;
     final isLoggedIn = session != null;
     final isAuthRoute = _authRoutes.contains(state.matchedLocation);
+    final isProfileSetup = state.matchedLocation == AppRoutes.profileSetup;
 
     // If not logged in and trying to access protected route, go to login
     if (!isLoggedIn && !isAuthRoute) {
       return AppRoutes.login;
     }
 
-    // If logged in and on auth route, go to home
-    if (isLoggedIn && isAuthRoute) {
+    // If logged in and on auth route (except profile setup), go to home
+    // Home screen will check if profile exists and redirect to profile setup if needed
+    if (isLoggedIn && isAuthRoute && !isProfileSetup) {
       return AppRoutes.home;
     }
 
