@@ -187,6 +187,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         titleSpacing: 0,
         title: GestureDetector(

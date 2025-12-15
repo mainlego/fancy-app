@@ -300,7 +300,7 @@ class RealtimeService {
     try {
       await _client.from(SupabaseConfig.profilesTable).update({
         'is_online': isOnline,
-        'last_seen': DateTime.now().toIso8601String(),
+        'last_online': DateTime.now().toIso8601String(),
       }).eq('id', userId);
       print('✅ Online status updated successfully');
     } catch (e) {

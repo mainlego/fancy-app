@@ -10,6 +10,7 @@ import '../../../../shared/widgets/widgets.dart';
 import '../../../albums/domain/models/album_model.dart';
 import '../../../albums/domain/models/access_request_model.dart';
 import '../../../albums/domain/providers/albums_provider.dart';
+import '../../../chats/domain/providers/chats_provider.dart';
 import '../../../home/domain/providers/profiles_provider.dart';
 import '../../../home/presentation/widgets/match_dialog.dart';
 import '../../domain/models/user_model.dart';
@@ -335,6 +336,12 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
   }
 
   Widget _buildUserBasicInfo(UserModel user) {
+    // Fetch fresh online status and last seen from database
+    final presenceAsync = ref.watch(userPresenceProvider(user.id));
+    final presence = presenceAsync.valueOrNull;
+    final isOnline = presence?.isOnline ?? user.isOnline;
+    final lastSeen = presence?.lastSeen ?? user.lastOnline;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -353,7 +360,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
                 ),
               ),
             ),
-            if (user.isOnline)
+            if (isOnline)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -366,6 +373,22 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
                     color: AppColors.textPrimary,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
+                  ),
+                ),
+              )
+            else if (lastSeen != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceVariant,
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                ),
+                child: Text(
+                  _formatLastSeen(lastSeen),
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -407,6 +430,26 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
         ),
       ],
     );
+  }
+
+  String _formatLastSeen(DateTime lastSeen) {
+    final now = DateTime.now();
+    final diff = now.difference(lastSeen);
+
+    if (diff.inMinutes < 1) {
+      return 'Just now';
+    } else if (diff.inMinutes < 60) {
+      return '${diff.inMinutes}m ago';
+    } else if (diff.inHours < 24) {
+      return '${diff.inHours}h ago';
+    } else if (diff.inDays == 1) {
+      return 'Yesterday';
+    } else if (diff.inDays < 7) {
+      return '${diff.inDays}d ago';
+    } else {
+      // Format as date
+      return '${lastSeen.day}.${lastSeen.month}.${lastSeen.year}';
+    }
   }
 
   Widget _buildDetailsSection(UserModel user) {

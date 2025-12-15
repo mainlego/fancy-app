@@ -11,6 +11,17 @@ enum ChatsTab { chats, likes, favs }
 /// Current tab provider
 final chatsTabProvider = StateProvider<ChatsTab>((ref) => ChatsTab.chats);
 
+/// User presence info (online status + last seen)
+class UserPresenceInfo {
+  final bool isOnline;
+  final DateTime? lastSeen;
+
+  const UserPresenceInfo({
+    required this.isOnline,
+    this.lastSeen,
+  });
+}
+
 /// Provider for user's online status (fetches fresh from DB)
 final userOnlineStatusProvider = FutureProvider.family<bool, String>((ref, userId) async {
   final supabase = ref.watch(supabaseServiceProvider);
@@ -21,6 +32,24 @@ final userOnlineStatusProvider = FutureProvider.family<bool, String>((ref, userI
   } catch (e) {
     print('Error getting user online status: $e');
     return false;
+  }
+});
+
+/// Provider for user presence info (online status + last seen)
+final userPresenceProvider = FutureProvider.family<UserPresenceInfo, String>((ref, userId) async {
+  final supabase = ref.watch(supabaseServiceProvider);
+
+  try {
+    final profile = await supabase.getProfile(userId);
+    final isOnline = profile?['is_online'] as bool? ?? false;
+    // DB column is last_online
+    final lastOnlineStr = profile?['last_online'] as String?;
+    final lastSeen = lastOnlineStr != null ? DateTime.tryParse(lastOnlineStr) : null;
+
+    return UserPresenceInfo(isOnline: isOnline, lastSeen: lastSeen);
+  } catch (e) {
+    print('Error getting user presence: $e');
+    return const UserPresenceInfo(isOnline: false);
   }
 });
 
