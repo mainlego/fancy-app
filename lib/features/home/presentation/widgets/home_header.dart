@@ -18,6 +18,9 @@ class HomeHeader extends ConsumerStatefulWidget {
 
 class _HomeHeaderState extends ConsumerState<HomeHeader> {
   OverlayEntry? _overlayEntry;
+  final GlobalKey _datingGoalKey = GlobalKey();
+  final GlobalKey _statusKey = GlobalKey();
+  final GlobalKey _distanceKey = GlobalKey();
 
   @override
   void dispose() {
@@ -30,11 +33,27 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
     _overlayEntry = null;
   }
 
+  Offset _getButtonPosition(GlobalKey key) {
+    final RenderBox? renderBox = key.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return Offset.zero;
+    return renderBox.localToGlobal(Offset.zero);
+  }
+
+  Size _getButtonSize(GlobalKey key) {
+    final RenderBox? renderBox = key.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return Size.zero;
+    return renderBox.size;
+  }
+
   void _showDatingGoalPicker(BuildContext context) {
     _removeOverlay();
+    final buttonPosition = _getButtonPosition(_datingGoalKey);
+    final buttonSize = _getButtonSize(_datingGoalKey);
 
     _overlayEntry = OverlayEntry(
       builder: (context) => _FilterOverlay(
+        buttonPosition: buttonPosition,
+        buttonSize: buttonSize,
         onDismiss: () {
           // Save to database when closing
           final currentFilter = ref.read(filterAsyncProvider).valueOrNull ?? FilterModel.defaultFilters;
@@ -67,9 +86,13 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
 
   void _showStatusPicker(BuildContext context) {
     _removeOverlay();
+    final buttonPosition = _getButtonPosition(_statusKey);
+    final buttonSize = _getButtonSize(_statusKey);
 
     _overlayEntry = OverlayEntry(
       builder: (context) => _FilterOverlay(
+        buttonPosition: buttonPosition,
+        buttonSize: buttonSize,
         onDismiss: () {
           // Save to database when closing
           final currentFilter = ref.read(filterAsyncProvider).valueOrNull ?? FilterModel.defaultFilters;
@@ -103,9 +126,13 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
   void _showDistanceSlider(BuildContext context) {
     _removeOverlay();
     final filter = ref.read(filterAsyncProvider).valueOrNull ?? FilterModel.defaultFilters;
+    final buttonPosition = _getButtonPosition(_distanceKey);
+    final buttonSize = _getButtonSize(_distanceKey);
 
     _overlayEntry = OverlayEntry(
       builder: (context) => _FilterOverlay(
+        buttonPosition: buttonPosition,
+        buttonSize: buttonSize,
         onDismiss: _removeOverlay,
         child: _DistanceSlider(
           value: filter.distanceKm.toDouble(),
@@ -134,6 +161,7 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
           // Dating goal
           Expanded(
             child: GestureDetector(
+              key: _datingGoalKey,
               onTap: () => _showDatingGoalPicker(context),
               behavior: HitTestBehavior.opaque,
               child: Text(
@@ -152,6 +180,7 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
           // Relationship status
           Expanded(
             child: GestureDetector(
+              key: _statusKey,
               onTap: () => _showStatusPicker(context),
               behavior: HitTestBehavior.opaque,
               child: Text(
@@ -170,6 +199,7 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
           // Distance
           Expanded(
             child: GestureDetector(
+              key: _distanceKey,
               onTap: () => _showDistanceSlider(context),
               behavior: HitTestBehavior.opaque,
               child: Text(
@@ -257,12 +287,16 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
   }
 }
 
-/// Overlay wrapper for filter dropdowns
+/// Overlay wrapper for filter dropdowns - positioned under the button
 class _FilterOverlay extends StatelessWidget {
+  final Offset buttonPosition;
+  final Size buttonSize;
   final VoidCallback onDismiss;
   final Widget child;
 
   const _FilterOverlay({
+    required this.buttonPosition,
+    required this.buttonSize,
     required this.onDismiss,
     required this.child,
   });
@@ -272,6 +306,19 @@ class _FilterOverlay extends StatelessWidget {
     final screenWidth = MediaQuery.of(context).size.width;
     final dropdownWidth = screenWidth * 0.45; // ~1/2 width
 
+    // Position dropdown centered under the button
+    final buttonCenterX = buttonPosition.dx + (buttonSize.width / 2);
+    double left = buttonCenterX - (dropdownWidth / 2);
+
+    // Keep within screen bounds
+    if (left < 16) left = 16;
+    if (left + dropdownWidth > screenWidth - 16) {
+      left = screenWidth - dropdownWidth - 16;
+    }
+
+    // Position just below the button
+    final top = buttonPosition.dy + buttonSize.height + 8;
+
     return Material(
       color: Colors.transparent,
       child: Stack(
@@ -280,13 +327,14 @@ class _FilterOverlay extends StatelessWidget {
           Positioned.fill(
             child: GestureDetector(
               onTap: onDismiss,
+              behavior: HitTestBehavior.opaque,
               child: Container(color: Colors.black54),
             ),
           ),
-          // Content centered horizontally
+          // Content positioned under the button
           Positioned(
-            top: 80,
-            left: (screenWidth - dropdownWidth) / 2,
+            top: top,
+            left: left,
             width: dropdownWidth,
             child: child,
           ),

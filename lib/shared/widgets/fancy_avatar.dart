@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_spacing.dart';
 
 enum AvatarSize { small, medium, large, xlarge }
 

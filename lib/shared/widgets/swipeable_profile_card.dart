@@ -44,6 +44,9 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard> {
   bool _showingBio = false;
   DateTime? _lastTapTime;
 
+  final GlobalKey _dotsButtonKey = GlobalKey();
+  OverlayEntry? _menuOverlay;
+
   /// Total media count (photos + bio as last item)
   int get _totalSlides => widget.user.photos.length + 1; // +1 for bio
 
@@ -99,24 +102,47 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard> {
   }
 
   void _showMoreMenu() {
-    showDialog(
-      context: context,
-      barrierColor: Colors.transparent,
-      builder: (context) => _MoreMenuDialog(
+    _removeMenuOverlay();
+
+    final RenderBox? renderBox =
+        _dotsButtonKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+
+    final buttonPosition = renderBox.localToGlobal(Offset.zero);
+    final buttonSize = renderBox.size;
+
+    _menuOverlay = OverlayEntry(
+      builder: (context) => _MoreMenuOverlay(
+        buttonPosition: buttonPosition,
+        buttonSize: buttonSize,
         onHide: () {
-          Navigator.pop(context);
+          _removeMenuOverlay();
           widget.onHide?.call();
         },
         onBlock: () {
-          Navigator.pop(context);
+          _removeMenuOverlay();
           widget.onBlock?.call();
         },
         onReport: () {
-          Navigator.pop(context);
+          _removeMenuOverlay();
           widget.onReport?.call();
         },
+        onDismiss: _removeMenuOverlay,
       ),
     );
+
+    Overlay.of(context).insert(_menuOverlay!);
+  }
+
+  void _removeMenuOverlay() {
+    _menuOverlay?.remove();
+    _menuOverlay = null;
+  }
+
+  @override
+  void dispose() {
+    _removeMenuOverlay();
+    super.dispose();
   }
 
   @override
@@ -298,12 +324,15 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard> {
                 Row(
                   children: [
                     Expanded(child: _buildLocationRow()),
-                    // Three dots menu
+                    // Three dots menu - larger tap area (44x44)
                     GestureDetector(
+                      key: _dotsButtonKey,
                       onTap: _showMoreMenu,
                       behavior: HitTestBehavior.opaque,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        alignment: Alignment.center,
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -431,39 +460,52 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard> {
   }
 }
 
-/// More menu dialog (hide, block, report)
-class _MoreMenuDialog extends StatelessWidget {
+/// More menu overlay (hide, block, report) - positioned under the dots button
+class _MoreMenuOverlay extends StatelessWidget {
+  final Offset buttonPosition;
+  final Size buttonSize;
   final VoidCallback onHide;
   final VoidCallback onBlock;
   final VoidCallback onReport;
+  final VoidCallback onDismiss;
 
-  const _MoreMenuDialog({
+  const _MoreMenuOverlay({
+    required this.buttonPosition,
+    required this.buttonSize,
     required this.onHide,
     required this.onBlock,
     required this.onReport,
+    required this.onDismiss,
   });
+
+  static const double _menuWidth = 100.0;
 
   @override
   Widget build(BuildContext context) {
+    // Position menu above the button, centered horizontally
+    final menuLeft = buttonPosition.dx + (buttonSize.width / 2) - (_menuWidth / 2);
+    final menuBottom = MediaQuery.of(context).size.height - buttonPosition.dy + 8;
+
     return Stack(
       children: [
         // Tap outside to dismiss
         Positioned.fill(
           child: GestureDetector(
-            onTap: () => Navigator.pop(context),
+            onTap: onDismiss,
+            behavior: HitTestBehavior.opaque,
             child: Container(color: Colors.transparent),
           ),
         ),
-        // Menu positioned above the three dots
+        // Menu positioned above the dots button
         Positioned(
-          bottom: 120,
-          left: 0,
-          right: 0,
-          child: Center(
+          left: menuLeft,
+          bottom: menuBottom,
+          child: Material(
+            color: Colors.transparent,
             child: Container(
+              width: _menuWidth,
               decoration: const BoxDecoration(
                 color: AppColors.surfaceVariant,
-                // No border radius as per design
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -503,14 +545,14 @@ class _MoreMenuDialog extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        width: 120,
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+        width: _menuWidth,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         child: Text(
           text,
           textAlign: TextAlign.center,
           style: AppTypography.bodyMedium.copyWith(
             color: color,
-            fontSize: 15,
+            fontSize: 14,
           ),
         ),
       ),
