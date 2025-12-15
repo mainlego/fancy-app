@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
+import '../../../../core/icons/app_icons.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../../shared/widgets/widgets.dart';
@@ -63,7 +64,10 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen>
         title: const Text('Chats'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings),
+            icon: CustomPaint(
+              size: const Size(24, 24),
+              painter: SettingsIconPainter(color: AppColors.textPrimary),
+            ),
             onPressed: () => context.pushSettings(),
           ),
         ],

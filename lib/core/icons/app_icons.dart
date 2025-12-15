@@ -768,6 +768,69 @@ class AddSquareIconPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+/// Gallery/Photo library icon
+class GalleryIconPainter extends CustomPainter {
+  final Color color;
+
+  GalleryIconPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scale = size.width / 24.0;
+
+    final strokePaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    final fillPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    // Rounded rectangle frame
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(2.5 * scale, 2.5 * scale, 19 * scale, 19 * scale),
+      Radius.circular(4 * scale),
+    );
+    canvas.drawRRect(rrect, strokePaint);
+
+    // Mountain/landscape path
+    final mountainPath = Path();
+    mountainPath.moveTo(2.5 * scale, 14.4999 * scale);
+    mountainPath.lineTo(5.8055 * scale, 11.1945 * scale);
+    mountainPath.cubicTo(
+      6.68783 * scale, 10.3122 * scale,
+      8.15379 * scale, 10.4443 * scale,
+      8.86406 * scale, 11.4702 * scale,
+    );
+    mountainPath.lineTo(10.7664 * scale, 14.218 * scale);
+    mountainPath.cubicTo(
+      11.4311 * scale, 15.1781 * scale,
+      12.7735 * scale, 15.3669 * scale,
+      13.6773 * scale, 14.6275 * scale,
+    );
+    mountainPath.lineTo(16.0992 * scale, 12.646 * scale);
+    mountainPath.cubicTo(
+      16.8944 * scale, 11.9954 * scale,
+      18.0533 * scale, 12.0532 * scale,
+      18.7798 * scale, 12.7797 * scale,
+    );
+    mountainPath.lineTo(21.5 * scale, 15.4999 * scale);
+
+    canvas.drawPath(mountainPath, strokePaint);
+
+    // Sun circle
+    canvas.drawCircle(
+      Offset(16.5 * scale, 7.5 * scale),
+      1.5 * scale,
+      fillPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 /// Widget helper for using icon painters
 class AppIcon extends StatelessWidget {
   final CustomPainter painter;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_typography.dart';
+import '../../../../core/icons/app_icons.dart';
 import '../../../../core/router/app_router.dart';
 import '../../domain/models/user_model.dart';
 import '../../domain/providers/current_profile_provider.dart';
@@ -143,14 +144,13 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
             onTap: () {
               context.goToHome();
             },
-            child: const SizedBox(
+            child: SizedBox(
               width: 44,
               height: 44,
               child: Center(
-                child: Icon(
-                  Icons.close,
-                  color: AppColors.textPrimary,
-                  size: 24,
+                child: CustomPaint(
+                  size: const Size(24, 24),
+                  painter: CloseIconPainter(color: AppColors.textPrimary),
                 ),
               ),
             ),
@@ -170,12 +170,11 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
           // Gallery icon
           GestureDetector(
             onTap: () => context.pushAlbums(),
-            child: const Padding(
-              padding: EdgeInsets.only(right: 16),
-              child: Icon(
-                Icons.photo_library_outlined,
-                color: AppColors.textPrimary,
-                size: 24,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: CustomPaint(
+                size: const Size(24, 24),
+                painter: GalleryIconPainter(color: AppColors.textPrimary),
               ),
             ),
           ),
@@ -183,10 +182,9 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
           // Settings icon
           GestureDetector(
             onTap: () => context.pushSettings(),
-            child: const Icon(
-              Icons.settings_outlined,
-              color: AppColors.textPrimary,
-              size: 24,
+            child: CustomPaint(
+              size: const Size(24, 24),
+              painter: SettingsIconPainter(color: AppColors.textPrimary),
             ),
           ),
         ],
