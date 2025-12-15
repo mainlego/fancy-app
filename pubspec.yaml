@@ -45,6 +45,11 @@ dependencies:
   # Media
   image_picker: ^1.1.2
   photo_view: ^0.15.0
+  video_player: ^2.9.2
+  record: ^5.1.2
+  just_audio: ^0.9.40
+  path_provider: ^2.1.4
+  permission_handler: ^11.3.1
 
   # Icons
   iconsax: ^0.0.8

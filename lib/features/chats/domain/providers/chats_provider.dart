@@ -378,6 +378,7 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<MessageModel>>> {
     required String mediaUrl,
     required MessageType type,
     String? content,
+    int? durationMs,
   }) async {
     try {
       final response = await _supabase.sendMediaMessage(
@@ -385,6 +386,7 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<MessageModel>>> {
         mediaUrl: mediaUrl,
         messageType: type.name,
         content: content,
+        mediaDurationMs: durationMs,
       );
       // Add message immediately to local state for instant feedback
       final message = MessageModel.fromSupabase(response);

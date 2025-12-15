@@ -15,6 +15,9 @@ import '../../../../core/services/supabase_service.dart';
 import '../../../../shared/widgets/widgets.dart';
 import '../../domain/models/chat_model.dart';
 import '../../domain/providers/chats_provider.dart';
+import '../widgets/video_player_screen.dart';
+import '../widgets/voice_recording_dialog.dart';
+import '../widgets/voice_player_widget.dart';
 
 /// Chat detail screen
 class ChatDetailScreen extends ConsumerStatefulWidget {
@@ -577,14 +580,55 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     );
   }
 
-  void _showVoiceRecordingDialog() {
-    // TODO: Implement voice recording with record package
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Voice recording coming soon!'),
-        backgroundColor: AppColors.info,
-      ),
-    );
+  Future<void> _showVoiceRecordingDialog() async {
+    final result = await VoiceRecordingDialog.show(context);
+    if (result == null) return;
+
+    setState(() => _isUploading = true);
+
+    try {
+      // Read the recorded file
+      final file = File(result.filePath);
+      final bytes = await file.readAsBytes();
+      final fileName = 'voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+      // Upload to Supabase storage
+      final supabase = ref.read(supabaseServiceProvider);
+      final chatId = _actualChatId ?? widget.chatId;
+
+      final voiceUrl = await supabase.uploadChatMedia(
+        chatId: chatId,
+        fileName: fileName,
+        bytes: bytes,
+        contentType: 'audio/mp4',
+      );
+
+      // Send voice message
+      final messagesNotifier = ref.read(messagesNotifierProvider(chatId).notifier);
+      await messagesNotifier.sendMediaMessage(
+        mediaUrl: voiceUrl,
+        type: MessageType.voice,
+        durationMs: result.durationMs,
+      );
+
+      // Clean up temp file
+      try {
+        await file.delete();
+      } catch (_) {}
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send voice message: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploading = false);
+      }
+    }
   }
 
   void _showChatOptions(BuildContext context, String participantId) {
@@ -1005,40 +1049,10 @@ class _MessageBubble extends StatelessWidget {
       case MessageType.voice:
         return Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: GestureDetector(
-            onTap: () => _playVoice(context, message.mediaUrl!),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: isMe ? AppColors.primary.withOpacity(0.8) : AppColors.surface,
-                borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.play_arrow, color: AppColors.textPrimary),
-                  AppSpacing.hGapSm,
-                  // Voice waveform placeholder
-                  SizedBox(
-                    width: 100,
-                    height: 24,
-                    child: CustomPaint(
-                      painter: _VoiceWaveformPainter(
-                        color: isMe ? AppColors.textPrimary : AppColors.primary,
-                      ),
-                    ),
-                  ),
-                  AppSpacing.hGapSm,
-                  if (message.mediaDurationMs != null)
-                    Text(
-                      _formatDuration(message.mediaDurationMs!),
-                      style: AppTypography.labelSmall.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                ],
-              ),
-            ),
+          child: VoicePlayerWidget(
+            audioUrl: message.mediaUrl!,
+            durationMs: message.mediaDurationMs,
+            isMe: isMe,
           ),
         );
 
@@ -1112,16 +1126,11 @@ class _MessageBubble extends StatelessWidget {
   }
 
   void _playVideo(BuildContext context, String videoUrl) {
-    // TODO: Implement video player
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Video player coming soon!')),
-    );
-  }
-
-  void _playVoice(BuildContext context, String voiceUrl) {
-    // TODO: Implement voice player
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Voice player coming soon!')),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => VideoPlayerScreen(videoUrl: videoUrl),
+      ),
     );
   }
 
@@ -1130,43 +1139,6 @@ class _MessageBubble extends StatelessWidget {
     final minute = date.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
   }
-
-  String _formatDuration(int milliseconds) {
-    final seconds = (milliseconds / 1000).round();
-    final mins = seconds ~/ 60;
-    final secs = seconds % 60;
-    return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
-  }
-}
-
-/// Voice waveform painter
-class _VoiceWaveformPainter extends CustomPainter {
-  final Color color;
-
-  _VoiceWaveformPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round;
-
-    const barCount = 20;
-    final barWidth = size.width / barCount;
-    final maxHeight = size.height;
-
-    for (var i = 0; i < barCount; i++) {
-      final height = (maxHeight * 0.3) + (maxHeight * 0.7 * (i % 3 == 0 ? 0.8 : i % 2 == 0 ? 0.5 : 0.3));
-      final x = i * barWidth + barWidth / 2;
-      final y1 = (size.height - height) / 2;
-      final y2 = y1 + height;
-      canvas.drawLine(Offset(x, y1), Offset(x, y2), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 /// Full screen image viewer
