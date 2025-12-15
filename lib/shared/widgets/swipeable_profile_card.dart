@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_typography.dart';
@@ -308,23 +309,15 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Fire button (Super Like)
-                  GestureDetector(
+                  _ActionButton(
+                    svgPath: AppAssets.icSuperLikeOutline,
                     onTap: widget.onSuperLike,
-                    child: Image.asset(
-                      AppAssets.icSuperLike,
-                      width: 40,
-                      height: 40,
-                    ),
                   ),
                   const SizedBox(width: 8),
                   // Heart button (Like)
-                  GestureDetector(
+                  _ActionButton(
+                    svgPath: AppAssets.icLikeOutline,
                     onTap: widget.onLike,
-                    child: Image.asset(
-                      AppAssets.icLike,
-                      width: 40,
-                      height: 40,
-                    ),
                   ),
                 ],
               ),
@@ -523,6 +516,93 @@ class _MoreMenuDialog extends StatelessWidget {
           style: AppTypography.bodyMedium.copyWith(
             color: color,
             fontSize: 15,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Action button with border and tap animation
+class _ActionButton extends StatefulWidget {
+  final String svgPath;
+  final VoidCallback? onTap;
+
+  const _ActionButton({
+    required this.svgPath,
+    this.onTap,
+  });
+
+  @override
+  State<_ActionButton> createState() => _ActionButtonState();
+}
+
+class _ActionButtonState extends State<_ActionButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 100),
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.85).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onTapDown(TapDownDetails details) {
+    _controller.forward();
+  }
+
+  void _onTapUp(TapUpDetails details) {
+    _controller.reverse();
+    widget.onTap?.call();
+  }
+
+  void _onTapCancel() {
+    _controller.reverse();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: _onTapDown,
+      onTapUp: _onTapUp,
+      onTapCancel: _onTapCancel,
+      child: AnimatedBuilder(
+        animation: _scaleAnimation,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _scaleAnimation.value,
+            child: child,
+          );
+        },
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: AppColors.border,
+              width: 1.5,
+            ),
+          ),
+          child: Center(
+            child: SvgPicture.asset(
+              widget.svgPath,
+              width: 22,
+              height: 22,
+            ),
           ),
         ),
       ),

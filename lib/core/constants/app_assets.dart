@@ -13,6 +13,8 @@ class AppAssets {
   // Action icons
   static const String icLike = '$_iconsPath/ic_like.png';
   static const String icSuperLike = '$_iconsPath/ic_super_like.png';
+  static const String icLikeOutline = '$_iconsPath/ic_like_outline.svg';
+  static const String icSuperLikeOutline = '$_iconsPath/ic_super_like_outline.svg';
   static const String icAdd = '$_iconsPath/ic_add.png';
   static const String icEdit = '$_iconsPath/ic_edit.png';
   static const String icClose = '$_iconsPath/ic_close.png';
