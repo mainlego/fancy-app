@@ -5,6 +5,7 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../shared/widgets/widgets.dart';
+import '../../../auth/domain/providers/auth_provider.dart';
 import '../../domain/models/settings_model.dart';
 import '../../domain/providers/settings_provider.dart';
 
@@ -210,6 +211,24 @@ class SettingsScreen extends ConsumerWidget {
                       ref.read(settingsProvider.notifier).updateAppLanguage(value);
                     }
                   },
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.vGapXl,
+
+          // Account section
+          _buildSectionTitle('ACCOUNT'),
+          AppSpacing.vGapSm,
+          FancyCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                _buildListTile(
+                  icon: Icons.logout,
+                  title: 'Sign out',
+                  textColor: AppColors.warning,
+                  onTap: () => _showSignOutDialog(context, ref),
                 ),
               ],
             ),
@@ -462,6 +481,35 @@ class SettingsScreen extends ConsumerWidget {
             child: Text(
               'Delete',
               style: TextStyle(color: AppColors.error),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSignOutDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Sign Out'),
+        content: const Text(
+          'Are you sure you want to sign out?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await ref.read(authProvider.notifier).signOut();
+            },
+            child: Text(
+              'Sign Out',
+              style: TextStyle(color: AppColors.warning),
             ),
           ),
         ],
