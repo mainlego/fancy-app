@@ -355,9 +355,43 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<MessageModel>>> {
         content: content,
         imageUrl: imageUrl,
       );
-      // Message will be added via realtime subscription
+      // Add message immediately to local state for instant feedback
+      final message = MessageModel.fromSupabase(response);
+      state.whenData((messages) {
+        // Check if message already exists (from realtime)
+        if (!messages.any((m) => m.id == message.id)) {
+          state = AsyncValue.data([message, ...messages]);
+        }
+      });
     } catch (e) {
       print('Error sending message: $e');
+      rethrow;
+    }
+  }
+
+  /// Send media message (video, voice, etc.)
+  Future<void> sendMediaMessage({
+    required String mediaUrl,
+    required MessageType type,
+    String? content,
+  }) async {
+    try {
+      final response = await _supabase.sendMediaMessage(
+        chatId: chatId,
+        mediaUrl: mediaUrl,
+        messageType: type.name,
+        content: content,
+      );
+      // Add message immediately to local state for instant feedback
+      final message = MessageModel.fromSupabase(response);
+      state.whenData((messages) {
+        // Check if message already exists (from realtime)
+        if (!messages.any((m) => m.id == message.id)) {
+          state = AsyncValue.data([message, ...messages]);
+        }
+      });
+    } catch (e) {
+      print('Error sending media message: $e');
       rethrow;
     }
   }

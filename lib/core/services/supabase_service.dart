@@ -450,6 +450,37 @@ class SupabaseService {
       'sender_id': userId,
       'content': content,
       'image_url': imageUrl,
+      'message_type': imageUrl != null ? 'image' : 'text',
+      'created_at': DateTime.now().toIso8601String(),
+    }).select().single();
+
+    // Update chat's updated_at
+    await _client
+        .from(SupabaseConfig.chatsTable)
+        .update({'updated_at': DateTime.now().toIso8601String()})
+        .eq('id', chatId);
+
+    return response;
+  }
+
+  /// Send a media message (video, voice, gif, sticker)
+  Future<Map<String, dynamic>> sendMediaMessage({
+    required String chatId,
+    required String mediaUrl,
+    required String messageType,
+    String? content,
+    int? mediaDurationMs,
+  }) async {
+    final userId = currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+
+    final response = await _client.from(SupabaseConfig.messagesTable).insert({
+      'chat_id': chatId,
+      'sender_id': userId,
+      'content': content,
+      'image_url': mediaUrl, // Using image_url for all media for simplicity
+      'message_type': messageType,
+      'media_duration_ms': mediaDurationMs,
       'created_at': DateTime.now().toIso8601String(),
     }).select().single();
 
@@ -760,6 +791,26 @@ class SupabaseService {
     if (profile == null) return [];
 
     return List<String>.from(profile['photos'] ?? []);
+  }
+
+  /// Upload chat media (photos, videos, voice messages)
+  Future<String> uploadChatMedia({
+    required String chatId,
+    required String fileName,
+    required Uint8List bytes,
+    required String contentType,
+  }) async {
+    final userId = currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+
+    final path = '$chatId/$userId/$fileName';
+    await _client.storage.from('chat_media').uploadBinary(
+      path,
+      bytes,
+      fileOptions: FileOptions(contentType: contentType, upsert: true),
+    );
+
+    return _client.storage.from('chat_media').getPublicUrl(path);
   }
 
   // ===================
