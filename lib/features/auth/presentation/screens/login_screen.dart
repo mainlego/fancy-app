@@ -295,23 +295,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
         return Column(
           children: [
-            // Glowing logo
+            // Glowing logo - larger size
             Transform.scale(
               scale: scale,
               child: Container(
-                width: 120,
-                height: 120,
+                width: 200,
+                height: 200,
                 decoration: BoxDecoration(
                   boxShadow: [
                     BoxShadow(
                       color: AppColors.primary.withValues(alpha: glowOpacity),
-                      blurRadius: 50,
-                      spreadRadius: 15,
+                      blurRadius: 60,
+                      spreadRadius: 20,
                     ),
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(30),
                   child: Image.asset(
                     'assets/images/logo.png',
                     fit: BoxFit.contain,
@@ -319,33 +319,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 ),
               ),
             ),
-            const SizedBox(height: 20),
-
-            // App name with shimmer effect
-            ShaderMask(
-              shaderCallback: (bounds) => LinearGradient(
-                colors: [
-                  Colors.white,
-                  AppColors.primary,
-                  Colors.white,
-                ],
-                stops: [
-                  0.0,
-                  (_heartController.value),
-                  1.0,
-                ],
-              ).createShader(bounds),
-              child: Text(
-                'FANCY',
-                style: AppTypography.displayLarge.copyWith(
-                  fontSize: 48,
-                  letterSpacing: 12,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w300,
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
+            // Tagline only
             Text(
               _isSignUp ? 'Create your story' : 'Find your match',
               style: AppTypography.bodyMedium.copyWith(
