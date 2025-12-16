@@ -572,85 +572,105 @@ class _ChatListTile extends StatelessWidget {
           color: AppColors.textPrimary,
         ),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
-          vertical: AppSpacing.sm,
-        ),
-        leading: FancyAvatar(
-          imageUrl: chat.participantAvatarUrl,
-          name: chat.participantName,
-          isOnline: chat.participantOnline,
-          isVerified: chat.participantVerified,
-        ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      chat.participantName,
-                      style: AppTypography.titleSmall.copyWith(
-                        fontWeight: chat.hasUnread ? FontWeight.w600 : FontWeight.w400,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (isFavorite) ...[
-                    AppSpacing.hGapXs,
-                    const Icon(Icons.star, color: AppColors.premium, size: 16),
-                  ],
-                ],
-              ),
-            ),
-            Text(
-              _formatTime(chat.lastMessage?.createdAt),
-              style: AppTypography.labelSmall.copyWith(
-                color: chat.hasUnread ? AppColors.primary : AppColors.textTertiary,
-              ),
-            ),
-          ],
-        ),
-        subtitle: Row(
-          children: [
-            Expanded(
-              child: Text(
-                _getMessagePreview(chat),
-                style: AppTypography.bodySmall.copyWith(
-                  color: chat.hasUnread
-                      ? AppColors.textPrimary
-                      : AppColors.textSecondary,
-                  fontWeight: chat.hasUnread ? FontWeight.w500 : FontWeight.w400,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (chat.hasUnread)
-              Container(
-                margin: const EdgeInsets.only(left: 8),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 6,
-                  vertical: 2,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.zero,
-                ),
-                child: Text(
-                  chat.unreadCount > 99 ? '99+' : chat.unreadCount.toString(),
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-          ],
-        ),
+      child: GestureDetector(
         onTap: onTap,
         onLongPress: onLongPress,
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+          ),
+          child: Row(
+            children: [
+              // Avatar with 88x88 frame
+              FancyAvatar(
+                imageUrl: chat.participantAvatarUrl,
+                name: chat.participantName,
+                isOnline: chat.participantOnline,
+                isVerified: chat.participantVerified,
+              ),
+              const SizedBox(width: 12),
+              // Content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Name and time row
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  chat.participantName,
+                                  style: AppTypography.titleSmall.copyWith(
+                                    fontWeight: chat.hasUnread ? FontWeight.w600 : FontWeight.w400,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (isFavorite) ...[
+                                AppSpacing.hGapXs,
+                                const Icon(Icons.star, color: AppColors.premium, size: 16),
+                              ],
+                            ],
+                          ),
+                        ),
+                        Text(
+                          _formatTime(chat.lastMessage?.createdAt),
+                          style: AppTypography.labelSmall.copyWith(
+                            color: chat.hasUnread ? AppColors.primary : AppColors.textTertiary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    // Message preview and unread badge
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _getMessagePreview(chat),
+                            style: AppTypography.bodySmall.copyWith(
+                              color: chat.hasUnread
+                                  ? AppColors.textPrimary
+                                  : AppColors.textSecondary,
+                              fontWeight: chat.hasUnread ? FontWeight.w500 : FontWeight.w400,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (chat.hasUnread)
+                          Container(
+                            margin: const EdgeInsets.only(left: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: const BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.zero,
+                            ),
+                            child: Text(
+                              chat.unreadCount > 99 ? '99+' : chat.unreadCount.toString(),
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

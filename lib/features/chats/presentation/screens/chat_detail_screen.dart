@@ -335,11 +335,11 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
 
   Widget _buildInputBar() {
     return Container(
+      height: 56 + MediaQuery.of(context).padding.bottom,
       padding: EdgeInsets.only(
         left: AppSpacing.lg,
         right: AppSpacing.lg,
-        top: AppSpacing.sm,
-        bottom: MediaQuery.of(context).padding.bottom + AppSpacing.sm,
+        bottom: MediaQuery.of(context).padding.bottom,
       ),
       decoration: const BoxDecoration(
         color: AppColors.surface,
@@ -352,14 +352,15 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         children: [
           // Upload progress indicator
           if (_isUploading)
-            const Padding(
-              padding: EdgeInsets.only(bottom: AppSpacing.sm),
+            const SizedBox(
+              height: 2,
               child: LinearProgressIndicator(),
             ),
 
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
               // Text field - takes remaining width
               Expanded(
                 child: SizedBox(
@@ -444,7 +445,8 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                         ),
                 ),
               ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
