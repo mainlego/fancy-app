@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
@@ -334,11 +335,11 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
 
   Widget _buildInputBar() {
     return Container(
-      height: 44 + MediaQuery.of(context).padding.bottom,
       padding: EdgeInsets.only(
         left: AppSpacing.lg,
         right: AppSpacing.lg,
-        bottom: MediaQuery.of(context).padding.bottom,
+        top: AppSpacing.sm,
+        bottom: MediaQuery.of(context).padding.bottom + AppSpacing.sm,
       ),
       decoration: const BoxDecoration(
         color: AppColors.surface,
@@ -351,19 +352,18 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         children: [
           // Upload progress indicator
           if (_isUploading)
-            const SizedBox(
-              height: 2,
+            const Padding(
+              padding: EdgeInsets.only(bottom: AppSpacing.sm),
               child: LinearProgressIndicator(),
             ),
 
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Text field with keyboard handling (fixed width 250px)
-                SizedBox(
-                  width: 250,
-                  height: 32,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Text field - takes remaining width
+              Expanded(
+                child: SizedBox(
+                  height: 40,
                   child: Focus(
                     focusNode: _focusNode,
                     onKeyEvent: _handleKeyEvent,
@@ -391,7 +391,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                         ),
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 12,
-                          vertical: 6,
+                          vertical: 10,
                         ),
                         isDense: true,
                       ),
@@ -401,46 +401,50 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                     ),
                   ),
                 ),
-                const Spacer(),
+              ),
+              const SizedBox(width: 12),
 
-                // Mic button (when empty) / Send button (when has text)
-                GestureDetector(
-                  onTap: _isUploading
-                      ? null
-                      : (_hasText ? _sendMessage : _showVoiceRecordingDialog),
-                  child: SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: _hasText
-                        ? const Icon(
-                            Icons.send,
-                            color: AppColors.primary,
-                            size: 22,
-                          )
-                        : const Icon(
-                            Icons.mic_none,
-                            color: AppColors.textSecondary,
-                            size: 22,
+              // Attachment button (plus)
+              GestureDetector(
+                onTap: _isUploading ? null : () => _showAttachmentOptions(context),
+                child: const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: Icon(
+                    Icons.add,
+                    color: AppColors.textSecondary,
+                    size: 24,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // Mic button (when empty) / Send button (when has text)
+              GestureDetector(
+                onTap: _isUploading
+                    ? null
+                    : (_hasText ? _sendMessage : _showVoiceRecordingDialog),
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: _hasText
+                      ? const Icon(
+                          Icons.send,
+                          color: AppColors.primary,
+                          size: 24,
+                        )
+                      : SvgPicture.asset(
+                          'assets/icons/ic_microphone.svg',
+                          width: 24,
+                          height: 24,
+                          colorFilter: const ColorFilter.mode(
+                            AppColors.textSecondary,
+                            BlendMode.srcIn,
                           ),
-                  ),
+                        ),
                 ),
-                const SizedBox(width: 16),
-
-                // Attachment button (plus)
-                GestureDetector(
-                  onTap: _isUploading ? null : () => _showAttachmentOptions(context),
-                  child: const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: Icon(
-                      Icons.add,
-                      color: AppColors.textSecondary,
-                      size: 22,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
