@@ -4,7 +4,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
 import '../../features/auth/presentation/screens/onboarding_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
-import '../../features/auth/presentation/screens/signup_screen.dart';
 import '../../features/auth/presentation/screens/profile_setup_screen.dart';
 import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/chats/presentation/screens/chats_screen.dart';
@@ -19,7 +18,6 @@ import '../../features/settings/presentation/screens/verification_screen.dart';
 import '../../features/settings/presentation/screens/premium_screen.dart';
 import '../../features/filters/presentation/screens/filters_screen.dart';
 import '../../features/albums/presentation/screens/albums_screen.dart';
-import '../../features/tutorial/presentation/screens/app_tutorial_screen.dart';
 import '../../shared/widgets/main_scaffold.dart';
 
 /// Route names
@@ -27,7 +25,6 @@ abstract class AppRoutes {
   static const String splash = '/splash';
   static const String onboarding = '/onboarding';
   static const String login = '/login';
-  static const String signup = '/signup';
   static const String home = '/';
   static const String chats = '/chats';
   static const String chatDetail = '/chats/:chatId';
@@ -42,7 +39,6 @@ abstract class AppRoutes {
   static const String filters = '/filters';
   static const String albums = '/albums';
   static const String profileSetup = '/profile-setup';
-  static const String tutorial = '/tutorial';
 }
 
 /// Navigation shell key
@@ -52,32 +48,29 @@ final _rootNavigatorKey = GlobalKey<NavigatorState>();
 /// Auth routes that don't require authentication
 const _authRoutes = [
   AppRoutes.login,
-  AppRoutes.signup,
   AppRoutes.onboarding,
   AppRoutes.splash,
   AppRoutes.profileSetup,
-  AppRoutes.tutorial,
 ];
 
 /// App router configuration
 final appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: AppRoutes.login,
+  initialLocation: AppRoutes.splash,
   redirect: (context, state) {
     final session = Supabase.instance.client.auth.currentSession;
     final isLoggedIn = session != null;
     final isAuthRoute = _authRoutes.contains(state.matchedLocation);
     final isProfileSetup = state.matchedLocation == AppRoutes.profileSetup;
-    final isTutorial = state.matchedLocation == AppRoutes.tutorial;
 
     // If not logged in and trying to access protected route, go to login
     if (!isLoggedIn && !isAuthRoute) {
       return AppRoutes.login;
     }
 
-    // If logged in and on auth route (except profile setup and tutorial), go to home
+    // If logged in and on auth route (except profile setup), go to home
     // Home screen will check if profile exists and redirect to profile setup if needed
-    if (isLoggedIn && isAuthRoute && !isProfileSetup && !isTutorial) {
+    if (isLoggedIn && isAuthRoute && !isProfileSetup) {
       return AppRoutes.home;
     }
 
@@ -102,19 +95,9 @@ final appRouter = GoRouter(
       builder: (context, state) => const LoginScreen(),
     ),
     GoRoute(
-      path: AppRoutes.signup,
-      parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const SignupScreen(),
-    ),
-    GoRoute(
       path: AppRoutes.profileSetup,
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const ProfileSetupScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.tutorial,
-      parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const AppTutorialScreen(),
     ),
 
     // Shell route for bottom navigation
@@ -213,7 +196,6 @@ extension NavigationExtension on BuildContext {
   void goToSplash() => go(AppRoutes.splash);
   void goToOnboarding() => go(AppRoutes.onboarding);
   void goToLogin() => go(AppRoutes.login);
-  void goToSignup() => push(AppRoutes.signup);
   void goToHome() => go(AppRoutes.home);
   void goToChats() => go(AppRoutes.chats);
   void goToProfile() => go(AppRoutes.profile);
@@ -236,5 +218,4 @@ extension NavigationExtension on BuildContext {
   void pushFilters() => push(AppRoutes.filters);
   void pushAlbums() => push(AppRoutes.albums);
   void goToProfileSetup() => go(AppRoutes.profileSetup);
-  void goToTutorial() => go(AppRoutes.tutorial);
 }

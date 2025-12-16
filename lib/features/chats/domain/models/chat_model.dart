@@ -199,6 +199,8 @@ class ChatModel extends Equatable {
   final int unreadCount;
   final DateTime createdAt;
   final DateTime updatedAt;
+  /// Whether the other participant has deleted the chat
+  final bool deletedByOther;
 
   const ChatModel({
     required this.id,
@@ -211,6 +213,7 @@ class ChatModel extends Equatable {
     this.unreadCount = 0,
     required this.createdAt,
     required this.updatedAt,
+    this.deletedByOther = false,
   });
 
   bool get hasUnread => unreadCount > 0;
@@ -226,6 +229,7 @@ class ChatModel extends Equatable {
     int? unreadCount,
     DateTime? createdAt,
     DateTime? updatedAt,
+    bool? deletedByOther,
   }) {
     return ChatModel(
       id: id ?? this.id,
@@ -238,6 +242,7 @@ class ChatModel extends Equatable {
       unreadCount: unreadCount ?? this.unreadCount,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      deletedByOther: deletedByOther ?? this.deletedByOther,
     );
   }
 
@@ -255,6 +260,7 @@ class ChatModel extends Equatable {
       unreadCount: json['unreadCount'] as int? ?? 0,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
+      deletedByOther: json['deletedByOther'] as bool? ?? false,
     );
   }
 
@@ -308,6 +314,11 @@ class ChatModel extends Equatable {
       );
     }
 
+    // Check if the other participant deleted the chat
+    final deletedByOther = isParticipant1
+        ? (json['deleted_by_participant2'] as bool? ?? false)
+        : (json['deleted_by_participant1'] as bool? ?? false);
+
     return ChatModel(
       id: json['id'] as String,
       participantId: participantProfile?['id'] as String? ??
@@ -325,6 +336,7 @@ class ChatModel extends Equatable {
       updatedAt: json['updated_at'] != null
           ? DateTime.parse(json['updated_at'] as String)
           : DateTime.now(),
+      deletedByOther: deletedByOther,
     );
   }
 
@@ -340,6 +352,7 @@ class ChatModel extends Equatable {
       'unreadCount': unreadCount,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
+      'deletedByOther': deletedByOther,
     };
   }
 
@@ -355,6 +368,7 @@ class ChatModel extends Equatable {
         unreadCount,
         createdAt,
         updatedAt,
+        deletedByOther,
       ];
 }
 

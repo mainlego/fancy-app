@@ -77,6 +77,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen>
                 children: [
                   _ChatsListView(
                     onShowFavoriteDialog: _showFavoriteDialog,
+                    onDeleteChat: _deleteChat,
                   ),
                   const _LikesListView(),
                   const _FavoritesListView(),
@@ -332,8 +333,12 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen>
 /// Chats list view
 class _ChatsListView extends ConsumerWidget {
   final void Function(ChatModel chat, bool isFavorite) onShowFavoriteDialog;
+  final Future<void> Function(ChatModel chat) onDeleteChat;
 
-  const _ChatsListView({required this.onShowFavoriteDialog});
+  const _ChatsListView({
+    required this.onShowFavoriteDialog,
+    required this.onDeleteChat,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -378,9 +383,7 @@ class _ChatsListView extends ConsumerWidget {
                   context.pushChatDetail(chat.id);
                 }
               },
-              onDismiss: () {
-                // Handle delete chat
-              },
+              onDismiss: () => onDeleteChat(chat),
               onLongPress: () => onShowFavoriteDialog(chat, isFavorite),
             );
           },
@@ -634,10 +637,13 @@ class _ChatListTile extends StatelessWidget {
                           child: Text(
                             _getMessagePreview(chat),
                             style: AppTypography.bodySmall.copyWith(
-                              color: chat.hasUnread
-                                  ? AppColors.textPrimary
-                                  : AppColors.textSecondary,
+                              color: chat.deletedByOther
+                                  ? AppColors.textTertiary
+                                  : chat.hasUnread
+                                      ? AppColors.textPrimary
+                                      : AppColors.textSecondary,
                               fontWeight: chat.hasUnread ? FontWeight.w500 : FontWeight.w400,
+                              fontStyle: chat.deletedByOther ? FontStyle.italic : FontStyle.normal,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -688,6 +694,11 @@ class _ChatListTile extends StatelessWidget {
   }
 
   String _getMessagePreview(ChatModel chat) {
+    // Show deleted indicator if the other participant deleted the chat
+    if (chat.deletedByOther) {
+      return 'Chat deleted by user';
+    }
+
     final message = chat.lastMessage;
     if (message == null) return 'No messages yet';
 

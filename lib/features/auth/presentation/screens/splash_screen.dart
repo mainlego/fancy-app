@@ -4,6 +4,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_typography.dart';
 
 /// Splash screen with logo animation
+/// Always navigates to login - onboarding shown after first auth
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -41,10 +42,10 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    // Navigate to onboarding after animation
+    // Navigate to login after animation
     Future.delayed(const Duration(milliseconds: 2500), () {
       if (mounted) {
-        context.go('/onboarding');
+        context.go('/login');
       }
     });
   }

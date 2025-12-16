@@ -313,28 +313,49 @@ class SupabaseService {
   // CHAT OPERATIONS
   // ===================
 
-  /// Delete a chat and all its messages
+  /// Delete a chat and all its messages (hard delete)
   Future<void> deleteChat(String chatId) async {
     final userId = currentUser?.id;
     if (userId == null) return;
 
-    // First delete all messages in the chat
-    await _client
-        .from(SupabaseConfig.messagesTable)
-        .delete()
-        .eq('chat_id', chatId);
+    try {
+      // First get the chat to find the other participant (before deleting)
+      final chatResponse = await _client
+          .from(SupabaseConfig.chatsTable)
+          .select('participant1_id, participant2_id')
+          .eq('id', chatId)
+          .maybeSingle();
 
-    // Then delete the chat itself
-    await _client
-        .from(SupabaseConfig.chatsTable)
-        .delete()
-        .eq('id', chatId);
+      String? otherId;
+      if (chatResponse != null) {
+        final participant1Id = chatResponse['participant1_id'] as String?;
+        final participant2Id = chatResponse['participant2_id'] as String?;
+        otherId = participant1Id == userId ? participant2Id : participant1Id;
+      }
 
-    // Also delete the match if exists
-    await _client
-        .from(SupabaseConfig.matchesTable)
-        .delete()
-        .or('and(user1_id.eq.$userId),and(user2_id.eq.$userId)');
+      // Delete all messages in the chat
+      await _client
+          .from(SupabaseConfig.messagesTable)
+          .delete()
+          .eq('chat_id', chatId);
+
+      // Delete the chat itself
+      await _client
+          .from(SupabaseConfig.chatsTable)
+          .delete()
+          .eq('id', chatId);
+
+      // Also delete the match if exists
+      if (otherId != null) {
+        await _client
+            .from(SupabaseConfig.matchesTable)
+            .delete()
+            .or('and(user1_id.eq.$userId,user2_id.eq.$otherId),and(user1_id.eq.$otherId,user2_id.eq.$userId)');
+      }
+    } catch (e) {
+      print('Error deleting chat: $e');
+      rethrow;
+    }
   }
 
   /// Create a chat between two users
@@ -362,6 +383,7 @@ class SupabaseService {
 
       // Load participant profiles and last message separately
       final chats = List<Map<String, dynamic>>.from(response);
+
       for (var chat in chats) {
         final chatId = chat['id'] as String;
         final participant1Id = chat['participant1_id'] as String?;

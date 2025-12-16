@@ -506,6 +506,9 @@ class SettingsScreen extends ConsumerWidget {
             onPressed: () async {
               Navigator.pop(context);
               await ref.read(authProvider.notifier).signOut();
+              if (context.mounted) {
+                context.goToLogin();
+              }
             },
             child: Text(
               'Sign Out',

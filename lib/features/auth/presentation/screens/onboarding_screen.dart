@@ -56,7 +56,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _finishOnboarding() {
-    context.go('/login');
+    // After onboarding, go to home (user is already authenticated)
+    context.go('/');
   }
 
   @override
