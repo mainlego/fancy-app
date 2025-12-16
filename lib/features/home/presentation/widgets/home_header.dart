@@ -130,14 +130,15 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
     final buttonSize = _getButtonSize(_distanceKey);
 
     _overlayEntry = OverlayEntry(
-      builder: (context) => _FilterOverlay(
+      builder: (context) => _DistanceOverlay(
         buttonPosition: buttonPosition,
         buttonSize: buttonSize,
         onDismiss: _removeOverlay,
-        child: _DistanceSlider(
-          value: filter.distanceKm.toDouble(),
-          onChanged: (value) {
-            ref.read(filterAsyncProvider.notifier).updateDistance(value.round());
+        child: _DistanceRangeSlider(
+          minValue: filter.minDistanceKm.toDouble(),
+          maxValue: filter.maxDistanceKm.toDouble(),
+          onChanged: (min, max) {
+            ref.read(filterAsyncProvider.notifier).updateDistanceRange(min.round(), max.round());
           },
           onDone: _removeOverlay,
         ),
@@ -203,7 +204,7 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
               onTap: () => _showDistanceSlider(context),
               behavior: HitTestBehavior.opaque,
               child: Text(
-                filter.distanceKm >= 500 ? '500+ km' : '${filter.distanceKm} km',
+                _getDistanceText(filter.minDistanceKm, filter.maxDistanceKm),
                 style: const TextStyle(
                   color: Color(0xFFD9D9D9),
                   fontSize: 16,
@@ -284,6 +285,12 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
       case RelationshipStatus.inRelationship:
         return 'in relationship';
     }
+  }
+
+  String _getDistanceText(int minKm, int maxKm) {
+    final minText = '$minKm';
+    final maxText = maxKm >= 500 ? '500+' : '$maxKm';
+    return '$minText-$maxText km';
   }
 }
 
@@ -480,29 +487,79 @@ class _StatusPicker extends ConsumerWidget {
   }
 }
 
-/// Distance slider
-class _DistanceSlider extends StatefulWidget {
-  final double value;
-  final ValueChanged<double> onChanged;
+/// Distance overlay - full width positioned under the header
+class _DistanceOverlay extends StatelessWidget {
+  final Offset buttonPosition;
+  final Size buttonSize;
+  final VoidCallback onDismiss;
+  final Widget child;
+
+  const _DistanceOverlay({
+    required this.buttonPosition,
+    required this.buttonSize,
+    required this.onDismiss,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Position just below the button
+    final top = buttonPosition.dy + buttonSize.height + 8;
+
+    return Material(
+      color: Colors.transparent,
+      child: Stack(
+        children: [
+          // Tap to dismiss
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: onDismiss,
+              behavior: HitTestBehavior.opaque,
+              child: Container(color: Colors.black54),
+            ),
+          ),
+          // Content positioned under the button - full width with padding
+          Positioned(
+            top: top,
+            left: 16,
+            right: 16,
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Distance range slider (min-max)
+class _DistanceRangeSlider extends StatefulWidget {
+  final double minValue;
+  final double maxValue;
+  final void Function(double min, double max) onChanged;
   final VoidCallback onDone;
 
-  const _DistanceSlider({
-    required this.value,
+  const _DistanceRangeSlider({
+    required this.minValue,
+    required this.maxValue,
     required this.onChanged,
     required this.onDone,
   });
 
   @override
-  State<_DistanceSlider> createState() => _DistanceSliderState();
+  State<_DistanceRangeSlider> createState() => _DistanceRangeSliderState();
 }
 
-class _DistanceSliderState extends State<_DistanceSlider> {
-  late double _currentValue;
+class _DistanceRangeSliderState extends State<_DistanceRangeSlider> {
+  late RangeValues _currentRange;
 
   @override
   void initState() {
     super.initState();
-    _currentValue = widget.value;
+    _currentRange = RangeValues(widget.minValue, widget.maxValue);
+  }
+
+  String _formatDistance(double value) {
+    return value >= 500 ? '500+' : '${value.round()}';
   }
 
   @override
@@ -526,7 +583,7 @@ class _DistanceSliderState extends State<_DistanceSlider> {
                 ),
               ),
               Text(
-                _currentValue >= 500 ? '500+ km' : '${_currentValue.round()} km',
+                '${_formatDistance(_currentRange.start)} - ${_formatDistance(_currentRange.end)} km',
                 style: AppTypography.bodyMedium.copyWith(
                   color: AppColors.primary,
                   fontSize: 16,
@@ -543,16 +600,16 @@ class _DistanceSliderState extends State<_DistanceSlider> {
               thumbColor: const Color(0xFFF2F2F2),
               overlayColor: AppColors.primary.withValues(alpha: 0.2),
               trackHeight: 4,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+              rangeThumbShape: const RoundRangeSliderThumbShape(enabledThumbRadius: 8),
             ),
-            child: Slider(
-              value: _currentValue,
+            child: RangeSlider(
+              values: _currentRange,
               min: 1,
               max: 500,
               divisions: 499,
-              onChanged: (value) {
-                setState(() => _currentValue = value);
-                widget.onChanged(value);
+              onChanged: (values) {
+                setState(() => _currentRange = values);
+                widget.onChanged(values.start, values.end);
               },
             ),
           ),
