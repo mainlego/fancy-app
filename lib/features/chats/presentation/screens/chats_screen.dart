@@ -708,7 +708,7 @@ class _ChatListTile extends StatelessWidget {
   }
 }
 
-/// Like list tile for list view
+/// Like list tile for list view - custom Row layout for proper avatar sizing
 class _LikeListTile extends StatelessWidget {
   final LikeModel like;
   final VoidCallback onTap;
@@ -720,54 +720,74 @@ class _LikeListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
-        vertical: AppSpacing.sm,
-      ),
-      leading: FancyAvatar(
-        imageUrl: like.userAvatarUrl,
-        name: like.userName,
-      ),
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(
-              '${like.userName}, ${like.userAge}',
-              style: AppTypography.titleSmall,
-              overflow: TextOverflow.ellipsis,
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        child: Row(
+          children: [
+            // Avatar with 88x88 frame
+            FancyAvatar(
+              imageUrl: like.userAvatarUrl,
+              name: like.userName,
             ),
-          ),
-          if (like.isSuperLike)
+            const SizedBox(width: 12),
+            // Content
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Name and super like badge
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${like.userName}, ${like.userAge}',
+                          style: AppTypography.titleSmall,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (like.isSuperLike)
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: AppColors.superLike,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.local_fire_department,
+                            color: AppColors.textPrimary,
+                            size: 12,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  // Time
+                  Text(
+                    _formatTime(like.createdAt),
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textTertiary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            // New indicator dot
             Container(
-              padding: const EdgeInsets.all(4),
+              width: 8,
+              height: 8,
               decoration: const BoxDecoration(
-                color: AppColors.superLike,
+                color: AppColors.primary,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.local_fire_department,
-                color: AppColors.textPrimary,
-                size: 12,
-              ),
             ),
-        ],
-      ),
-      subtitle: Text(
-        _formatTime(like.createdAt),
-        style: AppTypography.bodySmall.copyWith(
-          color: AppColors.textTertiary,
+          ],
         ),
       ),
-      trailing: Container(
-        width: 8,
-        height: 8,
-        decoration: const BoxDecoration(
-          color: AppColors.primary,
-          shape: BoxShape.circle,
-        ),
-      ),
-      onTap: onTap,
     );
   }
 
@@ -784,6 +804,7 @@ class _LikeListTile extends StatelessWidget {
   }
 }
 
+/// Favorite list tile - custom Row layout for proper avatar sizing
 class _FavoriteListTile extends StatelessWidget {
   final FavoriteModel favorite;
   final VoidCallback onTap;
@@ -797,34 +818,59 @@ class _FavoriteListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
-        vertical: AppSpacing.sm,
-      ),
-      leading: FancyAvatar(
-        imageUrl: favorite.userAvatarUrl,
-        name: favorite.userName,
-        isOnline: favorite.isOnline,
-      ),
-      title: Text(
-        '${favorite.userName}, ${favorite.userAge}',
-        style: AppTypography.titleSmall,
-      ),
-      subtitle: Text(
-        favorite.isOnline ? 'Online' : 'Offline',
-        style: AppTypography.bodySmall.copyWith(
-          color: favorite.isOnline ? AppColors.online : AppColors.textTertiary,
-        ),
-      ),
-      trailing: IconButton(
-        icon: const Icon(
-          Icons.star,
-          color: AppColors.premium,
-        ),
-        onPressed: onRemove,
-      ),
+    return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        child: Row(
+          children: [
+            // Avatar with 88x88 frame
+            FancyAvatar(
+              imageUrl: favorite.userAvatarUrl,
+              name: favorite.userName,
+              isOnline: favorite.isOnline,
+            ),
+            const SizedBox(width: 12),
+            // Content
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Name
+                  Text(
+                    '${favorite.userName}, ${favorite.userAge}',
+                    style: AppTypography.titleSmall,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  // Online status
+                  Text(
+                    favorite.isOnline ? 'Online' : 'Offline',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: favorite.isOnline ? AppColors.online : AppColors.textTertiary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Star button to remove from favorites
+            GestureDetector(
+              onTap: onRemove,
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                child: const Icon(
+                  Icons.star,
+                  color: AppColors.premium,
+                  size: 24,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
