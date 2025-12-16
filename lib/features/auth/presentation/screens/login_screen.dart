@@ -274,10 +274,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           top: y * size.height,
           child: Opacity(
             opacity: heart.opacity * (0.5 + 0.5 * math.sin(progress * math.pi * 2)),
-            child: Icon(
-              Icons.favorite,
-              size: heart.size,
-              color: AppColors.primary,
+            child: Image.asset(
+              'assets/images/logo.png',
+              width: heart.size,
+              height: heart.size,
+              fit: BoxFit.contain,
             ),
           ),
         );
@@ -294,30 +295,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
         return Column(
           children: [
-            // Glowing heart logo
+            // Glowing logo
             Transform.scale(
               scale: scale,
               child: Container(
-                width: 100,
-                height: 100,
+                width: 120,
+                height: 120,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [AppColors.primary, Color(0xFFE06B7A)],
-                  ),
                   boxShadow: [
                     BoxShadow(
                       color: AppColors.primary.withValues(alpha: glowOpacity),
-                      blurRadius: 40,
-                      spreadRadius: 10,
+                      blurRadius: 50,
+                      spreadRadius: 15,
                     ),
                   ],
                 ),
-                child: const Icon(
-                  Icons.favorite,
-                  color: Colors.white,
-                  size: 50,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Image.asset(
+                    'assets/images/logo.png',
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
             ),
