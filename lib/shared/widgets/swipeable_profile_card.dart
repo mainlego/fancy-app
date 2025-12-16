@@ -34,7 +34,8 @@ class SwipeableProfileCard extends StatefulWidget {
   State<SwipeableProfileCard> createState() => _SwipeableProfileCardState();
 }
 
-class _SwipeableProfileCardState extends State<SwipeableProfileCard> {
+class _SwipeableProfileCardState extends State<SwipeableProfileCard>
+    with SingleTickerProviderStateMixin {
   static const double _normalHeight = 400.0;
   static const double _expandedHeight = 500.0;
   static const double _infoPanelHeight = 90.0;
@@ -47,11 +48,23 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard> {
   final GlobalKey _dotsButtonKey = GlobalKey();
   OverlayEntry? _menuOverlay;
 
+  // Animation for slide indicator dots
+  late AnimationController _dotAnimationController;
+
   /// Total media count (photos + bio as last item)
   int get _totalSlides => widget.user.photos.length + 1; // +1 for bio
 
   /// Check if current slide is bio
   bool get _isCurrentSlideBio => _currentMediaIndex >= widget.user.photos.length;
+
+  @override
+  void initState() {
+    super.initState();
+    _dotAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+  }
 
   void _handleTap() {
     final now = DateTime.now();
@@ -88,6 +101,7 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard> {
             _currentMediaIndex++;
             _showingBio = _isCurrentSlideBio;
           });
+          _triggerDotAnimation();
         }
       } else {
         // Swipe right - previous
@@ -96,9 +110,14 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard> {
             _currentMediaIndex--;
             _showingBio = _isCurrentSlideBio;
           });
+          _triggerDotAnimation();
         }
       }
     }
+  }
+
+  void _triggerDotAnimation() {
+    _dotAnimationController.forward(from: 0);
   }
 
   void _showMoreMenu() {
@@ -142,6 +161,7 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard> {
   @override
   void dispose() {
     _removeMenuOverlay();
+    _dotAnimationController.dispose();
     super.dispose();
   }
 
@@ -178,55 +198,26 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard> {
     );
   }
 
-  /// Media content (photos/videos)
+  /// Media content (photos/videos) - no indicator lines on photo
   Widget _buildMediaContent() {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        // Photo
-        _buildPhoto(),
-
-        // Media indicators at top
-        if (_totalSlides > 1)
-          Positioned(
-            top: 12,
-            left: 12,
-            right: 12,
-            child: _buildMediaIndicators(),
-          ),
-      ],
-    );
+    return _buildPhoto();
   }
 
-  /// Bio content
+  /// Bio content - no indicator lines
   Widget _buildBioContent() {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Container(
-          color: AppColors.surface,
-          padding: const EdgeInsets.all(20),
-          child: SingleChildScrollView(
-            child: Text(
-              widget.user.bio ?? 'No description yet...',
-              style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textPrimary,
-                height: 1.6,
-                fontSize: 15,
-              ),
-            ),
+    return Container(
+      color: AppColors.surface,
+      padding: const EdgeInsets.all(20),
+      child: SingleChildScrollView(
+        child: Text(
+          widget.user.bio ?? 'No description yet...',
+          style: AppTypography.bodyMedium.copyWith(
+            color: AppColors.textPrimary,
+            height: 1.6,
+            fontSize: 15,
           ),
         ),
-
-        // Media indicators at top
-        if (_totalSlides > 1)
-          Positioned(
-            top: 12,
-            left: 12,
-            right: 12,
-            child: _buildMediaIndicators(),
-          ),
-      ],
+      ),
     );
   }
 
@@ -269,30 +260,6 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard> {
     );
   }
 
-  /// Media indicators (photos + bio)
-  Widget _buildMediaIndicators() {
-    return Row(
-      children: List.generate(
-        _totalSlides,
-        (index) => Expanded(
-          child: Container(
-            height: 3,
-            margin: EdgeInsets.only(
-              right: index < _totalSlides - 1 ? 4 : 0,
-            ),
-            decoration: BoxDecoration(
-              color: index == _currentMediaIndex
-                  ? AppColors.textPrimary
-                  : AppColors.textPrimary.withValues(alpha: 0.3),
-              // Small radius for indicators only
-              borderRadius: BorderRadius.circular(1.5),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   /// Bottom info panel - 90px height
   Widget _buildInfoPanel() {
     return Container(
@@ -320,36 +287,50 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard> {
                 _buildStatusRow(),
                 const SizedBox(height: 2),
 
-                // location • distance + dots menu
-                Row(
-                  children: [
-                    Expanded(child: _buildLocationRow()),
-                    // Three dots menu - larger tap area (44x44)
-                    GestureDetector(
-                      key: _dotsButtonKey,
-                      onTap: _showMoreMenu,
-                      behavior: HitTestBehavior.opaque,
-                      child: Container(
-                        width: 44,
-                        height: 44,
-                        alignment: Alignment.center,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _buildDot(),
-                            const SizedBox(width: 4),
-                            _buildDot(),
-                            const SizedBox(width: 4),
-                            _buildDot(),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                // location • distance
+                _buildLocationRow(),
               ],
             ),
           ),
+
+          // Center - animated slide indicator dots (only if more than 1 slide)
+          if (_totalSlides > 1)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: GestureDetector(
+                key: _dotsButtonKey,
+                onTap: _showMoreMenu,
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  child: _SlideIndicatorDots(
+                    totalSlides: _totalSlides,
+                    currentIndex: _currentMediaIndex,
+                    animationController: _dotAnimationController,
+                  ),
+                ),
+              ),
+            )
+          else
+            // Just menu dots if only one slide
+            GestureDetector(
+              key: _dotsButtonKey,
+              onTap: _showMoreMenu,
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildDot(),
+                    const SizedBox(width: 4),
+                    _buildDot(),
+                    const SizedBox(width: 4),
+                    _buildDot(),
+                  ],
+                ),
+              ),
+            ),
 
           // Right side - action buttons with 24px gap
           Row(
@@ -644,6 +625,119 @@ class _ActionButtonState extends State<_ActionButton>
         ),
       ),
     );
+  }
+}
+
+/// Animated slide indicator dots - always shows 3 dots
+/// Highlights dots based on current slide position with animation
+class _SlideIndicatorDots extends StatelessWidget {
+  final int totalSlides;
+  final int currentIndex;
+  final AnimationController animationController;
+
+  const _SlideIndicatorDots({
+    required this.totalSlides,
+    required this.currentIndex,
+    required this.animationController,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animationController,
+      builder: (context, child) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildAnimatedDot(0),
+            const SizedBox(width: 4),
+            _buildAnimatedDot(1),
+            const SizedBox(width: 4),
+            _buildAnimatedDot(2),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildAnimatedDot(int dotIndex) {
+    // Map slide index to dot index (always 3 dots for any number of slides)
+    // For <= 3 slides: direct mapping
+    // For > 3 slides: map to 3 dots based on position
+    final bool isActive = _isDotActive(dotIndex);
+
+    // Pulse animation when active
+    final double scale = isActive
+        ? 1.0 + (0.3 * _pulseAnimation(animationController.value))
+        : 1.0;
+
+    // Color with animation
+    final Color dotColor = isActive
+        ? Color.lerp(
+            AppColors.textTertiary,
+            AppColors.primary,
+            _colorAnimation(animationController.value),
+          )!
+        : AppColors.textTertiary;
+
+    return Transform.scale(
+      scale: scale,
+      child: Container(
+        width: 5,
+        height: 5,
+        decoration: BoxDecoration(
+          color: dotColor,
+          shape: BoxShape.circle,
+          boxShadow: isActive && animationController.value > 0
+              ? [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.5 * animationController.value),
+                    blurRadius: 4,
+                    spreadRadius: 1,
+                  ),
+                ]
+              : null,
+        ),
+      ),
+    );
+  }
+
+  bool _isDotActive(int dotIndex) {
+    if (totalSlides <= 3) {
+      // Direct mapping for 3 or fewer slides
+      return dotIndex == currentIndex;
+    } else {
+      // For more than 3 slides, map to 3 dots
+      // First dot = first slide
+      // Last dot = last slide
+      // Middle dot = all middle slides
+      if (dotIndex == 0) {
+        return currentIndex == 0;
+      } else if (dotIndex == 2) {
+        return currentIndex == totalSlides - 1;
+      } else {
+        // Middle dot active for all middle slides
+        return currentIndex > 0 && currentIndex < totalSlides - 1;
+      }
+    }
+  }
+
+  // Smooth pulse animation (ease out)
+  double _pulseAnimation(double value) {
+    // Quick pulse up and slow fade
+    if (value < 0.3) {
+      return value / 0.3;
+    } else {
+      return 1.0 - ((value - 0.3) / 0.7);
+    }
+  }
+
+  // Color animation (quick transition to pink)
+  double _colorAnimation(double value) {
+    if (value < 0.2) {
+      return value / 0.2;
+    }
+    return 1.0;
   }
 }
 
