@@ -3,13 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/router/app_router.dart';
+import '../../../../core/config/supabase_config.dart';
 import '../../domain/providers/auth_provider.dart';
-
-/// Key for tracking if onboarding was shown
-const String _onboardingShownKey = 'onboarding_shown';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -148,16 +147,41 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   Future<void> _navigateAfterAuth() async {
     final prefs = await SharedPreferences.getInstance();
-    final onboardingShown = prefs.getBool(_onboardingShownKey) ?? false;
+    final onboardingShown = prefs.getBool(onboardingShownKey) ?? false;
 
     if (!mounted) return;
 
-    if (!onboardingShown) {
-      // First time auth - show onboarding
-      await prefs.setBool(_onboardingShownKey, true);
+    // Check if user already has a profile in database
+    // If profile exists, user is not new - skip onboarding
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    bool hasExistingProfile = false;
+
+    if (userId != null) {
+      try {
+        final response = await Supabase.instance.client
+            .from(SupabaseConfig.profilesTable)
+            .select('id')
+            .eq('id', userId)
+            .maybeSingle();
+        hasExistingProfile = response != null;
+      } catch (e) {
+        // If error checking profile, assume no profile
+        hasExistingProfile = false;
+      }
+    }
+
+    if (!mounted) return;
+
+    if (!onboardingShown && !hasExistingProfile) {
+      // First time auth and no profile - show onboarding
+      await prefs.setBool(onboardingShownKey, true);
       context.go('/onboarding');
     } else {
-      // Already seen onboarding - go to home
+      // Already seen onboarding OR has existing profile - go to home
+      // Also mark onboarding as shown if they have a profile
+      if (hasExistingProfile && !onboardingShown) {
+        await prefs.setBool(onboardingShownKey, true);
+      }
       context.go(AppRoutes.home);
     }
   }

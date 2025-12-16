@@ -1,8 +1,12 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/supabase_service.dart';
+
+/// Key for tracking if onboarding was shown (shared with login_screen)
+const String onboardingShownKey = 'onboarding_shown';
 
 /// Web Client ID for Google Sign-In (from Google Cloud Console)
 const String _webClientId = '918196345376-dm97cbi45s3hng0ud0063beroka84blm.apps.googleusercontent.com';
@@ -189,6 +193,11 @@ class AuthNotifier extends StateNotifier<AuthStateModel> {
     state = state.copyWith(state: AuthState.loading);
     try {
       await _supabase.signOut();
+
+      // Reset onboarding flag so new user will see onboarding
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(onboardingShownKey);
+
       state = const AuthStateModel(state: AuthState.unauthenticated);
     } catch (e) {
       state = AuthStateModel(
