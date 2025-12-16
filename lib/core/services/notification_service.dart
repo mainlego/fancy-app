@@ -114,12 +114,14 @@ class NotificationService {
 
   /// Show a notification
   Future<void> showNotification(AppNotification notification) async {
-    if (!_permissionGranted) {
-      print('Notification permission not granted');
-      return;
-    }
+    // Always emit to stream for in-app handling (regardless of permission)
+    _notificationController.add(notification);
 
-    if (kIsWeb) {
+    // Save to local storage
+    await _saveNotification(notification);
+
+    // Show browser notification only if permission granted
+    if (_permissionGranted && kIsWeb) {
       await WebNotificationHelper.show(
         title: notification.title,
         body: notification.body,
@@ -128,12 +130,6 @@ class NotificationService {
         data: notification.data,
       );
     }
-
-    // Emit to stream for in-app handling
-    _notificationController.add(notification);
-
-    // Save to local storage
-    await _saveNotification(notification);
   }
 
   /// Show message notification

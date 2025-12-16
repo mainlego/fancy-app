@@ -1,9 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
 import 'notification_service.dart';
-import 'supabase_service.dart';
 
 /// Realtime event types
 enum RealtimeEventType {
@@ -78,14 +76,12 @@ class RealtimeService {
 
             // Only process messages from other users and not in currently open chat
             if (senderId != null && senderId != userId && chatId != currentOpenChatId) {
-              // Show notification
-              if (kIsWeb && _notificationService.hasPermission) {
-                await _notificationService.showMessageNotification(
-                  senderName: 'New message', // Will be replaced with actual name
-                  message: content ?? 'Sent you a message',
-                  chatId: chatId,
-                );
-              }
+              // Show notification (both browser notification and in-app stream)
+              await _notificationService.showMessageNotification(
+                senderName: 'New message',
+                message: content ?? 'Sent you a message',
+                chatId: chatId,
+              );
             }
 
             onNewMessage?.call(newMessage);
@@ -120,9 +116,9 @@ class RealtimeService {
             final isSuperLike = newLike['is_super_like'] as bool? ?? false;
 
             // Show notification for new like
-            if (kIsWeb && _notificationService.hasPermission && fromUserId != null) {
+            if (fromUserId != null) {
               await _notificationService.showLikeNotification(
-                userName: 'Someone', // Will be replaced with actual name
+                userName: 'Someone',
                 userId: fromUserId,
                 isSuperLike: isSuperLike,
               );
@@ -158,9 +154,9 @@ class RealtimeService {
               final otherUserId = user1Id == userId ? user2Id : user1Id;
 
               // Show match notification
-              if (kIsWeb && _notificationService.hasPermission && otherUserId != null) {
+              if (otherUserId != null) {
                 await _notificationService.showMatchNotification(
-                  userName: 'Someone special', // Will be replaced with actual name
+                  userName: 'Someone special',
                   matchId: newMatch['id'] as String?,
                 );
               }
