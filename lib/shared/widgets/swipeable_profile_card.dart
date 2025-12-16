@@ -238,22 +238,24 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard>
     // Ensure index is within bounds for photos
     final photoIndex = _currentMediaIndex.clamp(0, widget.user.photos.length - 1);
 
-    return CachedNetworkImage(
-      imageUrl: widget.user.photos[photoIndex],
-      fit: BoxFit.cover,
-      placeholder: (context, url) => Container(
-        color: AppColors.surfaceVariant,
-        child: const Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
+    return SizedBox.expand(
+      child: CachedNetworkImage(
+        imageUrl: widget.user.photos[photoIndex],
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Container(
+          color: AppColors.surfaceVariant,
+          child: const Center(
+            child: CircularProgressIndicator(color: AppColors.primary),
+          ),
         ),
-      ),
-      errorWidget: (context, url, error) => Container(
-        color: AppColors.surfaceVariant,
-        child: const Center(
-          child: Icon(
-            Icons.broken_image,
-            size: 48,
-            color: AppColors.textTertiary,
+        errorWidget: (context, url, error) => Container(
+          color: AppColors.surfaceVariant,
+          child: const Center(
+            child: Icon(
+              Icons.broken_image,
+              size: 48,
+              color: AppColors.textTertiary,
+            ),
           ),
         ),
       ),
