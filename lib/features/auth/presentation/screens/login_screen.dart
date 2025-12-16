@@ -274,11 +274,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           top: y * size.height,
           child: Opacity(
             opacity: heart.opacity * (0.5 + 0.5 * math.sin(progress * math.pi * 2)),
-            child: Image.asset(
-              'assets/images/logo.png',
-              width: heart.size,
-              height: heart.size,
-              fit: BoxFit.contain,
+            child: Icon(
+              Icons.favorite,
+              size: heart.size,
+              color: AppColors.primary,
             ),
           ),
         );
@@ -287,50 +286,43 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   Widget _buildAnimatedLogo() {
-    return AnimatedBuilder(
-      animation: _heartController,
-      builder: (context, child) {
-        final scale = 1.0 + 0.08 * _heartController.value;
-        final glowOpacity = 0.3 + 0.2 * _heartController.value;
+    // Get screen width for 80% sizing
+    final screenWidth = MediaQuery.of(context).size.width;
+    final logoSize = screenWidth * 0.8;
 
-        return Column(
-          children: [
-            // Glowing logo - larger size
-            Transform.scale(
-              scale: scale,
-              child: Container(
-                width: 200,
-                height: 200,
-                decoration: BoxDecoration(
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: glowOpacity),
-                      blurRadius: 60,
-                      spreadRadius: 20,
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(30),
-                  child: Image.asset(
-                    'assets/images/logo.png',
-                    fit: BoxFit.contain,
-                  ),
-                ),
+    return Column(
+      children: [
+        // Logo - 80% of screen width, no pulse animation
+        Container(
+          width: logoSize,
+          height: logoSize,
+          decoration: BoxDecoration(
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.4),
+                blurRadius: 80,
+                spreadRadius: 30,
               ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(40),
+            child: Image.asset(
+              'assets/images/logo.png',
+              fit: BoxFit.contain,
             ),
-            const SizedBox(height: 16),
-            // Tagline only
-            Text(
-              _isSignUp ? 'Create your story' : 'Find your match',
-              style: AppTypography.bodyMedium.copyWith(
-                color: Colors.white.withValues(alpha: 0.6),
-                letterSpacing: 2,
-              ),
-            ),
-          ],
-        );
-      },
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Tagline
+        Text(
+          _isSignUp ? 'Create your story' : 'Find your match',
+          style: AppTypography.bodyMedium.copyWith(
+            color: Colors.white.withValues(alpha: 0.6),
+            letterSpacing: 2,
+          ),
+        ),
+      ],
     );
   }
 
