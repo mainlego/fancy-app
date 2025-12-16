@@ -41,6 +41,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
   bool _isTyping = false;
+  bool _hasText = false; // Track if text field has content for mic/send toggle
   String? _partnerTyping;
   String? _actualChatId; // Actual chat ID after resolving participant ID
   bool _isUploading = false;
@@ -96,6 +97,12 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       final chatId = _actualChatId ?? widget.chatId;
       final realtimeService = ref.read(realtimeServiceProvider);
       realtimeService.sendTypingIndicator(chatId, _isTyping);
+    }
+    // Update hasText for mic/send toggle
+    if (_hasText != text.isNotEmpty) {
+      setState(() {
+        _hasText = text.isNotEmpty;
+      });
     }
   }
 
@@ -322,13 +329,16 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     );
   }
 
+  /// Input bar text field background color per Figma
+  static const _inputFieldBgColor = Color(0xFF1F1D1B);
+
   Widget _buildInputBar() {
     return Container(
+      height: 44 + MediaQuery.of(context).padding.bottom,
       padding: EdgeInsets.only(
         left: AppSpacing.lg,
         right: AppSpacing.lg,
-        top: AppSpacing.md,
-        bottom: MediaQuery.of(context).padding.bottom + AppSpacing.md,
+        bottom: MediaQuery.of(context).padding.bottom,
       ),
       decoration: const BoxDecoration(
         color: AppColors.surface,
@@ -341,81 +351,96 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         children: [
           // Upload progress indicator
           if (_isUploading)
-            const Padding(
-              padding: EdgeInsets.only(bottom: AppSpacing.sm),
+            const SizedBox(
+              height: 2,
               child: LinearProgressIndicator(),
             ),
 
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              // Text field with keyboard handling
-              Expanded(
-                child: Focus(
-                  focusNode: _focusNode,
-                  onKeyEvent: _handleKeyEvent,
-                  child: TextField(
-                    controller: _messageController,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      height: 18 / 14,
-                      letterSpacing: -0.28,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Type a message...',
-                      hintStyle: TextStyle(
-                        color: AppColors.textTertiary,
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Text field with keyboard handling (fixed width 250px)
+                SizedBox(
+                  width: 250,
+                  height: 32,
+                  child: Focus(
+                    focusNode: _focusNode,
+                    onKeyEvent: _handleKeyEvent,
+                    child: TextField(
+                      controller: _messageController,
+                      style: const TextStyle(
+                        color: Colors.white,
                         fontSize: 14,
                         height: 18 / 14,
                         letterSpacing: -0.28,
                       ),
-                      filled: true,
-                      fillColor: AppColors.surfaceVariant,
-                      border: const OutlineInputBorder(
-                        borderRadius: BorderRadius.zero,
-                        borderSide: BorderSide.none,
+                      decoration: InputDecoration(
+                        hintText: 'Type a message...',
+                        hintStyle: TextStyle(
+                          color: AppColors.textTertiary,
+                          fontSize: 14,
+                          height: 18 / 14,
+                          letterSpacing: -0.28,
+                        ),
+                        filled: true,
+                        fillColor: _inputFieldBgColor,
+                        border: const OutlineInputBorder(
+                          borderRadius: BorderRadius.zero,
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        isDense: true,
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.lg,
-                        vertical: AppSpacing.md,
-                      ),
+                      maxLines: 1,
+                      textInputAction: TextInputAction.newline,
+                      onChanged: _onTextChanged,
                     ),
-                    maxLines: 4,
-                    minLines: 1,
-                    textInputAction: TextInputAction.newline,
-                    onChanged: _onTextChanged,
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
+                const Spacer(),
 
-              // Microphone button
-              IconButton(
-                icon: const Icon(Icons.mic_none),
-                color: AppColors.textSecondary,
-                onPressed: _isUploading ? null : _showVoiceRecordingDialog,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-              ),
+                // Mic button (when empty) / Send button (when has text)
+                GestureDetector(
+                  onTap: _isUploading
+                      ? null
+                      : (_hasText ? _sendMessage : _showVoiceRecordingDialog),
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: _hasText
+                        ? const Icon(
+                            Icons.send,
+                            color: AppColors.primary,
+                            size: 22,
+                          )
+                        : const Icon(
+                            Icons.mic_none,
+                            color: AppColors.textSecondary,
+                            size: 22,
+                          ),
+                  ),
+                ),
+                const SizedBox(width: 16),
 
-              // Attachment button (plus)
-              IconButton(
-                icon: const Icon(Icons.add),
-                color: AppColors.textSecondary,
-                onPressed: _isUploading ? null : () => _showAttachmentOptions(context),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-              ),
-
-              // Send button
-              IconButton(
-                icon: const Icon(Icons.send),
-                color: AppColors.primary,
-                onPressed: _isUploading ? null : _sendMessage,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-              ),
-            ],
+                // Attachment button (plus)
+                GestureDetector(
+                  onTap: _isUploading ? null : () => _showAttachmentOptions(context),
+                  child: const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: Icon(
+                      Icons.add,
+                      color: AppColors.textSecondary,
+                      size: 22,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1016,6 +1041,8 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
 const _myMessageBgColor = Color(0xFF5E576C);
 const _otherMessageBgColor = Color(0xFFECE6F0);
 const _otherMessageTextColor = Color(0xFF1C1B1F);
+/// Read checkmark color per Figma design
+const _readCheckmarkColor = Color(0xFFD64557);
 
 class _MessageBubble extends StatelessWidget {
   final MessageModel message;
@@ -1093,7 +1120,7 @@ class _MessageBubble extends StatelessWidget {
                           message.isRead ? Icons.done_all : Icons.done,
                           size: 14,
                           color: message.isRead
-                              ? AppColors.info
+                              ? _readCheckmarkColor
                               : Colors.white.withValues(alpha: 0.7),
                         ),
                       ],
