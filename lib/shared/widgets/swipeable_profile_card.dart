@@ -266,13 +266,14 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard>
       padding: const EdgeInsets.all(16),
       color: AppColors.surface,
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end, // Align to bottom
         children: [
           // Left side - text info
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.end, // Align to bottom
+              mainAxisSize: MainAxisSize.max,
               children: [
                 // Dating goal • relationship status
                 _buildInfoRow([
@@ -302,7 +303,7 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard>
                 onTap: _showMoreMenu,
                 behavior: HitTestBehavior.opaque,
                 child: Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   child: _SlideIndicatorDots(
                     totalSlides: _totalSlides,
                     currentIndex: _currentMediaIndex,
@@ -318,7 +319,7 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard>
               onTap: _showMoreMenu,
               behavior: HitTestBehavior.opaque,
               child: Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -441,7 +442,7 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard>
   }
 }
 
-/// More menu overlay (hide, block, report) - positioned under the dots button
+/// More menu overlay (hide, block, report) - positioned BELOW the dots button
 class _MoreMenuOverlay extends StatelessWidget {
   final Offset buttonPosition;
   final Size buttonSize;
@@ -463,9 +464,9 @@ class _MoreMenuOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Position menu above the button, centered horizontally
+    // Position menu BELOW the button, centered horizontally
     final menuLeft = buttonPosition.dx + (buttonSize.width / 2) - (_menuWidth / 2);
-    final menuBottom = MediaQuery.of(context).size.height - buttonPosition.dy + 8;
+    final menuTop = buttonPosition.dy + buttonSize.height + 8;
 
     return Stack(
       children: [
@@ -477,10 +478,10 @@ class _MoreMenuOverlay extends StatelessWidget {
             child: Container(color: Colors.transparent),
           ),
         ),
-        // Menu positioned above the dots button
+        // Menu positioned BELOW the dots button
         Positioned(
           left: menuLeft,
-          bottom: menuBottom,
+          top: menuTop,
           child: Material(
             color: Colors.transparent,
             child: Container(
