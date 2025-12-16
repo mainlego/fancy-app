@@ -195,12 +195,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Column(
                   children: [
-                    SizedBox(height: size.height * 0.08),
+                    SizedBox(height: size.height * 0.02),
 
                     // Animated logo
                     _buildAnimatedLogo(),
 
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 16),
 
                     // Form with animation
                     AnimatedBuilder(
@@ -216,7 +216,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       },
                     ),
 
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),
@@ -286,43 +286,64 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   Widget _buildAnimatedLogo() {
-    // Get screen width for 80% sizing
+    // Get screen width for 65% sizing (smaller to fit on screen)
     final screenWidth = MediaQuery.of(context).size.width;
-    final logoSize = screenWidth * 0.8;
+    final logoSize = screenWidth * 0.65;
 
-    return Column(
-      children: [
-        // Logo - 80% of screen width, no pulse animation
-        Container(
-          width: logoSize,
-          height: logoSize,
-          decoration: BoxDecoration(
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.4),
-                blurRadius: 80,
-                spreadRadius: 30,
+    return AnimatedBuilder(
+      animation: _formController,
+      builder: (context, child) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            // Logo - 65% of screen width
+            Container(
+              width: logoSize,
+              height: logoSize,
+              decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.3),
+                    blurRadius: 60,
+                    spreadRadius: 20,
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(40),
-            child: Image.asset(
-              'assets/images/logo.png',
-              fit: BoxFit.contain,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(30),
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  fit: BoxFit.contain,
+                ),
+              ),
             ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        // Tagline
-        Text(
-          _isSignUp ? 'Create your story' : 'Find your match',
-          style: AppTypography.bodyMedium.copyWith(
-            color: Colors.white.withValues(alpha: 0.6),
-            letterSpacing: 2,
-          ),
-        ),
-      ],
+            // Tagline positioned at the bottom of logo with animation
+            Positioned(
+              bottom: logoSize * 0.08, // Position near bottom of logo
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 800),
+                opacity: _formFadeAnimation.value,
+                child: AnimatedSlide(
+                  duration: const Duration(milliseconds: 600),
+                  offset: Offset(0, 1 - _formFadeAnimation.value),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: Text(
+                      _isSignUp ? 'Create your story' : 'Find your match',
+                      key: ValueKey(_isSignUp),
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        letterSpacing: 2,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
