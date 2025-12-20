@@ -9,6 +9,25 @@ import '../providers/ai_profiles_provider.dart';
 
 final _random = Random();
 
+/// User behavior analysis result
+class UserBehaviorAnalysis {
+  final bool wasRudeBefore;
+  final bool apologizedAfterRudeness;
+  final int rudeMessageCount;
+  final int totalMessageCount;
+  final bool shouldAutoBan;
+  final String summary;
+
+  const UserBehaviorAnalysis({
+    required this.wasRudeBefore,
+    required this.apologizedAfterRudeness,
+    required this.rudeMessageCount,
+    required this.totalMessageCount,
+    required this.shouldAutoBan,
+    required this.summary,
+  });
+}
+
 /// Result of AI message processing
 class AIMessageResult {
   final String message;       // Clean message without commands
@@ -38,7 +57,88 @@ class AIChatService {
   static final RegExp _banPattern = RegExp(r'\[БАН\]|\[BAN\]', caseSensitive: false);
   static final RegExp _reportPattern = RegExp(r'\[РЕПОРТ\]|\[REPORT\]', caseSensitive: false);
 
+  // Patterns to detect rude/offensive messages
+  static final RegExp _rudePattern = RegExp(
+    r'(сука|бляд|пизд|хуй|хуе|хуи|ебат|ёбан|еба[нл]|пошла? (ты|нахуй|на хуй)|иди (ты|нахуй|на хуй)|тупая|дура|шлюха|шалава|мразь|урод|уродин|тварь|говно|дерьмо|гнида|падла|чмо|лох|лошар|конч|отсос|засранец|придурок|идиот|дебил|кретин|даун)',
+    caseSensitive: false,
+  );
+
+  // Patterns to detect apology
+  static final RegExp _apologyPattern = RegExp(
+    r'(извини|прости|сорри|sorry|не хотел|не хотела|был неправ|была неправа|погорячил|перегнул|перебор|не обижайся|я пошутил|шутка|шучу|не серьёзно|не серьезно)',
+    caseSensitive: false,
+  );
+
   AIChatService(this._openAI, this._supabase, this._ref);
+
+  /// Analyze user behavior based on chat history
+  UserBehaviorAnalysis _analyzeUserBehavior(List<Map<String, dynamic>> history, String currentMessage) {
+    int rudeCount = 0;
+    bool wasRude = false;
+    bool apologizedAfterRude = false;
+    bool lastMessageWasRude = false;
+    int userMessageCount = 0;
+
+    // Analyze history
+    for (final msg in history) {
+      if (msg['is_from_ai'] != true) {
+        userMessageCount++;
+        final content = msg['content'] as String? ?? '';
+
+        if (_rudePattern.hasMatch(content)) {
+          rudeCount++;
+          wasRude = true;
+          lastMessageWasRude = true;
+        } else if (_apologyPattern.hasMatch(content) && lastMessageWasRude) {
+          apologizedAfterRude = true;
+          lastMessageWasRude = false;
+        } else {
+          lastMessageWasRude = false;
+        }
+      }
+    }
+
+    // Check current message
+    final currentIsRude = _rudePattern.hasMatch(currentMessage);
+    final currentIsApology = _apologyPattern.hasMatch(currentMessage);
+
+    if (currentIsRude) {
+      rudeCount++;
+      wasRude = true;
+    }
+
+    // If was rude before and now apologizing - should auto-ban
+    bool shouldAutoBan = false;
+    if (wasRude && currentIsApology && !currentIsRude) {
+      shouldAutoBan = true;
+    }
+
+    // If rude more than 2 times - auto-ban
+    if (rudeCount >= 2) {
+      shouldAutoBan = true;
+    }
+
+    // Build summary for AI context
+    String summary = '';
+    if (wasRude) {
+      summary += 'ВНИМАНИЕ: Этот пользователь уже был груб ($rudeCount раз). ';
+    }
+    if (apologizedAfterRude || (wasRude && currentIsApology)) {
+      summary += 'Он извинялся после грубости - НЕ ПРОЩАЙ, это манипуляция! Сразу [БАН]. ';
+    }
+    if (rudeCount >= 2) {
+      summary += 'Повторная грубость - сразу [БАН] без разговоров. ';
+    }
+
+    return UserBehaviorAnalysis(
+      wasRudeBefore: wasRude,
+      apologizedAfterRudeness: apologizedAfterRude || (wasRude && currentIsApology),
+      rudeMessageCount: rudeCount,
+      totalMessageCount: userMessageCount + 1,
+      shouldAutoBan: shouldAutoBan,
+      summary: summary,
+    );
+  }
 
   /// Get chat history for a specific AI profile
   Future<List<Map<String, dynamic>>> getChatHistory(String aiProfileId) async {
@@ -155,6 +255,9 @@ class AIChatService {
     // Get chat history
     final history = await getChatHistory(aiProfileId);
 
+    // Analyze user behavior
+    final behaviorAnalysis = _analyzeUserBehavior(history, userMessage);
+
     // Build conversation context for OpenAI
     final conversationMessages = <ChatMessage>[];
 
@@ -168,7 +271,22 @@ class AIChatService {
     }
 
     // Build system prompt with personality
-    final systemPrompt = aiProfile.buildSystemPrompt();
+    String systemPrompt = aiProfile.buildSystemPrompt();
+
+    // Add behavior context if user was rude before
+    if (behaviorAnalysis.summary.isNotEmpty) {
+      systemPrompt += '\n\n═══════════════════════════════════════\n'
+          'КОНТЕКСТ ПОВЕДЕНИЯ СОБЕСЕДНИКА:\n'
+          '${behaviorAnalysis.summary}\n'
+          '═══════════════════════════════════════';
+    }
+
+    // If should auto-ban (rude then apologized), force ban response
+    if (behaviorAnalysis.shouldAutoBan) {
+      systemPrompt += '\n\nВАЖНО: Этот пользователь уже был груб и теперь извиняется или снова грубит. '
+          'НЕ ПРОЩАЙ! Ответь резко и добавь [БАН]. '
+          'Примеры: "поздно извиняться [БАН]", "нахуй иди [БАН]", "всё, пока [БАН]"';
+    }
 
     // Generate response
     final rawResponse = await _openAI.chatCompletion(

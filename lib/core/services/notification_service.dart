@@ -8,6 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 // Web-specific imports handled conditionally
 import 'notification_service_web.dart' if (dart.library.io) 'notification_service_stub.dart';
+// Android notifications
+import 'notification_service_android.dart';
 
 /// Notification types
 enum NotificationType {
@@ -97,6 +99,10 @@ class NotificationService {
   Future<void> init() async {
     if (kIsWeb) {
       _permissionGranted = await WebNotificationHelper.requestPermission();
+    } else {
+      // Initialize Android notifications
+      await AndroidNotificationHelper.init();
+      _permissionGranted = await AndroidNotificationHelper.requestPermission();
     }
   }
 
@@ -105,12 +111,14 @@ class NotificationService {
     if (kIsWeb) {
       _permissionGranted = await WebNotificationHelper.requestPermission();
       return _permissionGranted;
+    } else {
+      _permissionGranted = await AndroidNotificationHelper.requestPermission();
+      return _permissionGranted;
     }
-    return false;
   }
 
   /// Check if notifications are supported
-  bool get isSupported => kIsWeb && WebNotificationHelper.isSupported;
+  bool get isSupported => kIsWeb ? WebNotificationHelper.isSupported : AndroidNotificationHelper.isSupported;
 
   /// Show a notification
   Future<void> showNotification(AppNotification notification) async {
@@ -120,15 +128,34 @@ class NotificationService {
     // Save to local storage
     await _saveNotification(notification);
 
-    // Show browser notification only if permission granted
-    if (_permissionGranted && kIsWeb) {
-      await WebNotificationHelper.show(
-        title: notification.title,
-        body: notification.body,
-        icon: notification.imageUrl ?? '/icons/Icon-192.png',
-        tag: notification.id,
-        data: notification.data,
-      );
+    // Show notification based on platform
+    if (_permissionGranted) {
+      if (kIsWeb) {
+        await WebNotificationHelper.show(
+          title: notification.title,
+          body: notification.body,
+          icon: notification.imageUrl ?? '/icons/Icon-192.png',
+          tag: notification.id,
+          data: notification.data,
+        );
+      } else {
+        // Android notification
+        String? payload;
+        if (notification.data != null) {
+          if (notification.data!['chatId'] != null) {
+            payload = 'chat:${notification.data!['chatId']}';
+          } else if (notification.data!['userId'] != null) {
+            payload = 'profile:${notification.data!['userId']}';
+          } else if (notification.data!['matchId'] != null) {
+            payload = 'match:${notification.data!['matchId']}';
+          }
+        }
+        await AndroidNotificationHelper.show(
+          title: notification.title,
+          body: notification.body,
+          payload: payload,
+        );
+      }
     }
   }
 

@@ -155,8 +155,17 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
     final filter = ref.watch(filterAsyncProvider).valueOrNull ?? FilterModel.defaultFilters;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: AppColors.background,
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: const BoxDecoration(
+        color: AppColors.background,
+        border: Border(
+          bottom: BorderSide(
+            color: AppColors.divider,
+            width: 1,
+          ),
+        ),
+      ),
       child: Row(
         children: [
           // Dating goal

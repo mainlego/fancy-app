@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
+import '../../../../core/services/sound_service.dart';
 import '../../../../shared/widgets/fancy_button.dart';
 import '../../../../shared/widgets/fancy_avatar.dart';
 import '../../../profile/domain/models/user_model.dart';
@@ -73,6 +74,9 @@ class _MatchDialogState extends State<MatchDialog>
     );
 
     _controller.forward();
+
+    // Play match celebration sound
+    SoundService().play(SoundType.match);
   }
 
   @override

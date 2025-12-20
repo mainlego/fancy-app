@@ -308,7 +308,9 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen>
     try {
       final supabase = ref.read(supabaseServiceProvider);
       await supabase.deleteChat(chat.id);
+      // Refresh both chats and likes since deleteChat also removes likes
       ref.read(chatsNotifierProvider.notifier).refresh();
+      ref.read(likesNotifierProvider.notifier).refresh();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -429,6 +431,30 @@ class _LikesListView extends ConsumerWidget {
             return _LikeListTile(
               like: like,
               onTap: () => context.pushProfileView(like.userId),
+              onDelete: () async {
+                try {
+                  await ref.read(likesNotifierProvider.notifier).deleteLike(like.userId);
+                  // Also refresh chats as chat might have been deleted
+                  ref.read(chatsNotifierProvider.notifier).refresh();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Like removed'),
+                        backgroundColor: AppColors.textSecondary,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to remove like: $e'),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                  }
+                }
+              },
             );
           },
         );
@@ -723,15 +749,17 @@ class _ChatListTile extends StatelessWidget {
 class _LikeListTile extends StatelessWidget {
   final LikeModel like;
   final VoidCallback onTap;
+  final VoidCallback? onDelete;
 
   const _LikeListTile({
     required this.like,
     required this.onTap,
+    this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    final content = GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Padding(
@@ -800,6 +828,26 @@ class _LikeListTile extends StatelessWidget {
         ),
       ),
     );
+
+    if (onDelete != null) {
+      return Dismissible(
+        key: Key(like.id),
+        direction: DismissDirection.endToStart,
+        onDismissed: (_) => onDelete!(),
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: AppSpacing.lg),
+          color: AppColors.error,
+          child: const Icon(
+            Icons.delete,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        child: content,
+      );
+    }
+
+    return content;
   }
 
   String _formatTime(DateTime? date) {

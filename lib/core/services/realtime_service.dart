@@ -49,7 +49,12 @@ class RealtimeService {
 
   /// Initialize all realtime subscriptions
   void initialize() {
-    if (_currentUserId == null) return;
+    if (_currentUserId == null) {
+      print('🔔 RealtimeService: No user ID, skipping initialization');
+      return;
+    }
+
+    print('🔔 RealtimeService: Initializing for user $_currentUserId');
 
     _subscribeToMessages();
     _subscribeToLikes();
@@ -62,36 +67,49 @@ class RealtimeService {
     final userId = _currentUserId;
     if (userId == null) return;
 
-    _channels['messages'] = _client
-        .channel('user_messages_$userId')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.insert,
-          schema: 'public',
-          table: SupabaseConfig.messagesTable,
-          callback: (payload) async {
-            final newMessage = payload.newRecord;
-            final senderId = newMessage['sender_id'] as String?;
-            final chatId = newMessage['chat_id'] as String?;
-            final content = newMessage['content'] as String?;
+    print('🔔 Setting up messages realtime subscription for user: $userId');
 
-            // Only process messages from other users and not in currently open chat
-            if (senderId != null && senderId != userId && chatId != currentOpenChatId) {
-              // Show notification (both browser notification and in-app stream)
-              await _notificationService.showMessageNotification(
-                senderName: 'New message',
-                message: content ?? 'Sent you a message',
-                chatId: chatId,
-              );
-            }
+    final channel = _client.channel('user_messages_$userId');
 
-            onNewMessage?.call(newMessage);
-            onEvent?.call(RealtimeEvent(
-              type: RealtimeEventType.newMessage,
-              data: newMessage,
-            ));
-          },
-        )
-        .subscribe();
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: SupabaseConfig.messagesTable,
+      callback: (payload) async {
+        print('📨 Realtime: New message event received');
+        final newMessage = payload.newRecord;
+        final senderId = newMessage['sender_id'] as String?;
+        final chatId = newMessage['chat_id'] as String?;
+        final content = newMessage['content'] as String?;
+
+        print('📨 Message from: $senderId, chat: $chatId');
+
+        // Only process messages from other users and not in currently open chat
+        if (senderId != null && senderId != userId && chatId != currentOpenChatId) {
+          // Show notification (both browser notification and in-app stream)
+          await _notificationService.showMessageNotification(
+            senderName: 'New message',
+            message: content ?? 'Sent you a message',
+            chatId: chatId,
+          );
+        }
+
+        onNewMessage?.call(newMessage);
+        onEvent?.call(RealtimeEvent(
+          type: RealtimeEventType.newMessage,
+          data: newMessage,
+        ));
+      },
+    );
+
+    channel.subscribe((status, error) {
+      print('🔔 Messages subscription status: $status');
+      if (error != null) {
+        print('❌ Messages subscription error: $error');
+      }
+    });
+
+    _channels['messages'] = channel;
   }
 
   /// Subscribe to new likes received by current user
@@ -99,39 +117,52 @@ class RealtimeService {
     final userId = _currentUserId;
     if (userId == null) return;
 
-    _channels['likes'] = _client
-        .channel('user_likes_$userId')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.insert,
-          schema: 'public',
-          table: SupabaseConfig.likesTable,
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'to_user_id',
-            value: userId,
-          ),
-          callback: (payload) async {
-            final newLike = payload.newRecord;
-            final fromUserId = newLike['from_user_id'] as String?;
-            final isSuperLike = newLike['is_super_like'] as bool? ?? false;
+    print('🔔 Setting up likes realtime subscription for user: $userId');
 
-            // Show notification for new like
-            if (fromUserId != null) {
-              await _notificationService.showLikeNotification(
-                userName: 'Someone',
-                userId: fromUserId,
-                isSuperLike: isSuperLike,
-              );
-            }
+    final channel = _client.channel('user_likes_$userId');
 
-            onNewLike?.call(newLike);
-            onEvent?.call(RealtimeEvent(
-              type: RealtimeEventType.newLike,
-              data: newLike,
-            ));
-          },
-        )
-        .subscribe();
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: SupabaseConfig.likesTable,
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'to_user_id',
+        value: userId,
+      ),
+      callback: (payload) async {
+        print('❤️ Realtime: New like event received');
+        final newLike = payload.newRecord;
+        final fromUserId = newLike['from_user_id'] as String?;
+        final isSuperLike = newLike['is_super_like'] as bool? ?? false;
+
+        print('❤️ Like from: $fromUserId, super: $isSuperLike');
+
+        // Show notification for new like
+        if (fromUserId != null) {
+          await _notificationService.showLikeNotification(
+            userName: 'Someone',
+            userId: fromUserId,
+            isSuperLike: isSuperLike,
+          );
+        }
+
+        onNewLike?.call(newLike);
+        onEvent?.call(RealtimeEvent(
+          type: RealtimeEventType.newLike,
+          data: newLike,
+        ));
+      },
+    );
+
+    channel.subscribe((status, error) {
+      print('🔔 Likes subscription status: $status');
+      if (error != null) {
+        print('❌ Likes subscription error: $error');
+      }
+    });
+
+    _channels['likes'] = channel;
   }
 
   /// Subscribe to new matches for current user
@@ -139,37 +170,51 @@ class RealtimeService {
     final userId = _currentUserId;
     if (userId == null) return;
 
-    _channels['matches'] = _client
-        .channel('user_matches_$userId')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.insert,
-          schema: 'public',
-          table: SupabaseConfig.matchesTable,
-          callback: (payload) async {
-            final newMatch = payload.newRecord;
-            // Check if current user is part of this match
-            final user1Id = newMatch['user1_id'] as String?;
-            final user2Id = newMatch['user2_id'] as String?;
-            if (user1Id == userId || user2Id == userId) {
-              final otherUserId = user1Id == userId ? user2Id : user1Id;
+    print('🔔 Setting up matches realtime subscription for user: $userId');
 
-              // Show match notification
-              if (otherUserId != null) {
-                await _notificationService.showMatchNotification(
-                  userName: 'Someone special',
-                  matchId: newMatch['id'] as String?,
-                );
-              }
+    final channel = _client.channel('user_matches_$userId');
 
-              onNewMatch?.call(newMatch);
-              onEvent?.call(RealtimeEvent(
-                type: RealtimeEventType.newMatch,
-                data: newMatch,
-              ));
-            }
-          },
-        )
-        .subscribe();
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: SupabaseConfig.matchesTable,
+      callback: (payload) async {
+        print('🎉 Realtime: New match event received');
+        final newMatch = payload.newRecord;
+        // Check if current user is part of this match
+        final user1Id = newMatch['user1_id'] as String?;
+        final user2Id = newMatch['user2_id'] as String?;
+
+        print('🎉 Match between: $user1Id and $user2Id');
+
+        if (user1Id == userId || user2Id == userId) {
+          final otherUserId = user1Id == userId ? user2Id : user1Id;
+
+          // Show match notification
+          if (otherUserId != null) {
+            await _notificationService.showMatchNotification(
+              userName: 'Someone special',
+              matchId: newMatch['id'] as String?,
+            );
+          }
+
+          onNewMatch?.call(newMatch);
+          onEvent?.call(RealtimeEvent(
+            type: RealtimeEventType.newMatch,
+            data: newMatch,
+          ));
+        }
+      },
+    );
+
+    channel.subscribe((status, error) {
+      print('🔔 Matches subscription status: $status');
+      if (error != null) {
+        print('❌ Matches subscription error: $error');
+      }
+    });
+
+    _channels['matches'] = channel;
   }
 
   /// Subscribe to presence changes

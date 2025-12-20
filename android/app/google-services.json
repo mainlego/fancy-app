@@ -1,0 +1,38 @@
+{
+  "project_info": {
+    "project_number": "468089594984",
+    "project_id": "fancy-app-f1768",
+    "storage_bucket": "fancy-app-f1768.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:468089594984:android:82d30b49aae246e5fdc7dd",
+        "android_client_info": {
+          "package_name": "com.fancyapp.dating"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "468089594984-lcv42q4q9vjprjt0802f18km6jul56bg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.fancyapp.dating",
+            "certificate_hash": "70d2d20e685f74024bdd4c04500bfd6541921a3b"
+          }
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBQR3zI6w8C8TkpcZwVQ7qlzLOTfoVr3Yg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -169,6 +169,7 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard>
   Widget build(BuildContext context) {
     final currentHeight = _isExpanded ? _expandedHeight : _normalHeight;
 
+    // No external padding - card stretches 100% width
     return GestureDetector(
       onTap: _handleTap,
       onHorizontalDragEnd: _handleHorizontalDrag,
@@ -265,92 +266,93 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard>
   /// Bottom info panel - 90px height
   Widget _buildInfoPanel() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 16),
       color: AppColors.surface,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end, // Align to bottom
+      child: Stack(
         children: [
-          // Left side - text info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end, // Align to bottom
-              mainAxisSize: MainAxisSize.max,
-              children: [
-                // Dating goal • relationship status
-                _buildInfoRow([
-                  if (widget.user.datingGoal != null)
-                    _getDatingGoalText(widget.user.datingGoal!),
-                  if (widget.user.relationshipStatus != null)
-                    _getStatusText(widget.user.relationshipStatus!),
-                ]),
-                const SizedBox(height: 2),
+          // Main row: text left 50%, buttons right 50%
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // Left side - text info (50% width)
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.max,
+                  children: [
+                    // Dating goal • relationship status (1 line)
+                    _buildInfoRow([
+                      if (widget.user.datingGoal != null)
+                        _getDatingGoalText(widget.user.datingGoal!),
+                      if (widget.user.relationshipStatus != null)
+                        _getStatusText(widget.user.relationshipStatus!),
+                    ]),
+                    const SizedBox(height: 2),
 
-                // online • verified
-                _buildStatusRow(),
-                const SizedBox(height: 2),
+                    // online • verified (1 line)
+                    _buildStatusRow(),
+                    const SizedBox(height: 2),
 
-                // location • distance
-                _buildLocationRow(),
-              ],
-            ),
+                    // location • distance (1 line)
+                    _buildLocationRow(),
+                  ],
+                ),
+              ),
+
+              // Right side - action buttons (50% width)
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    // Fire button (Super Like)
+                    _ActionButton(
+                      svgPath: AppAssets.icSuperLikeOutline,
+                      onTap: widget.onSuperLike,
+                    ),
+                    const SizedBox(width: 24),
+                    // Heart button (Like)
+                    _ActionButton(
+                      svgPath: AppAssets.icLikeOutline,
+                      onTap: widget.onLike,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
 
-          // Center - animated slide indicator dots (only if more than 1 slide)
-          if (_totalSlides > 1)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+          // Center dots - fixed position, centered horizontally, 16px from bottom
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Center(
               child: GestureDetector(
                 key: _dotsButtonKey,
                 onTap: _showMoreMenu,
                 behavior: HitTestBehavior.opaque,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  child: _SlideIndicatorDots(
-                    totalSlides: _totalSlides,
-                    currentIndex: _currentMediaIndex,
-                    animationController: _dotAnimationController,
-                  ),
-                ),
-              ),
-            )
-          else
-            // Just menu dots if only one slide
-            GestureDetector(
-              key: _dotsButtonKey,
-              onTap: _showMoreMenu,
-              behavior: HitTestBehavior.opaque,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildDot(),
-                    const SizedBox(width: 4),
-                    _buildDot(),
-                    const SizedBox(width: 4),
-                    _buildDot(),
-                  ],
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: _totalSlides > 1
+                      ? _SlideIndicatorDots(
+                          totalSlides: _totalSlides,
+                          currentIndex: _currentMediaIndex,
+                          animationController: _dotAnimationController,
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildDot(),
+                            const SizedBox(width: 4),
+                            _buildDot(),
+                            const SizedBox(width: 4),
+                            _buildDot(),
+                          ],
+                        ),
                 ),
               ),
             ),
-
-          // Right side - action buttons with 24px gap
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Fire button (Super Like)
-              _ActionButton(
-                svgPath: AppAssets.icSuperLikeOutline,
-                onTap: widget.onSuperLike,
-              ),
-              const SizedBox(width: 24),
-              // Heart button (Like)
-              _ActionButton(
-                svgPath: AppAssets.icLikeOutline,
-                onTap: widget.onLike,
-              ),
-            ],
           ),
         ],
       ),
@@ -367,6 +369,8 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard>
         fontWeight: FontWeight.w500,
         fontSize: 14,
       ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 
@@ -383,6 +387,8 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard>
         color: AppColors.textSecondary,
         fontSize: 12,
       ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 
@@ -400,6 +406,8 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard>
         color: AppColors.textSecondary,
         fontSize: 12,
       ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 

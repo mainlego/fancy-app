@@ -78,6 +78,7 @@ class UserModel extends Equatable {
   final String? occupation;
   final List<String> languages;
   final List<String> interests;
+  final List<String> fantasies;
 
   // Looking for preferences (who user wants to see)
   final Set<ProfileType> lookingFor;
@@ -85,6 +86,7 @@ class UserModel extends Equatable {
   // Timestamps
   final DateTime? lastOnline;
   final DateTime createdAt;
+  final DateTime? profileTypeChangedAt; // Track when profile type was changed
 
   const UserModel({
     required this.id,
@@ -113,10 +115,15 @@ class UserModel extends Equatable {
     this.occupation,
     this.languages = const [],
     this.interests = const [],
+    this.fantasies = const [],
     this.lookingFor = const {},
     this.lastOnline,
     required this.createdAt,
+    this.profileTypeChangedAt,
   });
+
+  /// Check if user can change profile type (only once without support)
+  bool get canChangeProfileType => profileTypeChangedAt == null;
 
   /// Get avatar URL or first photo
   String? get displayAvatar => avatarUrl ?? (photos.isNotEmpty ? photos.first : null);
@@ -160,9 +167,11 @@ class UserModel extends Equatable {
     String? occupation,
     List<String>? languages,
     List<String>? interests,
+    List<String>? fantasies,
     Set<ProfileType>? lookingFor,
     DateTime? lastOnline,
     DateTime? createdAt,
+    DateTime? profileTypeChangedAt,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -191,9 +200,11 @@ class UserModel extends Equatable {
       occupation: occupation ?? this.occupation,
       languages: languages ?? this.languages,
       interests: interests ?? this.interests,
+      fantasies: fantasies ?? this.fantasies,
       lookingFor: lookingFor ?? this.lookingFor,
       lastOnline: lastOnline ?? this.lastOnline,
       createdAt: createdAt ?? this.createdAt,
+      profileTypeChangedAt: profileTypeChangedAt ?? this.profileTypeChangedAt,
     );
   }
 
@@ -236,6 +247,7 @@ class UserModel extends Equatable {
       occupation: json['occupation'] as String?,
       languages: (json['languages'] as List<dynamic>?)?.cast<String>() ?? [],
       interests: (json['interests'] as List<dynamic>?)?.cast<String>() ?? [],
+      fantasies: (json['fantasies'] as List<dynamic>?)?.cast<String>() ?? [],
       lookingFor: (json['lookingFor'] as List<dynamic>?)
               ?.map((e) => ProfileType.values.byName(e as String))
               .toSet() ??
@@ -244,6 +256,9 @@ class UserModel extends Equatable {
           ? DateTime.parse(json['lastOnline'] as String)
           : null,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      profileTypeChangedAt: json['profileTypeChangedAt'] != null
+          ? DateTime.parse(json['profileTypeChangedAt'] as String)
+          : null,
     );
   }
 
@@ -298,6 +313,7 @@ class UserModel extends Equatable {
       occupation: json['occupation'] as String?,
       languages: (json['languages'] as List<dynamic>?)?.cast<String>() ?? [],
       interests: (json['interests'] as List<dynamic>?)?.cast<String>() ?? [],
+      fantasies: (json['fantasies'] as List<dynamic>?)?.cast<String>() ?? [],
       lookingFor: (json['looking_for'] as List<dynamic>?)
               ?.map((e) => ProfileType.values.byName(e as String))
               .toSet() ??
@@ -308,6 +324,9 @@ class UserModel extends Equatable {
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : DateTime.now(),
+      profileTypeChangedAt: json['profile_type_changed_at'] != null
+          ? DateTime.parse(json['profile_type_changed_at'] as String)
+          : null,
     );
   }
 
@@ -338,9 +357,11 @@ class UserModel extends Equatable {
       'occupation': occupation,
       'languages': languages,
       'interests': interests,
+      'fantasies': fantasies,
       'looking_for': lookingFor.map((e) => e.name).toList(),
       'last_online': lastOnline?.toIso8601String(),
       'created_at': createdAt.toIso8601String(),
+      'profile_type_changed_at': profileTypeChangedAt?.toIso8601String(),
     };
   }
 
@@ -373,9 +394,11 @@ class UserModel extends Equatable {
       'occupation': occupation,
       'languages': languages,
       'interests': interests,
+      'fantasies': fantasies,
       'lookingFor': lookingFor.map((e) => e.name).toList(),
       'lastOnline': lastOnline?.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
+      'profileTypeChangedAt': profileTypeChangedAt?.toIso8601String(),
     };
   }
 
@@ -407,8 +430,10 @@ class UserModel extends Equatable {
         occupation,
         languages,
         interests,
+        fantasies,
         lookingFor,
         lastOnline,
         createdAt,
+        profileTypeChangedAt,
       ];
 }

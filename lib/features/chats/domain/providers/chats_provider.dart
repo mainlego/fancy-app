@@ -74,6 +74,7 @@ class ChatsNotifier extends StateNotifier<AsyncValue<List<ChatModel>>> {
   final SupabaseService _supabase;
   final Ref _ref;
   RealtimeChannel? _subscription;
+  bool _isFirstLoad = true;
 
   ChatsNotifier(this._supabase, this._ref) : super(const AsyncValue.loading()) {
     print('💬 ChatsNotifier created');
@@ -81,7 +82,8 @@ class ChatsNotifier extends StateNotifier<AsyncValue<List<ChatModel>>> {
     _subscribeToChats();
   }
 
-  Future<void> loadChats() async {
+  /// Load chats - shows loading state only on first load
+  Future<void> loadChats({bool silent = false}) async {
     final currentUserId = _supabase.currentUser?.id;
     if (currentUserId == null) {
       print('💬 No current user, returning empty chats');
@@ -89,16 +91,25 @@ class ChatsNotifier extends StateNotifier<AsyncValue<List<ChatModel>>> {
       return;
     }
 
-    print('💬 Loading chats for user: $currentUserId');
-    state = const AsyncValue.loading();
+    print('💬 Loading chats for user: $currentUserId (silent: $silent)');
+
+    // Only show loading state on first load, not on refresh
+    if (_isFirstLoad && !silent) {
+      state = const AsyncValue.loading();
+    }
+
     try {
       final data = await _supabase.getChats();
       final chats = data.map((json) => ChatModel.fromSupabase(json, currentUserId)).toList();
       print('💬 Loaded ${chats.length} chats');
       state = AsyncValue.data(chats);
+      _isFirstLoad = false;
     } catch (e, st) {
       print('❌ Error loading chats: $e');
-      state = AsyncValue.error(e, st);
+      // Only set error state if we don't have existing data
+      if (_isFirstLoad) {
+        state = AsyncValue.error(e, st);
+      }
     }
   }
 
@@ -109,7 +120,7 @@ class ChatsNotifier extends StateNotifier<AsyncValue<List<ChatModel>>> {
     print('💬 Setting up chats realtime subscription');
 
     // Subscribe to new messages to update chat list
-    final channel = Supabase.instance.client.channel('chats_updates');
+    final channel = Supabase.instance.client.channel('chats_updates_$currentUserId');
 
     channel.onPostgresChanges(
       event: PostgresChangeEvent.all,
@@ -117,8 +128,8 @@ class ChatsNotifier extends StateNotifier<AsyncValue<List<ChatModel>>> {
       table: 'messages',
       callback: (payload) {
         print('💬 Chats: Received message update event');
-        // Refresh chats when a new message arrives
-        loadChats();
+        // Silent refresh - don't show loading state
+        loadChats(silent: true);
       },
     );
 
@@ -132,8 +143,9 @@ class ChatsNotifier extends StateNotifier<AsyncValue<List<ChatModel>>> {
     _subscription = channel;
   }
 
+  /// Refresh chats without showing loading indicator
   Future<void> refresh() async {
-    await loadChats();
+    await loadChats(silent: true);
   }
 
   @override
@@ -166,24 +178,33 @@ final likesProvider = FutureProvider<List<LikeModel>>((ref) async {
 /// Likes state notifier
 class LikesNotifier extends StateNotifier<AsyncValue<List<LikeModel>>> {
   final SupabaseService _supabase;
+  bool _isFirstLoad = true;
 
   LikesNotifier(this._supabase) : super(const AsyncValue.loading()) {
     loadLikes();
   }
 
-  Future<void> loadLikes() async {
-    state = const AsyncValue.loading();
+  Future<void> loadLikes({bool silent = false}) async {
+    // Only show loading on first load
+    if (_isFirstLoad && !silent) {
+      state = const AsyncValue.loading();
+    }
+
     try {
       final data = await _supabase.getLikers();
       final likes = data.map((json) => LikeModel.fromSupabase(json)).toList();
       state = AsyncValue.data(likes);
+      _isFirstLoad = false;
     } catch (e, st) {
-      state = AsyncValue.error(e, st);
+      if (_isFirstLoad) {
+        state = AsyncValue.error(e, st);
+      }
     }
   }
 
+  /// Refresh likes without showing loading indicator
   Future<void> refresh() async {
-    await loadLikes();
+    await loadLikes(silent: true);
   }
 
   /// Like back a user (creates a match)
@@ -213,6 +234,20 @@ class LikesNotifier extends StateNotifier<AsyncValue<List<LikeModel>>> {
       print('Error passing user: $e');
     }
   }
+
+  /// Delete a like (removes like, match, and chat)
+  Future<void> deleteLike(String userId) async {
+    try {
+      await _supabase.deleteLike(userId);
+      // Remove from likes list after action
+      state.whenData((likes) {
+        state = AsyncValue.data(likes.where((l) => l.userId != userId).toList());
+      });
+    } catch (e) {
+      print('Error deleting like: $e');
+      rethrow;
+    }
+  }
 }
 
 /// Likes notifier provider
@@ -237,24 +272,31 @@ final favoritesProvider = FutureProvider<List<FavoriteModel>>((ref) async {
 /// Favorites state notifier
 class FavoritesNotifier extends StateNotifier<AsyncValue<List<FavoriteModel>>> {
   final SupabaseService _supabase;
+  bool _isFirstLoad = true;
 
   FavoritesNotifier(this._supabase) : super(const AsyncValue.loading()) {
     loadFavorites();
   }
 
-  Future<void> loadFavorites() async {
-    state = const AsyncValue.loading();
+  Future<void> loadFavorites({bool silent = false}) async {
+    if (_isFirstLoad && !silent) {
+      state = const AsyncValue.loading();
+    }
+
     try {
       final data = await _supabase.getFavorites();
       final favorites = data.map((json) => FavoriteModel.fromSupabase(json)).toList();
       state = AsyncValue.data(favorites);
+      _isFirstLoad = false;
     } catch (e, st) {
-      state = AsyncValue.error(e, st);
+      if (_isFirstLoad) {
+        state = AsyncValue.error(e, st);
+      }
     }
   }
 
   Future<void> refresh() async {
-    await loadFavorites();
+    await loadFavorites(silent: true);
   }
 
   /// Add user to favorites
@@ -472,6 +514,20 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<MessageModel>>> {
 
   Future<void> refresh() async {
     await loadMessages();
+  }
+
+  /// Delete a message
+  Future<void> deleteMessage(String messageId, {bool deleteForBoth = false}) async {
+    try {
+      await _supabase.deleteMessage(messageId, deleteForBoth: deleteForBoth);
+      // Remove message from local state
+      state.whenData((messages) {
+        state = AsyncValue.data(messages.where((m) => m.id != messageId).toList());
+      });
+    } catch (e) {
+      print('Error deleting message: $e');
+      rethrow;
+    }
   }
 
   @override

@@ -1,9 +1,12 @@
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
+import '../data/profile_data.dart';
+import '../../features/referrals/domain/models/referral_model.dart';
 
 /// Supabase client provider
 final supabaseClientProvider = Provider<SupabaseClient>((ref) {
@@ -25,6 +28,9 @@ class SupabaseService {
   final SupabaseClient _client;
 
   SupabaseService(this._client);
+
+  /// Get the Supabase client for direct access (e.g., for support requests)
+  SupabaseClient get client => _client;
 
   // ===================
   // AUTH OPERATIONS
@@ -104,9 +110,53 @@ class SupabaseService {
         .eq('id', userId);
   }
 
+  /// Update FCM token for push notifications
+  Future<void> updateFcmToken(String token) async {
+    final userId = currentUser?.id;
+    if (userId == null) return;
+
+    await _client
+        .from(SupabaseConfig.profilesTable)
+        .update({
+          'fcm_token': token,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', userId);
+  }
+
+  /// Clear FCM token (on logout)
+  Future<void> clearFcmToken() async {
+    final userId = currentUser?.id;
+    if (userId == null) return;
+
+    await _client
+        .from(SupabaseConfig.profilesTable)
+        .update({
+          'fcm_token': null,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', userId);
+  }
+
+  /// Get FCM token for a user (for sending notifications)
+  Future<String?> getUserFcmToken(String userId) async {
+    final response = await _client
+        .from(SupabaseConfig.profilesTable)
+        .select('fcm_token')
+        .eq('id', userId)
+        .maybeSingle();
+
+    return response?['fcm_token'] as String?;
+  }
+
   /// Create profile
   Future<void> createProfile(Map<String, dynamic> data) async {
     await _client.from(SupabaseConfig.profilesTable).insert(data);
+  }
+
+  /// Create or update profile (upsert) - handles existing profile case
+  Future<void> createOrUpdateProfile(Map<String, dynamic> data) async {
+    await _client.from(SupabaseConfig.profilesTable).upsert(data);
   }
 
   /// Get profiles for discovery (excluding current user, blocked users, and already interacted)
@@ -148,8 +198,18 @@ class SupabaseService {
         if (blockedId != null && blockedId != userId) blockedIds.add(blockedId);
       }
 
+      // Get IDs of hidden users (only users I've hidden)
+      final hiddenResponse = await _client
+          .from(SupabaseConfig.hiddenUsersTable)
+          .select('hidden_id')
+          .eq('hider_id', userId);
+
+      final hiddenIds = (hiddenResponse as List)
+          .map((e) => e['hidden_id'] as String)
+          .toSet();
+
       // Combine all IDs to exclude
-      final excludeIds = {...interactedIds, ...blockedIds, userId};
+      final excludeIds = {...interactedIds, ...blockedIds, ...hiddenIds, userId};
 
       // Build query for profiles with gender filter on server side
       PostgrestFilterBuilder query = _client
@@ -203,6 +263,40 @@ class SupabaseService {
         }).toList();
       }
 
+      // Get current user's location for distance calculation
+      final currentUserProfile = await getProfile(userId);
+      final myLat = currentUserProfile?['latitude'] as double?;
+      final myLon = currentUserProfile?['longitude'] as double?;
+
+      // Calculate distance for each profile
+      if (myLat != null && myLon != null) {
+        for (var profile in profiles) {
+          final theirLat = profile['latitude'] as double?;
+          final theirLon = profile['longitude'] as double?;
+
+          if (theirLat != null && theirLon != null) {
+            final distance = _calculateDistance(myLat, myLon, theirLat, theirLon);
+            profile['distance_km'] = distance.round();
+          }
+        }
+
+        // Apply distance filter if specified
+        if (maxDistance != null) {
+          profiles = profiles.where((p) {
+            final distance = p['distance_km'] as int?;
+            if (distance == null) return true; // Include profiles without location
+            return distance <= maxDistance;
+          }).toList();
+        }
+
+        // Sort by distance (closest first)
+        profiles.sort((a, b) {
+          final distA = a['distance_km'] as int? ?? 999999;
+          final distB = b['distance_km'] as int? ?? 999999;
+          return distA.compareTo(distB);
+        });
+      }
+
       return profiles;
     } catch (e) {
       print('Error getting discovery profiles: $e');
@@ -215,6 +309,28 @@ class SupabaseService {
 
       return List<Map<String, dynamic>>.from(response);
     }
+  }
+
+  /// Calculate distance between two coordinates using Haversine formula
+  /// Returns distance in kilometers
+  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    const earthRadius = 6371.0; // Earth radius in kilometers
+
+    final dLat = _toRadians(lat2 - lat1);
+    final dLon = _toRadians(lon2 - lon1);
+
+    final a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(_toRadians(lat1)) *
+            cos(_toRadians(lat2)) *
+            sin(dLon / 2) *
+            sin(dLon / 2);
+
+    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    return earthRadius * c;
+  }
+
+  double _toRadians(double degree) {
+    return degree * pi / 180;
   }
 
   // ===================
@@ -259,6 +375,59 @@ class SupabaseService {
       'is_pass': true,
       'created_at': DateTime.now().toIso8601String(),
     });
+  }
+
+  /// Delete a like and cascade delete related chat/match
+  /// Use this when removing a like from the likes tab
+  Future<void> deleteLike(String targetUserId) async {
+    final userId = currentUser?.id;
+    if (userId == null) return;
+
+    try {
+      // Delete the like from targetUser to current user
+      await _client
+          .from(SupabaseConfig.likesTable)
+          .delete()
+          .eq('from_user_id', targetUserId)
+          .eq('to_user_id', userId);
+
+      // Also delete the reverse like if exists (mutual like)
+      await _client
+          .from(SupabaseConfig.likesTable)
+          .delete()
+          .eq('from_user_id', userId)
+          .eq('to_user_id', targetUserId);
+
+      // Delete the match if exists
+      await _client
+          .from(SupabaseConfig.matchesTable)
+          .delete()
+          .or('and(user1_id.eq.$userId,user2_id.eq.$targetUserId),and(user1_id.eq.$targetUserId,user2_id.eq.$userId)');
+
+      // Find and delete the chat if exists
+      final chatResponse = await _client
+          .from(SupabaseConfig.chatsTable)
+          .select('id')
+          .or('and(participant1_id.eq.$userId,participant2_id.eq.$targetUserId),and(participant1_id.eq.$targetUserId,participant2_id.eq.$userId)')
+          .maybeSingle();
+
+      if (chatResponse != null) {
+        final chatId = chatResponse['id'] as String;
+        // Delete all messages in the chat
+        await _client
+            .from(SupabaseConfig.messagesTable)
+            .delete()
+            .eq('chat_id', chatId);
+        // Delete the chat
+        await _client
+            .from(SupabaseConfig.chatsTable)
+            .delete()
+            .eq('id', chatId);
+      }
+    } catch (e) {
+      print('Error deleting like: $e');
+      rethrow;
+    }
   }
 
   /// Get users who liked current user
@@ -314,9 +483,15 @@ class SupabaseService {
   // ===================
 
   /// Delete a chat and all its messages (hard delete)
+  /// Also deletes related likes and matches
   Future<void> deleteChat(String chatId) async {
     final userId = currentUser?.id;
-    if (userId == null) return;
+    if (userId == null) {
+      print('deleteChat: No current user');
+      return;
+    }
+
+    print('deleteChat: Starting deletion for chatId=$chatId, userId=$userId');
 
     try {
       // First get the chat to find the other participant (before deleting)
@@ -326,34 +501,65 @@ class SupabaseService {
           .eq('id', chatId)
           .maybeSingle();
 
-      String? otherId;
-      if (chatResponse != null) {
-        final participant1Id = chatResponse['participant1_id'] as String?;
-        final participant2Id = chatResponse['participant2_id'] as String?;
-        otherId = participant1Id == userId ? participant2Id : participant1Id;
+      print('deleteChat: Chat response = $chatResponse');
+
+      if (chatResponse == null) {
+        print('deleteChat: Chat not found, might already be deleted');
+        return;
       }
 
-      // Delete all messages in the chat
+      String? otherId;
+      final participant1Id = chatResponse['participant1_id'] as String?;
+      final participant2Id = chatResponse['participant2_id'] as String?;
+      otherId = participant1Id == userId ? participant2Id : participant1Id;
+
+      print('deleteChat: Other participant = $otherId');
+
+      // Delete all messages in the chat first
+      print('deleteChat: Deleting messages...');
       await _client
           .from(SupabaseConfig.messagesTable)
           .delete()
           .eq('chat_id', chatId);
+      print('deleteChat: Messages deleted');
 
       // Delete the chat itself
+      print('deleteChat: Deleting chat...');
       await _client
           .from(SupabaseConfig.chatsTable)
           .delete()
           .eq('id', chatId);
+      print('deleteChat: Chat deleted');
 
-      // Also delete the match if exists
+      // Also delete the match and likes if exists
       if (otherId != null) {
+        // Delete match
+        print('deleteChat: Deleting match...');
         await _client
             .from(SupabaseConfig.matchesTable)
             .delete()
             .or('and(user1_id.eq.$userId,user2_id.eq.$otherId),and(user1_id.eq.$otherId,user2_id.eq.$userId)');
+        print('deleteChat: Match deleted');
+
+        // Delete likes in both directions
+        print('deleteChat: Deleting likes...');
+        await _client
+            .from(SupabaseConfig.likesTable)
+            .delete()
+            .eq('from_user_id', userId)
+            .eq('to_user_id', otherId);
+
+        await _client
+            .from(SupabaseConfig.likesTable)
+            .delete()
+            .eq('from_user_id', otherId)
+            .eq('to_user_id', userId);
+        print('deleteChat: Likes deleted');
       }
+
+      print('deleteChat: All deletions completed successfully');
     } catch (e) {
-      print('Error deleting chat: $e');
+      print('deleteChat ERROR: $e');
       rethrow;
     }
   }
@@ -563,6 +769,40 @@ class SupabaseService {
     return response;
   }
 
+  /// Delete a message
+  /// If deleteForBoth is true, the message is permanently deleted
+  /// Otherwise, it's just hidden for the current user
+  Future<void> deleteMessage(String messageId, {bool deleteForBoth = false}) async {
+    final userId = currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+
+    if (deleteForBoth) {
+      // Permanently delete the message
+      await _client
+          .from(SupabaseConfig.messagesTable)
+          .delete()
+          .eq('id', messageId);
+    } else {
+      // Soft delete - just mark as deleted for the sender
+      // This uses a deleted_for array to track who has deleted the message
+      final message = await _client
+          .from(SupabaseConfig.messagesTable)
+          .select('deleted_for')
+          .eq('id', messageId)
+          .single();
+
+      final List<dynamic> deletedFor = message['deleted_for'] ?? [];
+      if (!deletedFor.contains(userId)) {
+        deletedFor.add(userId);
+      }
+
+      await _client
+          .from(SupabaseConfig.messagesTable)
+          .update({'deleted_for': deletedFor})
+          .eq('id', messageId);
+    }
+  }
+
   /// Subscribe to new messages in a chat
   RealtimeChannel subscribeToMessages(String chatId, void Function(Map<String, dynamic>) onMessage) {
     print('🔔 Setting up realtime subscription for chat: $chatId');
@@ -637,17 +877,80 @@ class SupabaseService {
         .eq('blocked_id', targetUserId);
   }
 
-  /// Get blocked users
+  /// Get blocked users with profile data
   Future<List<Map<String, dynamic>>> getBlockedUsers() async {
     final userId = currentUser?.id;
     if (userId == null) return [];
 
     final response = await _client
         .from(SupabaseConfig.blockedUsersTable)
-        .select('*, profiles!blocked_id(*)')
-        .eq('blocker_id', userId);
+        .select()
+        .eq('blocker_id', userId)
+        .order('created_at', ascending: false);
 
-    return List<Map<String, dynamic>>.from(response);
+    // Fetch profiles separately for each blocked user
+    final blockedList = List<Map<String, dynamic>>.from(response);
+    for (var blocked in blockedList) {
+      final profile = await getProfile(blocked['blocked_id'] as String);
+      blocked['profiles'] = profile;
+    }
+
+    return blockedList;
+  }
+
+  // ===================
+  // HIDDEN USERS
+  // ===================
+
+  /// Hide a user (they won't appear in discovery but can still contact you)
+  Future<void> hideUser(String targetUserId) async {
+    final userId = currentUser?.id;
+    if (userId == null) return;
+
+    await _client.from(SupabaseConfig.hiddenUsersTable).insert({
+      'hider_id': userId,
+      'hidden_id': targetUserId,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// Unhide a user
+  Future<void> unhideUser(String targetUserId) async {
+    final userId = currentUser?.id;
+    if (userId == null) return;
+
+    await _client
+        .from(SupabaseConfig.hiddenUsersTable)
+        .delete()
+        .eq('hider_id', userId)
+        .eq('hidden_id', targetUserId);
+  }
+
+  /// Get hidden users with profile data
+  Future<List<Map<String, dynamic>>> getHiddenUsers() async {
+    final userId = currentUser?.id;
+    if (userId == null) return [];
+
+    try {
+      final response = await _client
+          .from(SupabaseConfig.hiddenUsersTable)
+          .select()
+          .eq('hider_id', userId)
+          .order('created_at', ascending: false);
+
+      // Fetch profiles separately for each hidden user
+      final hiddenList = List<Map<String, dynamic>>.from(response);
+      for (var hidden in hiddenList) {
+        final profile = await getProfile(hidden['hidden_id'] as String);
+        hidden['profiles'] = profile;
+      }
+
+      return hiddenList;
+    } catch (e) {
+      print('Error getting hidden users: $e');
+      // Return empty list if table doesn't exist or other errors
+      return [];
+    }
   }
 
   // ===================
@@ -794,6 +1097,29 @@ class SupabaseService {
     await addPhotoToProfile(publicUrl);
 
     return publicUrl;
+  }
+
+  /// Upload profile photo (just upload, don't update profile - for onboarding)
+  Future<String> uploadProfilePhoto({
+    required String userId,
+    required String fileName,
+    required Uint8List bytes,
+  }) async {
+    // Generate unique filename with timestamp
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final extension = fileName.split('.').last;
+    final path = '$userId/photo_$timestamp.$extension';
+
+    await _client.storage.from(SupabaseConfig.photosBucket).uploadBinary(
+      path,
+      bytes,
+      fileOptions: FileOptions(
+        contentType: _getContentType(extension),
+        upsert: true,
+      ),
+    );
+
+    return _client.storage.from(SupabaseConfig.photosBucket).getPublicUrl(path);
   }
 
   /// Add photo URL to profile's photos array
@@ -955,6 +1281,8 @@ class SupabaseService {
     required DateTime endDate,
     bool isActive = true,
     String? transactionId,
+    bool isTrialUsed = false,
+    int referralMonths = 0,
   }) async {
     final userId = currentUser?.id;
     if (userId == null) return;
@@ -967,6 +1295,8 @@ class SupabaseService {
         'end_date': endDate.toIso8601String(),
         'is_active': isActive,
         'transaction_id': transactionId,
+        'is_trial_used': isTrialUsed,
+        'referral_months': referralMonths,
         'updated_at': DateTime.now().toIso8601String(),
       },
       onConflict: 'user_id',
@@ -974,6 +1304,20 @@ class SupabaseService {
 
     // Update profile is_premium field
     await updateProfile(userId, {'is_premium': isActive});
+  }
+
+  /// Update subscription end date (for referral bonuses)
+  Future<void> updateSubscriptionEndDate(DateTime newEndDate) async {
+    final userId = currentUser?.id;
+    if (userId == null) return;
+
+    await _client
+        .from(SupabaseConfig.subscriptionsTable)
+        .update({
+          'end_date': newEndDate.toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('user_id', userId);
   }
 
   /// Cancel subscription
@@ -991,6 +1335,123 @@ class SupabaseService {
 
     // Update profile is_premium field
     await updateProfile(userId, {'is_premium': false});
+  }
+
+  // ===================
+  // IN-APP PURCHASES (CONSUMABLES)
+  // ===================
+
+  /// Get user's super likes balance
+  Future<int> getSuperLikesBalance() async {
+    final userId = currentUser?.id;
+    if (userId == null) return 0;
+
+    final response = await _client
+        .from('user_purchases')
+        .select('super_likes_balance')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    return response?['super_likes_balance'] as int? ?? 0;
+  }
+
+  /// Add super likes to user's balance
+  Future<void> addSuperLikes(int count) async {
+    final userId = currentUser?.id;
+    if (userId == null) return;
+
+    // Get current balance
+    final currentBalance = await getSuperLikesBalance();
+
+    await _client.from('user_purchases').upsert(
+      {
+        'user_id': userId,
+        'super_likes_balance': currentBalance + count,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      onConflict: 'user_id',
+    );
+  }
+
+  /// Use one super like
+  Future<bool> useSuperLike() async {
+    final userId = currentUser?.id;
+    if (userId == null) return false;
+
+    final currentBalance = await getSuperLikesBalance();
+    if (currentBalance <= 0) return false;
+
+    await _client.from('user_purchases').upsert(
+      {
+        'user_id': userId,
+        'super_likes_balance': currentBalance - 1,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      onConflict: 'user_id',
+    );
+
+    return true;
+  }
+
+  /// Get invisible mode end date
+  Future<DateTime?> getInvisibleModeUntil() async {
+    final userId = currentUser?.id;
+    if (userId == null) return null;
+
+    final response = await _client
+        .from('user_purchases')
+        .select('invisible_mode_until')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    final dateStr = response?['invisible_mode_until'] as String?;
+    if (dateStr == null) return null;
+
+    final date = DateTime.parse(dateStr);
+    return date.isAfter(DateTime.now()) ? date : null;
+  }
+
+  /// Activate invisible mode for N days
+  Future<void> activateInvisibleMode(int days) async {
+    final userId = currentUser?.id;
+    if (userId == null) return;
+
+    // Get current invisible mode end date
+    final currentEnd = await getInvisibleModeUntil();
+    final now = DateTime.now();
+
+    // If already has invisible mode, extend it
+    final baseDate = currentEnd != null && currentEnd.isAfter(now) ? currentEnd : now;
+    final newEndDate = baseDate.add(Duration(days: days));
+
+    await _client.from('user_purchases').upsert(
+      {
+        'user_id': userId,
+        'invisible_mode_until': newEndDate.toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      onConflict: 'user_id',
+    );
+  }
+
+  /// Check if user has invisible mode active
+  Future<bool> hasInvisibleMode() async {
+    final endDate = await getInvisibleModeUntil();
+    return endDate != null && endDate.isAfter(DateTime.now());
+  }
+
+  /// Get user purchases data
+  Future<Map<String, dynamic>?> getUserPurchases() async {
+    final userId = currentUser?.id;
+    if (userId == null) return null;
+
+    final response = await _client
+        .from('user_purchases')
+        .select()
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    return response;
   }
 
   // ===================
@@ -1647,6 +2108,92 @@ class SupabaseService {
         .eq('id', messageId);
   }
 
+  // ===================
+  // VERIFICATION OPERATIONS
+  // ===================
+
+  /// Upload verification photo to storage
+  Future<String> uploadVerificationPhoto({
+    required Uint8List bytes,
+    required String pose, // 'thumbs_up' or 'wave'
+  }) async {
+    final userId = currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+
+    final fileName = '${pose}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final path = '$userId/$fileName';
+
+    await _client.storage
+        .from(SupabaseConfig.verificationsBucket)
+        .uploadBinary(path, bytes, fileOptions: const FileOptions(contentType: 'image/jpeg'));
+
+    // Get signed URL for private bucket (valid for 1 hour)
+    final signedUrl = await _client.storage
+        .from(SupabaseConfig.verificationsBucket)
+        .createSignedUrl(path, 3600);
+
+    return signedUrl;
+  }
+
+  /// Get current verification request status
+  Future<Map<String, dynamic>?> getVerificationRequest() async {
+    final userId = currentUser?.id;
+    if (userId == null) return null;
+
+    final response = await _client
+        .from(SupabaseConfig.verificationRequestsTable)
+        .select()
+        .eq('user_id', userId)
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    return response;
+  }
+
+  /// Submit verification request via Edge Function
+  Future<Map<String, dynamic>> submitVerification({
+    required String photoThumbsUp,
+    required String photoWave,
+    String? referencePhoto,
+  }) async {
+    final session = currentSession;
+    if (session == null) throw Exception('Not authenticated');
+
+    final response = await _client.functions.invoke(
+      'submit-verification',
+      body: {
+        'photo_thumbs_up': photoThumbsUp,
+        'photo_wave': photoWave,
+        'reference_photo': referencePhoto,
+      },
+      headers: {
+        'Authorization': 'Bearer ${session.accessToken}',
+      },
+    );
+
+    if (response.status != 200) {
+      final error = response.data['error'] ?? 'Unknown error';
+      throw Exception(error);
+    }
+
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Watch verification request status changes (realtime)
+  Stream<Map<String, dynamic>?> watchVerificationStatus() {
+    final userId = currentUser?.id;
+    if (userId == null) return Stream.value(null);
+
+    return _client
+        .from(SupabaseConfig.verificationRequestsTable)
+        .stream(primaryKey: ['id'])
+        .eq('user_id', userId)
+        .order('created_at', ascending: false)
+        .limit(1)
+        .map((list) => list.isNotEmpty ? list.first : null);
+  }
+
   /// Get default albums for user (creates if not exists)
   Future<Map<String, Map<String, dynamic>>> getOrCreateDefaultAlbums() async {
     final userId = currentUser?.id;
@@ -1695,6 +2242,483 @@ class SupabaseService {
       'public': publicAlbum,
       'private': privateAlbum,
     };
+  }
+
+  // ===================
+  // GDPR OPERATIONS
+  // ===================
+
+  /// Export all user data (GDPR Article 15 & 20)
+  Future<Map<String, dynamic>> exportUserData() async {
+    final session = currentSession;
+    if (session == null) throw Exception('Not authenticated');
+
+    final response = await _client.functions.invoke(
+      'gdpr-export',
+      headers: {
+        'Authorization': 'Bearer ${session.accessToken}',
+      },
+    );
+
+    if (response.status != 200) {
+      final error = response.data['error'] ?? 'Failed to export data';
+      throw Exception(error);
+    }
+
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Delete account and all data (GDPR Article 17)
+  Future<Map<String, dynamic>> deleteAccount() async {
+    final session = currentSession;
+    if (session == null) throw Exception('Not authenticated');
+
+    final response = await _client.functions.invoke(
+      'gdpr-delete',
+      headers: {
+        'Authorization': 'Bearer ${session.accessToken}',
+      },
+    );
+
+    if (response.status != 200) {
+      final error = response.data['error'] ?? 'Failed to delete account';
+      throw Exception(error);
+    }
+
+    // Sign out after deletion
+    await signOut();
+
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Get user consents
+  Future<List<Map<String, dynamic>>> getConsents() async {
+    final userId = currentUser?.id;
+    if (userId == null) return [];
+
+    final response = await _client
+        .from('user_consents')
+        .select()
+        .eq('user_id', userId);
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Record user consent
+  Future<void> recordConsent({
+    required String consentType,
+    required bool granted,
+    String policyVersion = '1.0',
+  }) async {
+    final userId = currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+
+    await _client.from('user_consents').upsert(
+      {
+        'user_id': userId,
+        'consent_type': consentType,
+        'granted': granted,
+        'granted_at': granted ? DateTime.now().toIso8601String() : null,
+        'revoked_at': !granted ? DateTime.now().toIso8601String() : null,
+        'policy_version': policyVersion,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      onConflict: 'user_id,consent_type',
+    );
+  }
+
+  /// Record multiple consents at once (for registration)
+  Future<void> recordConsents(Map<String, bool> consents, {String policyVersion = '1.0'}) async {
+    final userId = currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+
+    final now = DateTime.now().toIso8601String();
+
+    for (final entry in consents.entries) {
+      await _client.from('user_consents').upsert(
+        {
+          'user_id': userId,
+          'consent_type': entry.key,
+          'granted': entry.value,
+          'granted_at': entry.value ? now : null,
+          'revoked_at': !entry.value ? now : null,
+          'policy_version': policyVersion,
+          'updated_at': now,
+        },
+        onConflict: 'user_id,consent_type',
+      );
+    }
+  }
+
+  /// Check if user has all required consents
+  Future<bool> hasRequiredConsents() async {
+    final userId = currentUser?.id;
+    if (userId == null) return false;
+
+    final response = await _client
+        .from('user_consents')
+        .select()
+        .eq('user_id', userId)
+        .inFilter('consent_type', [
+          'terms_of_service',
+          'privacy_policy',
+          'data_processing',
+          'age_verification',
+        ])
+        .eq('granted', true);
+
+    return (response as List).length >= 4;
+  }
+
+  // ==========================================
+  // PROFILE OPTIONS (Interests, Fantasies, Occupations)
+  // ==========================================
+
+  /// Get all active interests
+  Future<List<Interest>> getInterests() async {
+    final response = await _client
+        .from('interests')
+        .select()
+        .eq('is_active', true)
+        .order('sort_order');
+
+    return (response as List)
+        .map((e) => Interest.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Get all active fantasies
+  Future<List<Fantasy>> getFantasies() async {
+    final response = await _client
+        .from('fantasies')
+        .select()
+        .eq('is_active', true)
+        .order('sort_order');
+
+    return (response as List)
+        .map((e) => Fantasy.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Get all active occupations
+  Future<List<Occupation>> getOccupations() async {
+    final response = await _client
+        .from('occupations')
+        .select()
+        .eq('is_active', true)
+        .order('sort_order');
+
+    return (response as List)
+        .map((e) => Occupation.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Get user's selected interest IDs
+  Future<List<String>> getUserInterestIds() async {
+    final userId = currentUser?.id;
+    if (userId == null) return [];
+
+    final response = await _client
+        .from('user_interests')
+        .select('interest_id')
+        .eq('user_id', userId);
+
+    return (response as List)
+        .map((e) => e['interest_id'] as String)
+        .toList();
+  }
+
+  /// Get user's selected fantasy IDs
+  Future<List<String>> getUserFantasyIds() async {
+    final userId = currentUser?.id;
+    if (userId == null) return [];
+
+    final response = await _client
+        .from('user_fantasies')
+        .select('fantasy_id')
+        .eq('user_id', userId);
+
+    return (response as List)
+        .map((e) => e['fantasy_id'] as String)
+        .toList();
+  }
+
+  /// Get user's occupation ID
+  Future<String?> getUserOccupationId() async {
+    final userId = currentUser?.id;
+    if (userId == null) return null;
+
+    final response = await _client
+        .from('profiles')
+        .select('occupation_id')
+        .eq('id', userId)
+        .maybeSingle();
+
+    return response?['occupation_id'] as String?;
+  }
+
+  /// Add custom interest
+  Future<Interest?> addCustomInterest(String name) async {
+    final userId = currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+
+    final response = await _client
+        .from('interests')
+        .insert({
+          'name': name,
+          'category': 'Custom',
+          'is_system': false,
+          'created_by': userId,
+        })
+        .select()
+        .single();
+
+    return Interest.fromJson(response as Map<String, dynamic>);
+  }
+
+  /// Add custom fantasy
+  Future<Fantasy?> addCustomFantasy(String name) async {
+    final userId = currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+
+    final response = await _client
+        .from('fantasies')
+        .insert({
+          'name': name,
+          'category': 'Custom',
+          'is_system': false,
+          'created_by': userId,
+        })
+        .select()
+        .single();
+
+    return Fantasy.fromJson(response as Map<String, dynamic>);
+  }
+
+  /// Add custom occupation
+  Future<Occupation?> addCustomOccupation(String name) async {
+    final userId = currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+
+    final response = await _client
+        .from('occupations')
+        .insert({
+          'name': name,
+          'category': 'Custom',
+          'is_system': false,
+          'created_by': userId,
+        })
+        .select()
+        .single();
+
+    return Occupation.fromJson(response as Map<String, dynamic>);
+  }
+
+  /// Update user's selections (interests, fantasies, occupation)
+  Future<void> updateUserSelections({
+    required List<String> interestIds,
+    required List<String> fantasyIds,
+    String? occupationId,
+  }) async {
+    final userId = currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+
+    // Update interests
+    await _client.from('user_interests').delete().eq('user_id', userId);
+    if (interestIds.isNotEmpty) {
+      await _client.from('user_interests').insert(
+        interestIds.map((id) => {
+          'user_id': userId,
+          'interest_id': id,
+        }).toList(),
+      );
+    }
+
+    // Update fantasies
+    await _client.from('user_fantasies').delete().eq('user_id', userId);
+    if (fantasyIds.isNotEmpty) {
+      await _client.from('user_fantasies').insert(
+        fantasyIds.map((id) => {
+          'user_id': userId,
+          'fantasy_id': id,
+        }).toList(),
+      );
+    }
+
+    // Update occupation
+    await _client.from('profiles').update({
+      'occupation_id': occupationId,
+    }).eq('id', userId);
+  }
+
+  /// Get user's interests with full data
+  Future<List<Interest>> getUserInterests(String userId) async {
+    final response = await _client
+        .from('user_interests')
+        .select('interests(*)')
+        .eq('user_id', userId);
+
+    return (response as List)
+        .where((e) => e['interests'] != null)
+        .map((e) => Interest.fromJson(e['interests'] as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Get user's fantasies with full data
+  Future<List<Fantasy>> getUserFantasies(String userId) async {
+    final response = await _client
+        .from('user_fantasies')
+        .select('fantasies(*)')
+        .eq('user_id', userId);
+
+    return (response as List)
+        .where((e) => e['fantasies'] != null)
+        .map((e) => Fantasy.fromJson(e['fantasies'] as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Get occupation by ID
+  Future<Occupation?> getOccupationById(String occupationId) async {
+    final response = await _client
+        .from('occupations')
+        .select()
+        .eq('id', occupationId)
+        .maybeSingle();
+
+    if (response == null) return null;
+    return Occupation.fromJson(response as Map<String, dynamic>);
+  }
+  // ===================
+  // REFERRAL SYSTEM
+  // ===================
+
+  /// Get or create referral code for current user
+  Future<String?> getOrCreateReferralCode() async {
+    final userId = currentUser?.id;
+    if (userId == null) return null;
+
+    try {
+      // First check if user already has a code
+      final existing = await _client
+          .from('referral_codes')
+          .select('code')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (existing != null) {
+        return existing['code'] as String?;
+      }
+
+      // Create new code using database function
+      final response = await _client.rpc(
+        'create_referral_code_for_user',
+        params: {'p_user_id': userId},
+      );
+
+      return response as String?;
+    } catch (e) {
+      print('Error getting/creating referral code: $e');
+      return null;
+    }
+  }
+
+  /// Get referral statistics for current user
+  Future<ReferralStats> getReferralStats() async {
+    final userId = currentUser?.id;
+    if (userId == null) return const ReferralStats();
+
+    try {
+      final response = await _client
+          .from('user_referral_stats')
+          .select()
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (response == null) return const ReferralStats();
+      return ReferralStats.fromJson(response);
+    } catch (e) {
+      print('Error getting referral stats: $e');
+      return const ReferralStats();
+    }
+  }
+
+  /// Get list of referrals made by current user
+  Future<List<ReferralModel>> getUserReferrals() async {
+    final userId = currentUser?.id;
+    if (userId == null) return [];
+
+    try {
+      final response = await _client
+          .from('referrals')
+          .select('*, profiles!referrals_referred_id_fkey(name, avatar_url)')
+          .eq('referrer_id', userId)
+          .order('created_at', ascending: false);
+
+      return (response as List)
+          .map((e) => ReferralModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      print('Error getting user referrals: $e');
+      return [];
+    }
+  }
+
+  /// Apply referral code during registration
+  Future<bool> applyReferralCode(String code) async {
+    final userId = currentUser?.id;
+    if (userId == null) return false;
+
+    try {
+      final response = await _client.rpc(
+        'apply_referral_code',
+        params: {
+          'p_referred_user_id': userId,
+          'p_referral_code': code.toUpperCase(),
+        },
+      );
+
+      return response == true;
+    } catch (e) {
+      print('Error applying referral code: $e');
+      return false;
+    }
+  }
+
+  /// Check if a referral code is valid
+  Future<bool> isReferralCodeValid(String code) async {
+    try {
+      final response = await _client
+          .from('referral_codes')
+          .select('code')
+          .eq('code', code.toUpperCase())
+          .maybeSingle();
+
+      return response != null;
+    } catch (e) {
+      print('Error checking referral code: $e');
+      return false;
+    }
+  }
+
+  /// Get referral rewards for current user
+  Future<List<ReferralReward>> getReferralRewards() async {
+    final userId = currentUser?.id;
+    if (userId == null) return [];
+
+    try {
+      final response = await _client
+          .from('referral_rewards')
+          .select()
+          .eq('user_id', userId)
+          .order('created_at', ascending: false);
+
+      return (response as List)
+          .map((e) => ReferralReward.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      print('Error getting referral rewards: $e');
+      return [];
+    }
   }
 }
 

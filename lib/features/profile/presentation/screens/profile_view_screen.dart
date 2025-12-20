@@ -15,6 +15,7 @@ import '../../../chats/domain/providers/chats_provider.dart';
 import '../../../home/domain/providers/profiles_provider.dart';
 import '../../../home/presentation/widgets/match_dialog.dart';
 import '../../domain/models/user_model.dart';
+import '../../domain/providers/current_profile_provider.dart';
 
 /// Profile view screen (viewing other user's profile)
 class ProfileViewScreen extends ConsumerStatefulWidget {
@@ -248,7 +249,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
                       // Albums section
                       _buildAlbumsSection(user),
 
-                      // Interests
+                      // Interests (with matching indication)
                       if (user.interests.isNotEmpty) ...[
                         Text(
                           'Interests',
@@ -257,11 +258,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
                           ),
                         ),
                         AppSpacing.vGapSm,
-                        FancyChipWrap(
-                          children: user.interests.map((interest) {
-                            return FancyChip(label: interest);
-                          }).toList(),
-                        ),
+                        _buildInterestsTags(user),
                         AppSpacing.vGapXl,
                       ],
 
@@ -1045,6 +1042,36 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
       case ZodiacSign.pisces:
         return 'Pisces';
     }
+  }
+
+  /// Build interests tags with matching indication
+  /// Tags that match the current user's interests are highlighted
+  Widget _buildInterestsTags(UserModel profileUser) {
+    // Get current user's interests for comparison
+    final currentUserAsync = ref.watch(currentProfileProvider);
+    final currentUser = currentUserAsync.valueOrNull;
+    final myInterests = currentUser?.interests ?? [];
+
+    // Sort interests - matching ones first
+    final interests = List<String>.from(profileUser.interests);
+    interests.sort((a, b) {
+      final aMatches = myInterests.contains(a);
+      final bMatches = myInterests.contains(b);
+      if (aMatches && !bMatches) return -1;
+      if (!aMatches && bMatches) return 1;
+      return 0;
+    });
+
+    return FancyChipWrap(
+      children: interests.map((interest) {
+        final isMatching = myInterests.contains(interest);
+        return FancyChip(
+          label: interest,
+          variant: FancyChipVariant.profileTag,
+          isMatching: isMatching,
+        );
+      }).toList(),
+    );
   }
 }
 

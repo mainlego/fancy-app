@@ -32,15 +32,16 @@ class AppTheme {
       // Scaffold
       scaffoldBackgroundColor: AppColors.background,
 
-      // AppBar
+      // AppBar - 44px height with bottom divider
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
+        toolbarHeight: 44,
         titleTextStyle: AppTypography.headlineMedium,
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary, size: 24),
         systemOverlayStyle: SystemUiOverlayStyle.light,
       ),
 

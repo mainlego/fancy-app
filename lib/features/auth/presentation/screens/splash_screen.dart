@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/constants/app_typography.dart';
 
 /// Splash screen with logo animation
 /// Always navigates to login - onboarding shown after first auth
@@ -68,49 +67,26 @@ class _SplashScreenState extends State<SplashScreen>
               opacity: _fadeAnimation.value,
               child: Transform.scale(
                 scale: _scaleAnimation.value,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Logo
-                    Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withOpacity(0.4),
-                            blurRadius: 40,
-                            spreadRadius: 10,
-                          ),
-                        ],
+                child: Container(
+                  width: 200,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withOpacity(0.5),
+                        blurRadius: 60,
+                        spreadRadius: 20,
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: Image.asset(
-                          'assets/images/logo.png',
-                          fit: BoxFit.contain,
-                        ),
-                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(30),
+                    child: Image.asset(
+                      'assets/images/logo.png',
+                      fit: BoxFit.contain,
                     ),
-                    const SizedBox(height: 24),
-                    // App name
-                    Text(
-                      'FANCY',
-                      style: AppTypography.displayLarge.copyWith(
-                        fontSize: 42,
-                        color: AppColors.primary,
-                        letterSpacing: 8,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Find your match',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             );

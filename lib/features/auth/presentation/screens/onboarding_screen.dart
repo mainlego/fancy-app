@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
+import '../../../../core/router/app_router.dart';
 import '../../../../shared/widgets/fancy_button.dart';
+import '../../domain/providers/auth_provider.dart';
 
 /// Onboarding screen with welcome slides
 class OnboardingScreen extends StatefulWidget {
@@ -55,9 +57,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
-  void _finishOnboarding() {
-    // After onboarding, go to home (user is already authenticated)
-    context.go('/');
+  Future<void> _finishOnboarding() async {
+    // Mark onboarding as completed
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(onboardingShownKey, true);
+
+    if (mounted) {
+      // After onboarding, go to profile setup
+      context.goToProfileSetup();
+    }
   }
 
   @override

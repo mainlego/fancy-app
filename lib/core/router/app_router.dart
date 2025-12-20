@@ -18,6 +18,8 @@ import '../../features/settings/presentation/screens/verification_screen.dart';
 import '../../features/settings/presentation/screens/premium_screen.dart';
 import '../../features/filters/presentation/screens/filters_screen.dart';
 import '../../features/albums/presentation/screens/albums_screen.dart';
+import '../../features/referrals/presentation/screens/referral_screen.dart';
+import '../../features/admin/presentation/screens/admin_panel_screen.dart';
 import '../../shared/widgets/main_scaffold.dart';
 
 /// Route names
@@ -36,20 +38,26 @@ abstract class AppRoutes {
   static const String blockedUsers = '/settings/blocked-users';
   static const String verification = '/settings/verification';
   static const String premium = '/settings/premium';
+  static const String referrals = '/settings/referrals';
   static const String filters = '/filters';
   static const String albums = '/albums';
   static const String profileSetup = '/profile-setup';
+  static const String admin = '/admin';
 }
 
 /// Navigation shell key
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
-/// Auth routes that don't require authentication
-const _authRoutes = [
+/// Routes that don't require authentication (pre-login)
+const _preAuthRoutes = [
   AppRoutes.login,
-  AppRoutes.onboarding,
   AppRoutes.splash,
+];
+
+/// Routes that require auth but are part of onboarding flow (post-login, pre-home)
+const _onboardingFlowRoutes = [
+  AppRoutes.onboarding,
   AppRoutes.profileSetup,
 ];
 
@@ -60,19 +68,22 @@ final appRouter = GoRouter(
   redirect: (context, state) {
     final session = Supabase.instance.client.auth.currentSession;
     final isLoggedIn = session != null;
-    final isAuthRoute = _authRoutes.contains(state.matchedLocation);
-    final isProfileSetup = state.matchedLocation == AppRoutes.profileSetup;
+    final isPreAuthRoute = _preAuthRoutes.contains(state.matchedLocation);
+    final isOnboardingFlowRoute = _onboardingFlowRoutes.contains(state.matchedLocation);
 
     // If not logged in and trying to access protected route, go to login
-    if (!isLoggedIn && !isAuthRoute) {
+    if (!isLoggedIn && !isPreAuthRoute) {
       return AppRoutes.login;
     }
 
-    // If logged in and on auth route (except profile setup), go to home
-    // Home screen will check if profile exists and redirect to profile setup if needed
-    if (isLoggedIn && isAuthRoute && !isProfileSetup) {
+    // If logged in and on pre-auth route (login/splash), go to home
+    // Home screen will check if profile exists and redirect to onboarding/profile-setup if needed
+    if (isLoggedIn && isPreAuthRoute) {
       return AppRoutes.home;
     }
+
+    // Allow logged-in users to access onboarding flow routes without redirect
+    // (they need to complete onboarding and profile setup)
 
     // No redirect needed
     return null;
@@ -179,6 +190,11 @@ final appRouter = GoRouter(
       builder: (context, state) => const PremiumScreen(),
     ),
     GoRoute(
+      path: AppRoutes.referrals,
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const ReferralScreen(),
+    ),
+    GoRoute(
       path: AppRoutes.filters,
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const FiltersScreen(),
@@ -187,6 +203,11 @@ final appRouter = GoRouter(
       path: AppRoutes.albums,
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const AlbumsScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.admin,
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const AdminPanelScreen(),
     ),
   ],
 );
@@ -215,7 +236,9 @@ extension NavigationExtension on BuildContext {
   void pushBlockedUsers() => push(AppRoutes.blockedUsers);
   void pushVerification() => push(AppRoutes.verification);
   void pushPremium() => push(AppRoutes.premium);
+  void pushReferrals() => push(AppRoutes.referrals);
   void pushFilters() => push(AppRoutes.filters);
   void pushAlbums() => push(AppRoutes.albums);
   void goToProfileSetup() => go(AppRoutes.profileSetup);
+  void pushAdmin() => push(AppRoutes.admin);
 }

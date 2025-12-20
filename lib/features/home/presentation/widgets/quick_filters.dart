@@ -4,6 +4,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../shared/widgets/fancy_chip.dart';
 import '../../../../shared/widgets/fancy_slider.dart';
+import '../../../filters/domain/providers/filter_provider.dart';
 import '../../../profile/domain/models/user_model.dart';
 import '../../domain/providers/profiles_provider.dart';
 
@@ -80,9 +81,7 @@ class QuickFilters extends ConsumerWidget {
               divisions: 499,
               formatValue: (v) => '${v.round()} km',
               onChanged: (value) {
-                ref.read(filterProvider.notifier).state = filter.copyWith(
-                  distanceKm: value.round(),
-                );
+                ref.read(filterNotifierProvider.notifier).updateDistance(value.round());
               },
             ),
           ),

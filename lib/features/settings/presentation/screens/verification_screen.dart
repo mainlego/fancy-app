@@ -1,23 +1,14 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../shared/widgets/fancy_button.dart';
-
-/// Verification status
-enum VerificationStatus {
-  notStarted,
-  inProgress,
-  pending,
-  verified,
-  rejected,
-}
-
-/// Verification state provider
-final verificationStatusProvider = StateProvider<VerificationStatus>((ref) {
-  return VerificationStatus.notStarted;
-});
+import '../../../profile/domain/providers/current_profile_provider.dart';
+import '../../domain/models/verification_model.dart';
+import '../../domain/providers/verification_provider.dart';
 
 /// Photo verification screen
 class VerificationScreen extends ConsumerStatefulWidget {
@@ -29,32 +20,90 @@ class VerificationScreen extends ConsumerStatefulWidget {
 
 class _VerificationScreenState extends ConsumerState<VerificationScreen> {
   int _currentStep = 0;
+  String? _lastShownError;
+
+  @override
+  void initState() {
+    super.initState();
+    // Refresh verification status on screen load
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(verificationProvider.notifier).refresh();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final status = ref.watch(verificationStatusProvider);
+    final state = ref.watch(verificationProvider);
+
+    // Listen to realtime updates
+    ref.listen<AsyncValue<VerificationRequest?>>(
+      verificationStatusStreamProvider,
+      (previous, next) {
+        next.whenData((request) {
+          if (request != null) {
+            // Update local state when realtime update comes in
+            ref.read(verificationProvider.notifier).refresh();
+
+            // If verification is approved, refresh the current profile to get updated is_verified flag
+            if (request.isApproved) {
+              ref.read(currentProfileProvider.notifier).refresh();
+            }
+          }
+        });
+      },
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Photo Verification'),
       ),
-      body: _buildBody(status),
+      body: _buildBody(state),
     );
   }
 
-  Widget _buildBody(VerificationStatus status) {
-    switch (status) {
+  Widget _buildBody(VerificationState state) {
+    // Show error snackbar only if it's a new error
+    if (state.error != null && state.error != _lastShownError) {
+      _lastShownError = state.error;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(state.error!),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'OK',
+              textColor: Colors.white,
+              onPressed: () {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              },
+            ),
+          ),
+        );
+        ref.read(verificationProvider.notifier).clearError();
+      });
+    } else if (state.error == null) {
+      _lastShownError = null;
+    }
+
+    switch (state.status) {
       case VerificationStatus.notStarted:
         return _buildIntroStep();
-      case VerificationStatus.inProgress:
-        return _buildVerificationSteps();
+      case VerificationStatus.takingPhotos:
+        return _buildVerificationSteps(state);
+      case VerificationStatus.uploading:
+        return _buildUploadingState();
       case VerificationStatus.pending:
-        return _buildPendingState();
-      case VerificationStatus.verified:
+      case VerificationStatus.processing:
+        return _buildPendingState(state);
+      case VerificationStatus.manualReview:
+        return _buildManualReviewState();
+      case VerificationStatus.approved:
         return _buildVerifiedState();
       case VerificationStatus.rejected:
-        return _buildRejectedState();
+        return _buildRejectedState(state);
     }
   }
 
@@ -120,15 +169,17 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
           FancyButton(
             text: 'Start Verification',
             onPressed: () {
-              ref.read(verificationStatusProvider.notifier).state =
-                  VerificationStatus.inProgress;
+              ref.read(verificationProvider.notifier).startVerification();
+              setState(() => _currentStep = 0);
             },
           ),
           AppSpacing.vGapMd,
 
           // Learn more link
           TextButton(
-            onPressed: () {},
+            onPressed: () {
+              _showInfoDialog();
+            },
             child: Text(
               'Learn more about verification',
               style: AppTypography.labelLarge.copyWith(
@@ -160,7 +211,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
     );
   }
 
-  Widget _buildVerificationSteps() {
+  Widget _buildVerificationSteps(VerificationState state) {
     return Column(
       children: [
         // Progress indicator
@@ -173,27 +224,29 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.lg),
-            child: _buildCurrentStep(),
+            child: _buildCurrentStep(state),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildCurrentStep() {
+  Widget _buildCurrentStep(VerificationState state) {
     switch (_currentStep) {
       case 0:
-        return _buildStep1();
+        return _buildStep1(state);
       case 1:
-        return _buildStep2();
+        return _buildStep2(state);
       case 2:
-        return _buildStep3();
+        return _buildStep3(state);
       default:
-        return _buildStep1();
+        return _buildStep1(state);
     }
   }
 
-  Widget _buildStep1() {
+  Widget _buildStep1(VerificationState state) {
+    final hasPhoto = state.hasThumbsUpPhoto;
+
     return Column(
       children: [
         AppSpacing.vGapXl,
@@ -211,7 +264,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
         ),
         AppSpacing.vGapMd,
         Text(
-          'Copy the pose shown in the example photo. Make sure your face is clearly visible.',
+          'Take a selfie showing your face with a thumbs up gesture.',
           style: AppTypography.bodyMedium.copyWith(
             color: AppColors.textSecondary,
           ),
@@ -219,73 +272,52 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
         ),
         AppSpacing.vGapXxl,
 
-        // Example pose container
-        Container(
-          width: double.infinity,
-          height: 300,
-          decoration: BoxDecoration(
-            color: AppColors.surfaceVariant,
-            borderRadius: BorderRadius.zero,
-            border: Border.all(
-              color: AppColors.border,
-              width: 2,
-            ),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.person,
-                size: 100,
-                color: AppColors.textTertiary,
-              ),
-              AppSpacing.vGapMd,
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg,
-                  vertical: AppSpacing.sm,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.verified.withOpacity(0.2),
-                  borderRadius: BorderRadius.zero,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.thumb_up,
-                      color: AppColors.verified,
-                      size: 20,
-                    ),
-                    AppSpacing.hGapSm,
-                    Text(
-                      'Thumbs Up Pose',
-                      style: AppTypography.labelMedium.copyWith(
-                        color: AppColors.verified,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+        // Photo preview or placeholder
+        _buildPhotoContainer(
+          hasPhoto ? state.photoThumbsUpPath : null,
+          Icons.thumb_up,
+          'Thumbs Up Pose',
         ),
         AppSpacing.vGapXxl,
 
-        FancyButton(
-          text: 'Take Photo',
-          icon: Icons.camera_alt,
-          onPressed: () {
-            setState(() {
-              _currentStep = 1;
-            });
-          },
-        ),
+        if (!hasPhoto) ...[
+          FancyButton(
+            text: 'Take Photo',
+            icon: Icons.camera_alt,
+            onPressed: () async {
+              final success = await ref
+                  .read(verificationProvider.notifier)
+                  .takePhoto(PoseType.thumbsUp);
+              if (success && mounted) {
+                setState(() => _currentStep = 1);
+              }
+            },
+          ),
+        ] else ...[
+          FancyButton(
+            text: 'Continue',
+            onPressed: () {
+              setState(() => _currentStep = 1);
+            },
+          ),
+          AppSpacing.vGapMd,
+          FancyButton(
+            text: 'Retake Photo',
+            variant: FancyButtonVariant.outline,
+            onPressed: () {
+              ref
+                  .read(verificationProvider.notifier)
+                  .retakePhoto(PoseType.thumbsUp);
+            },
+          ),
+        ],
       ],
     );
   }
 
-  Widget _buildStep2() {
+  Widget _buildStep2(VerificationState state) {
+    final hasPhoto = state.hasWavePhoto;
+
     return Column(
       children: [
         AppSpacing.vGapXl,
@@ -303,7 +335,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
         ),
         AppSpacing.vGapMd,
         Text(
-          'Now copy this second pose. This helps us verify it\'s really you.',
+          'Now take a selfie while waving your hand. This helps us verify it\'s really you.',
           style: AppTypography.bodyMedium.copyWith(
             color: AppColors.textSecondary,
           ),
@@ -311,83 +343,57 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
         ),
         AppSpacing.vGapXxl,
 
-        // Example pose container
-        Container(
-          width: double.infinity,
-          height: 300,
-          decoration: BoxDecoration(
-            color: AppColors.surfaceVariant,
-            borderRadius: BorderRadius.zero,
-            border: Border.all(
-              color: AppColors.border,
-              width: 2,
-            ),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.person,
-                size: 100,
-                color: AppColors.textTertiary,
-              ),
-              AppSpacing.vGapMd,
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg,
-                  vertical: AppSpacing.sm,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.verified.withOpacity(0.2),
-                  borderRadius: BorderRadius.zero,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.waving_hand,
-                      color: AppColors.verified,
-                      size: 20,
-                    ),
-                    AppSpacing.hGapSm,
-                    Text(
-                      'Wave Pose',
-                      style: AppTypography.labelMedium.copyWith(
-                        color: AppColors.verified,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+        // Photo preview or placeholder
+        _buildPhotoContainer(
+          hasPhoto ? state.photoWavePath : null,
+          Icons.waving_hand,
+          'Wave Pose',
         ),
         AppSpacing.vGapXxl,
 
-        FancyButton(
-          text: 'Take Photo',
-          icon: Icons.camera_alt,
-          onPressed: () {
-            setState(() {
-              _currentStep = 2;
-            });
-          },
-        ),
+        if (!hasPhoto) ...[
+          FancyButton(
+            text: 'Take Photo',
+            icon: Icons.camera_alt,
+            onPressed: () async {
+              final success = await ref
+                  .read(verificationProvider.notifier)
+                  .takePhoto(PoseType.wave);
+              if (success && mounted) {
+                setState(() => _currentStep = 2);
+              }
+            },
+          ),
+        ] else ...[
+          FancyButton(
+            text: 'Continue',
+            onPressed: () {
+              setState(() => _currentStep = 2);
+            },
+          ),
+          AppSpacing.vGapMd,
+          FancyButton(
+            text: 'Retake Photo',
+            variant: FancyButtonVariant.outline,
+            onPressed: () {
+              ref.read(verificationProvider.notifier).retakePhoto(PoseType.wave);
+            },
+          ),
+        ],
+
         AppSpacing.vGapMd,
         FancyButton(
-          text: 'Retake Previous',
+          text: 'Go Back',
           variant: FancyButtonVariant.outline,
           onPressed: () {
-            setState(() {
-              _currentStep = 0;
-            });
+            setState(() => _currentStep = 0);
           },
         ),
       ],
     );
   }
 
-  Widget _buildStep3() {
+  Widget _buildStep3(VerificationState state) {
     return Column(
       children: [
         AppSpacing.vGapXl,
@@ -417,11 +423,19 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
         Row(
           children: [
             Expanded(
-              child: _buildPhotoPreview('Photo 1', Icons.thumb_up),
+              child: _buildPhotoPreview(
+                'Photo 1',
+                Icons.thumb_up,
+                state.photoThumbsUpPath,
+              ),
             ),
             AppSpacing.hGapMd,
             Expanded(
-              child: _buildPhotoPreview('Photo 2', Icons.waving_hand),
+              child: _buildPhotoPreview(
+                'Photo 2',
+                Icons.waving_hand,
+                state.photoWavePath,
+              ),
             ),
           ],
         ),
@@ -430,7 +444,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
         // Terms
         Container(
           padding: const EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: AppColors.surfaceVariant,
             borderRadius: BorderRadius.zero,
           ),
@@ -444,7 +458,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
               AppSpacing.hGapMd,
               Expanded(
                 child: Text(
-                  'Your photos will be reviewed within 24-48 hours. They will not be shown on your profile.',
+                  'Your photos will be processed automatically. They will not be shown on your profile.',
                   style: AppTypography.bodySmall.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -457,9 +471,13 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
 
         FancyButton(
           text: 'Submit for Verification',
-          onPressed: () {
-            ref.read(verificationStatusProvider.notifier).state =
-                VerificationStatus.pending;
+          onPressed: () async {
+            final success = await ref
+                .read(verificationProvider.notifier)
+                .submitVerification();
+            if (!success && mounted) {
+              // Error is handled by state listener
+            }
           },
         ),
         AppSpacing.vGapMd,
@@ -467,16 +485,78 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
           text: 'Retake Photos',
           variant: FancyButtonVariant.outline,
           onPressed: () {
-            setState(() {
-              _currentStep = 0;
-            });
+            ref.read(verificationProvider.notifier).resetPhotos();
+            setState(() => _currentStep = 0);
           },
         ),
       ],
     );
   }
 
-  Widget _buildPhotoPreview(String label, IconData pose) {
+  Widget _buildPhotoContainer(String? photoPath, IconData poseIcon, String poseLabel) {
+    return Container(
+      width: double.infinity,
+      height: 300,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceVariant,
+        borderRadius: BorderRadius.zero,
+        border: Border.all(
+          color: AppColors.border,
+          width: 2,
+        ),
+      ),
+      child: photoPath != null
+          ? ClipRRect(
+              borderRadius: BorderRadius.zero,
+              child: Image.file(
+                File(photoPath),
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
+              ),
+            )
+          : Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.person,
+                  size: 100,
+                  color: AppColors.textTertiary,
+                ),
+                AppSpacing.vGapMd,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.lg,
+                    vertical: AppSpacing.sm,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.verified.withOpacity(0.2),
+                    borderRadius: BorderRadius.zero,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        poseIcon,
+                        color: AppColors.verified,
+                        size: 20,
+                      ),
+                      AppSpacing.hGapSm,
+                      Text(
+                        poseLabel,
+                        style: AppTypography.labelMedium.copyWith(
+                          color: AppColors.verified,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildPhotoPreview(String label, IconData pose, String? photoPath) {
     return Container(
       height: 180,
       decoration: BoxDecoration(
@@ -484,31 +564,114 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
         borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.border),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.check_circle,
-            color: AppColors.verified,
-            size: 40,
-          ),
-          AppSpacing.vGapSm,
-          Text(
-            label,
-            style: AppTypography.labelMedium,
-          ),
-          AppSpacing.vGapXs,
-          Icon(
-            pose,
-            color: AppColors.textTertiary,
-            size: 24,
-          ),
-        ],
+      child: photoPath != null
+          ? Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.zero,
+                  child: Image.file(
+                    File(photoPath),
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                  ),
+                ),
+                Positioned(
+                  bottom: 8,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.verified,
+                        borderRadius: BorderRadius.zero,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.check,
+                            color: AppColors.textPrimary,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            label,
+                            style: AppTypography.labelSmall.copyWith(
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.photo_camera,
+                  color: AppColors.textTertiary,
+                  size: 40,
+                ),
+                AppSpacing.vGapSm,
+                Text(
+                  label,
+                  style: AppTypography.labelMedium,
+                ),
+                AppSpacing.vGapXs,
+                Icon(
+                  pose,
+                  color: AppColors.textTertiary,
+                  size: 24,
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildUploadingState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(
+              width: 80,
+              height: 80,
+              child: CircularProgressIndicator(
+                strokeWidth: 4,
+                valueColor: AlwaysStoppedAnimation(AppColors.verified),
+              ),
+            ),
+            AppSpacing.vGapXxl,
+            Text(
+              'Uploading Photos...',
+              style: AppTypography.headlineMedium,
+              textAlign: TextAlign.center,
+            ),
+            AppSpacing.vGapMd,
+            Text(
+              'Please wait while we upload your verification photos.',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildPendingState() {
+  Widget _buildPendingState(VerificationState state) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -520,25 +683,29 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
               width: 120,
               height: 120,
               decoration: BoxDecoration(
-                color: AppColors.warning.withOpacity(0.15),
+                color: AppColors.primary.withOpacity(0.15),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
-                Icons.hourglass_empty,
+                Icons.face_retouching_natural,
                 size: 60,
-                color: AppColors.warning,
+                color: AppColors.primary,
               ),
             ),
             AppSpacing.vGapXxl,
 
             Text(
-              'Verification Pending',
+              state.status == VerificationStatus.processing
+                  ? 'Processing...'
+                  : 'Verification Pending',
               style: AppTypography.headlineMedium,
               textAlign: TextAlign.center,
             ),
             AppSpacing.vGapMd,
             Text(
-              'Your photos are being reviewed. This usually takes 24-48 hours. We\'ll notify you when it\'s complete.',
+              state.status == VerificationStatus.processing
+                  ? 'AI is analyzing your photos. This usually takes up to 30 seconds.'
+                  : 'Your photos are being verified. You\'ll be notified when it\'s complete.',
               style: AppTypography.bodyMedium.copyWith(
                 color: AppColors.textSecondary,
               ),
@@ -546,14 +713,73 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
             ),
             AppSpacing.vGapXxl,
 
-            // For demo: quick verify button
+            // Show progress indicator
+            const SizedBox(
+              width: 50,
+              height: 50,
+              child: CircularProgressIndicator(
+                strokeWidth: 4,
+                valueColor: AlwaysStoppedAnimation(AppColors.primary),
+              ),
+            ),
+            AppSpacing.vGapXxl,
+
+            // Cancel button
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Close & Wait for Result',
+                style: AppTypography.labelLarge.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildManualReviewState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: AppColors.info.withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.person_search,
+                size: 60,
+                color: AppColors.info,
+              ),
+            ),
+            AppSpacing.vGapXxl,
+
+            Text(
+              'Under Review',
+              style: AppTypography.headlineMedium,
+              textAlign: TextAlign.center,
+            ),
+            AppSpacing.vGapMd,
+            Text(
+              'Your verification requires manual review. This usually takes 24-48 hours. We\'ll notify you when it\'s complete.',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            AppSpacing.vGapXxl,
+
             FancyButton(
-              text: 'Demo: Approve',
-              variant: FancyButtonVariant.outline,
-              onPressed: () {
-                ref.read(verificationStatusProvider.notifier).state =
-                    VerificationStatus.verified;
-              },
+              text: 'Done',
+              onPressed: () => Navigator.pop(context),
             ),
           ],
         ),
@@ -562,6 +788,11 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
   }
 
   Widget _buildVerifiedState() {
+    // Ensure profile is refreshed when showing verified state
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(currentProfileProvider.notifier).refresh();
+    });
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -601,7 +832,11 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
 
             FancyButton(
               text: 'Done',
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                // Refresh profile one more time before closing to ensure is_verified is updated
+                ref.read(currentProfileProvider.notifier).refresh();
+                Navigator.pop(context);
+              },
             ),
           ],
         ),
@@ -609,7 +844,9 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
     );
   }
 
-  Widget _buildRejectedState() {
+  Widget _buildRejectedState(VerificationState state) {
+    final request = state.currentRequest;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -639,7 +876,8 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
             ),
             AppSpacing.vGapMd,
             Text(
-              'We couldn\'t verify your photos. Please make sure your face is clearly visible and matches the poses shown.',
+              request?.rejectionDisplayMessage ??
+                  'We couldn\'t verify your photos. Please try again with clearer photos.',
               style: AppTypography.bodyMedium.copyWith(
                 color: AppColors.textSecondary,
               ),
@@ -650,21 +888,49 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
             FancyButton(
               text: 'Try Again',
               onPressed: () {
-                setState(() {
-                  _currentStep = 0;
-                });
-                ref.read(verificationStatusProvider.notifier).state =
-                    VerificationStatus.notStarted;
+                ref.read(verificationProvider.notifier).tryAgain();
+                setState(() => _currentStep = 0);
               },
             ),
             AppSpacing.vGapMd,
             FancyButton(
-              text: 'Contact Support',
+              text: 'Cancel',
               variant: FancyButtonVariant.outline,
-              onPressed: () {},
+              onPressed: () => Navigator.pop(context),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showInfoDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(
+          'About Verification',
+          style: AppTypography.headlineSmall.copyWith(
+            color: AppColors.textPrimary,
+          ),
+        ),
+        content: Text(
+          'Verification helps build trust in our community. When you verify:\n\n'
+          '• You take 2 selfies with specific poses\n'
+          '• Our AI compares them with your profile photo\n'
+          '• If they match, you get a verified badge\n\n'
+          'Your verification photos are not shown on your profile and are deleted after processing.',
+          style: AppTypography.bodyMedium.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it'),
+          ),
+        ],
       ),
     );
   }

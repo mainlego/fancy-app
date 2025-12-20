@@ -4,12 +4,13 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../../../../core/services/fcm_service.dart';
 
 /// Key for tracking if onboarding was shown (shared with login_screen)
 const String onboardingShownKey = 'onboarding_shown';
 
 /// Web Client ID for Google Sign-In (from Google Cloud Console)
-const String _webClientId = '918196345376-dm97cbi45s3hng0ud0063beroka84blm.apps.googleusercontent.com';
+const String _webClientId = '468089594984-djv76lsgju89d6udgma1amdq6363g3q8.apps.googleusercontent.com';
 
 /// iOS Client ID for Google Sign-In (from Google Cloud Console)
 /// TODO: Replace with your actual iOS Client ID from Google Cloud Console
@@ -68,12 +69,16 @@ class AuthNotifier extends StateNotifier<AuthStateModel> {
         state: AuthState.authenticated,
         user: currentUser,
       );
+      // Save FCM token for already logged-in user
+      if (!kIsWeb) {
+        FcmService().saveTokenToSupabase();
+      }
     } else {
       state = const AuthStateModel(state: AuthState.unauthenticated);
     }
 
     // Listen to auth state changes
-    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+    Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
       final event = data.event;
       final session = data.session;
 
@@ -83,6 +88,12 @@ class AuthNotifier extends StateNotifier<AuthStateModel> {
             state: AuthState.authenticated,
             user: session?.user,
           );
+          // Save FCM token when user signs in (catches OAuth redirects, etc.)
+          if (!kIsWeb && session?.user != null) {
+            // Small delay to ensure auth is fully processed
+            await Future.delayed(const Duration(milliseconds: 500));
+            await FcmService().saveTokenToSupabase();
+          }
           break;
         case AuthChangeEvent.signedOut:
           state = const AuthStateModel(state: AuthState.unauthenticated);
@@ -124,6 +135,10 @@ class AuthNotifier extends StateNotifier<AuthStateModel> {
           state: AuthState.authenticated,
           user: response.user,
         );
+        // Save FCM token after successful registration
+        if (!kIsWeb) {
+          await FcmService().saveTokenToSupabase();
+        }
         return true;
       } else {
         state = const AuthStateModel(
@@ -165,6 +180,10 @@ class AuthNotifier extends StateNotifier<AuthStateModel> {
           state: AuthState.authenticated,
           user: response.user,
         );
+        // Save FCM token after successful login
+        if (!kIsWeb) {
+          await FcmService().saveTokenToSupabase();
+        }
         return true;
       } else {
         state = const AuthStateModel(
@@ -192,11 +211,15 @@ class AuthNotifier extends StateNotifier<AuthStateModel> {
   Future<void> signOut() async {
     state = state.copyWith(state: AuthState.loading);
     try {
+      // Clear FCM token before signing out (for Android)
+      if (!kIsWeb) {
+        await FcmService().clearToken();
+      }
+
       await _supabase.signOut();
 
-      // Reset onboarding flag so new user will see onboarding
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(onboardingShownKey);
+      // Don't reset onboarding flag - it should only show once per device
+      // Onboarding is for first-time app users, not for logout/login cycles
 
       state = const AuthStateModel(state: AuthState.unauthenticated);
     } catch (e) {
@@ -270,6 +293,10 @@ class AuthNotifier extends StateNotifier<AuthStateModel> {
           state: AuthState.authenticated,
           user: response.user,
         );
+        // Save FCM token after successful Google login
+        if (!kIsWeb) {
+          await FcmService().saveTokenToSupabase();
+        }
         return true;
       } else {
         state = const AuthStateModel(

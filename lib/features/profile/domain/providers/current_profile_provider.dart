@@ -94,7 +94,14 @@ class CurrentProfileNotifier extends StateNotifier<AsyncValue<UserModel?>> {
       if (gender != null) updates['gender'] = gender;
       if (datingGoal != null) updates['dating_goal'] = datingGoal.name;
       if (relationshipStatus != null) updates['relationship_status'] = relationshipStatus.name;
-      if (profileType != null) updates['profile_type'] = profileType.name;
+      if (profileType != null) {
+        updates['profile_type'] = profileType.name;
+        // Check if profile type is actually changing and mark the change time
+        final currentProfile = state.valueOrNull;
+        if (currentProfile != null && currentProfile.profileType != profileType && currentProfile.canChangeProfileType) {
+          updates['profile_type_changed_at'] = DateTime.now().toIso8601String();
+        }
+      }
       if (lookingFor != null) updates['looking_for'] = lookingFor.map((e) => e.name).toList();
       if (heightCm != null) updates['height_cm'] = heightCm;
       if (weightKg != null) updates['weight_kg'] = weightKg;
@@ -127,10 +134,16 @@ class CurrentProfileNotifier extends StateNotifier<AsyncValue<UserModel?>> {
     String? bio,
     String? city,
     String? country,
+    double? latitude,
+    double? longitude,
+    List<String>? photos,
   }) async {
     final userId = _supabase.currentUser?.id;
     final email = _supabase.currentUser?.email;
-    if (userId == null) return false;
+    if (userId == null) {
+      print('Error creating profile: userId is null');
+      return false;
+    }
 
     try {
       // Determine profile type based on gender if not provided
@@ -158,7 +171,9 @@ class CurrentProfileNotifier extends StateNotifier<AsyncValue<UserModel?>> {
         'bio': bio,
         'city': city,
         'country': country,
-        'photos': <String>[],
+        'latitude': latitude,
+        'longitude': longitude,
+        'photos': photos ?? <String>[],
         'interests': <String>[],
         'languages': <String>[],
         'is_online': true,
@@ -169,11 +184,13 @@ class CurrentProfileNotifier extends StateNotifier<AsyncValue<UserModel?>> {
         'updated_at': DateTime.now().toIso8601String(),
       };
 
-      await _supabase.createProfile(profileData);
+      print('Creating profile for user: $userId with data: $profileData');
+      await _supabase.createOrUpdateProfile(profileData);
       await loadProfile();
       return true;
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('Error creating profile: $e');
+      print('Stack trace: $stackTrace');
       return false;
     }
   }

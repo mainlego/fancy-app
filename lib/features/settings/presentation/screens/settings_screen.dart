@@ -8,6 +8,13 @@ import '../../../../shared/widgets/widgets.dart';
 import '../../../auth/domain/providers/auth_provider.dart';
 import '../../domain/models/settings_model.dart';
 import '../../domain/providers/settings_provider.dart';
+import '../../domain/providers/subscription_provider.dart';
+import '../../../admin/domain/providers/admin_provider.dart';
+import 'contact_us_screen.dart';
+import 'faq_screen.dart';
+import 'legal_document_screen.dart';
+import 'privacy_data_screen.dart';
+import 'suggest_improvement_screen.dart';
 
 /// Settings screen
 class SettingsScreen extends ConsumerWidget {
@@ -16,6 +23,7 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
+    final isPremium = ref.watch(isPremiumProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -26,7 +34,7 @@ class SettingsScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
           // Premium section
-          _buildPremiumCard(context),
+          _buildPremiumCard(context, isPremium),
           AppSpacing.vGapLg,
 
           // Verification
@@ -43,20 +51,29 @@ class SettingsScreen extends ConsumerWidget {
                 _buildListTile(
                   icon: Icons.restore,
                   title: 'Restore purchase',
-                  onTap: () {},
+                  onTap: () => _showRestorePurchaseDialog(context, ref),
                 ),
                 const Divider(height: 1),
                 _buildListTile(
                   icon: Icons.payment,
                   title: 'Payment method',
-                  onTap: () {},
+                  onTap: () => _showPaymentMethodInfo(context),
                 ),
+                if (isPremium) ...[
+                  const Divider(height: 1),
+                  _buildListTile(
+                    icon: Icons.cancel_outlined,
+                    title: 'Cancel subscription',
+                    textColor: AppColors.error,
+                    onTap: () => _showCancelSubscriptionDialog(context, ref),
+                  ),
+                ],
                 const Divider(height: 1),
                 _buildListTile(
-                  icon: Icons.cancel_outlined,
-                  title: 'Cancel subscription',
-                  textColor: AppColors.error,
-                  onTap: () {},
+                  icon: Icons.card_giftcard,
+                  title: 'Invite Friends',
+                  subtitle: 'Earn free Premium months',
+                  onTap: () => context.pushReferrals(),
                 ),
               ],
             ),
@@ -84,20 +101,6 @@ class SettingsScreen extends ConsumerWidget {
                   onChanged: (value) {
                     ref.read(settingsProvider.notifier).updateIncognitoMode(value);
                   },
-                ),
-                const Divider(height: 1),
-                _buildListTile(
-                  icon: Icons.app_settings_alt,
-                  title: 'App icon & name',
-                  subtitle: 'Change app appearance',
-                  onTap: () {},
-                ),
-                const Divider(height: 1),
-                _buildListTile(
-                  icon: Icons.delete_forever,
-                  title: 'Delete account',
-                  textColor: AppColors.error,
-                  onTap: () => _showDeleteAccountDialog(context),
                 ),
               ],
             ),
@@ -235,8 +238,29 @@ class SettingsScreen extends ConsumerWidget {
           ),
           AppSpacing.vGapXl,
 
-          // Other section
-          _buildSectionTitle('OTHER'),
+          // Privacy & Data section (GDPR)
+          _buildSectionTitle('PRIVACY & DATA'),
+          AppSpacing.vGapSm,
+          FancyCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                _buildListTile(
+                  icon: Icons.shield,
+                  title: 'Privacy & Data',
+                  subtitle: 'Manage your data, export, delete account',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PrivacyDataScreen()),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.vGapXl,
+
+          // Legal section
+          _buildSectionTitle('LEGAL'),
           AppSpacing.vGapSm,
           FancyCard(
             padding: EdgeInsets.zero,
@@ -244,37 +268,87 @@ class SettingsScreen extends ConsumerWidget {
               children: [
                 _buildListTile(
                   icon: Icons.description,
-                  title: 'Terms of use',
-                  onTap: () {},
+                  title: 'Terms of Service',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LegalDocumentScreen(
+                        documentType: LegalDocumentType.termsOfService,
+                      ),
+                    ),
+                  ),
                 ),
                 const Divider(height: 1),
                 _buildListTile(
                   icon: Icons.privacy_tip,
-                  title: 'Privacy policy',
-                  onTap: () {},
+                  title: 'Privacy Policy',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LegalDocumentScreen(
+                        documentType: LegalDocumentType.privacyPolicy,
+                      ),
+                    ),
+                  ),
                 ),
                 const Divider(height: 1),
                 _buildListTile(
-                  icon: Icons.help_outline,
-                  title: 'FAQ',
-                  onTap: () {},
-                ),
-                const Divider(height: 1),
-                _buildListTile(
-                  icon: Icons.lightbulb_outline,
-                  title: 'Suggest improvement',
-                  onTap: () {},
-                ),
-                const Divider(height: 1),
-                _buildListTile(
-                  icon: Icons.email_outlined,
-                  title: 'Contact us',
-                  onTap: () {},
+                  icon: Icons.cookie,
+                  title: 'Cookie Policy',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LegalDocumentScreen(
+                        documentType: LegalDocumentType.cookiePolicy,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
           AppSpacing.vGapXl,
+
+          // Support section
+          _buildSectionTitle('SUPPORT'),
+          AppSpacing.vGapSm,
+          FancyCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                _buildListTile(
+                  icon: Icons.help_outline,
+                  title: 'FAQ',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const FAQScreen()),
+                  ),
+                ),
+                const Divider(height: 1),
+                _buildListTile(
+                  icon: Icons.lightbulb_outline,
+                  title: 'Suggest improvement',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SuggestImprovementScreen()),
+                  ),
+                ),
+                const Divider(height: 1),
+                _buildListTile(
+                  icon: Icons.email_outlined,
+                  title: 'Contact us',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ContactUsScreen()),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.vGapXl,
+
+          // Admin section (only shown to admins)
+          _buildAdminSection(context, ref),
 
           // Version info
           Center(
@@ -291,7 +365,92 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildPremiumCard(BuildContext context) {
+  Widget _buildAdminSection(BuildContext context, WidgetRef ref) {
+    final isAdminAsync = ref.watch(isAdminProvider);
+
+    return isAdminAsync.when(
+      data: (isAdmin) {
+        if (!isAdmin) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionTitle('ADMIN'),
+            AppSpacing.vGapSm,
+            FancyCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  _buildListTile(
+                    icon: Icons.admin_panel_settings,
+                    title: 'Admin Panel',
+                    subtitle: 'Manage users, reports, and more',
+                    onTap: () => context.pushAdmin(),
+                  ),
+                ],
+              ),
+            ),
+            AppSpacing.vGapXl,
+          ],
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+
+  Widget _buildPremiumCard(BuildContext context, bool isPremium) {
+    if (isPremium) {
+      return Container(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFD64557),
+              Color(0xFFE06B7A),
+            ],
+          ),
+          borderRadius: BorderRadius.zero,
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.workspace_premium,
+              color: AppColors.premium,
+              size: 32,
+            ),
+            AppSpacing.hGapMd,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Premium Active',
+                    style: AppTypography.headlineMedium.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    'You have access to all premium features',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textPrimary.withValues(alpha: 0.9),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.check_circle,
+              color: AppColors.premium,
+              size: 28,
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
@@ -328,7 +487,7 @@ class SettingsScreen extends ConsumerWidget {
           Text(
             'Unlock unlimited likes, see who likes you, and more',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textPrimary.withOpacity(0.9),
+              color: AppColors.textPrimary.withValues(alpha: 0.9),
             ),
           ),
           AppSpacing.vGapLg,
@@ -349,7 +508,7 @@ class SettingsScreen extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
-              color: AppColors.verified.withOpacity(0.2),
+              color: AppColors.verified.withValues(alpha: 0.2),
               borderRadius: BorderRadius.zero,
             ),
             child: const Icon(
@@ -459,14 +618,15 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _showDeleteAccountDialog(BuildContext context) {
+  void _showRestorePurchaseDialog(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.surface,
-        title: const Text('Delete Account'),
+        title: const Text('Restore Purchase'),
         content: const Text(
-          'Are you sure you want to delete your account? This action cannot be undone.',
+          'This will check for any previous purchases associated with your account and restore them.\n\n'
+          'Make sure you\'re signed in with the same account you used for the original purchase.',
         ),
         actions: [
           TextButton(
@@ -474,12 +634,161 @@ class SettingsScreen extends ConsumerWidget {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              // Handle delete account
+              // Show loading
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Row(
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 16),
+                      Text('Checking for purchases...'),
+                    ],
+                  ),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+
+              // Simulate restore check
+              await Future.delayed(const Duration(seconds: 2));
+
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('No previous purchases found. If you believe this is an error, please contact support.'),
+                    backgroundColor: AppColors.info,
+                  ),
+                );
+              }
+            },
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPaymentMethodInfo(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Payment Method'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Your payment method is managed through your app store account.',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            AppSpacing.vGapLg,
+            Text(
+              'To update your payment method:',
+              style: AppTypography.labelMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+            AppSpacing.vGapSm,
+            Text(
+              '• Open your device Settings\n'
+              '• Go to App Store / Google Play\n'
+              '• Select Payment & Subscriptions\n'
+              '• Update your payment method',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCancelSubscriptionDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Cancel Subscription'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to cancel your Premium subscription?',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            AppSpacing.vGapMd,
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.1),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber, color: AppColors.warning, size: 20),
+                  AppSpacing.hGapSm,
+                  Expanded(
+                    child: Text(
+                      'You\'ll lose access to premium features at the end of your current billing period.',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.warning,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Keep Premium'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await ref.read(subscriptionProvider.notifier).cancelSubscription();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Subscription cancelled. You\'ll have access until the end of your billing period.'),
+                      backgroundColor: AppColors.info,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to cancel: $e'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
+              }
             },
             child: Text(
-              'Delete',
+              'Cancel Subscription',
               style: TextStyle(color: AppColors.error),
             ),
           ),

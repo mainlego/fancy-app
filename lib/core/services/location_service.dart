@@ -85,14 +85,27 @@ class LocationService {
     }
   }
 
-  /// Get and save user location to profile
+  /// Get and save user location to profile with city detection
   Future<LocationData?> updateUserLocation() async {
     final position = await getCurrentPosition();
     if (position == null) return null;
 
+    // Reverse geocode to get city and country
+    String? city;
+    String? country;
+    try {
+      final geoData = await reverseGeocodeWithCountry(position.latitude, position.longitude);
+      city = geoData['city'];
+      country = geoData['country'];
+    } catch (e) {
+      debugPrint('Error reverse geocoding: $e');
+    }
+
     final locationData = LocationData(
       latitude: position.latitude,
       longitude: position.longitude,
+      city: city,
+      country: country,
     );
 
     // Save to local storage
@@ -104,6 +117,8 @@ class LocationService {
       await _supabase.updateProfile(userId, {
         'latitude': position.latitude,
         'longitude': position.longitude,
+        if (city != null) 'city': city,
+        if (country != null) 'country': country,
       });
     }
 
@@ -208,6 +223,13 @@ class LocationService {
   /// Reverse geocode coordinates to get city name (works on web)
   /// Uses OpenStreetMap Nominatim API (free, no API key required)
   Future<String?> reverseGeocode(double latitude, double longitude) async {
+    final data = await reverseGeocodeWithCountry(latitude, longitude);
+    return data['city'];
+  }
+
+  /// Reverse geocode coordinates to get city and country
+  /// Uses OpenStreetMap Nominatim API (free, no API key required)
+  Future<Map<String, String?>> reverseGeocodeWithCountry(double latitude, double longitude) async {
     try {
       final url = Uri.parse(
         'https://nominatim.openstreetmap.org/reverse?lat=$latitude&lon=$longitude&format=json&accept-language=en',
@@ -225,22 +247,52 @@ class LocationService {
         final address = data['address'] as Map<String, dynamic>?;
 
         if (address != null) {
-          // Try to get city name from various fields
+          // Try to get city name from various fields (priority order)
           final city = address['city'] ??
               address['town'] ??
               address['village'] ??
               address['municipality'] ??
               address['county'] ??
+              address['state_district'] ??
               address['state'];
 
-          return city?.toString();
+          final country = address['country'];
+
+          return {
+            'city': city?.toString(),
+            'country': country?.toString(),
+          };
         }
       }
-      return null;
+      return {'city': null, 'country': null};
     } catch (e) {
       debugPrint('Reverse geocoding error: $e');
-      return null;
+      return {'city': null, 'country': null};
     }
+  }
+
+  /// Get location and city without saving to profile
+  /// Useful for one-time location detection
+  Future<LocationData?> getLocationWithCity() async {
+    final position = await getCurrentPosition();
+    if (position == null) return null;
+
+    String? city;
+    String? country;
+    try {
+      final geoData = await reverseGeocodeWithCountry(position.latitude, position.longitude);
+      city = geoData['city'];
+      country = geoData['country'];
+    } catch (e) {
+      debugPrint('Error reverse geocoding: $e');
+    }
+
+    return LocationData(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      city: city,
+      country: country,
+    );
   }
 }
 
@@ -257,7 +309,32 @@ final userLocationProvider = FutureProvider<LocationData?>((ref) async {
   // Try to get saved location first
   var location = await locationService.getSavedLocation();
 
-  // If no saved location, try to get current
+  // If saved location has no city, try to geocode it
+  if (location != null && location.city == null) {
+    try {
+      final geoData = await locationService.reverseGeocodeWithCountry(
+        location.latitude,
+        location.longitude,
+      );
+      if (geoData['city'] != null) {
+        location = LocationData(
+          latitude: location.latitude,
+          longitude: location.longitude,
+          city: geoData['city'],
+          country: geoData['country'],
+        );
+        // Save updated location with city
+        await locationService.updateLocationWithCity(
+          geoData['city']!,
+          geoData['country'] ?? '',
+        );
+      }
+    } catch (e) {
+      debugPrint('Error geocoding saved location: $e');
+    }
+  }
+
+  // If no saved location, try to get current with city
   if (location == null) {
     location = await locationService.updateUserLocation();
   }

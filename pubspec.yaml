@@ -1,7 +1,7 @@
 name: fancy_app
 description: FANCY Dating App - Find your match
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.5+6
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -46,7 +46,7 @@ dependencies:
   image_picker: ^1.1.2
   photo_view: ^0.15.0
   video_player: ^2.9.2
-  record: ^5.1.2
+  record: ^5.2.0
   just_audio: ^0.9.40
   path_provider: ^2.1.4
   permission_handler: ^11.3.1
@@ -59,8 +59,16 @@ dependencies:
   geolocator: ^13.0.2
   geocoding: ^3.0.0
 
-  # Notifications (for web)
-  # Using browser APIs directly for PWA notifications
+  # Notifications
+  flutter_local_notifications: ^18.0.1
+
+  # Firebase
+  firebase_core: ^3.8.1
+  firebase_messaging: ^15.1.6
+  share_plus: ^12.0.1
+
+  # In-App Purchases
+  in_app_purchase: ^3.2.0
 
 dev_dependencies:
   flutter_test:
@@ -69,6 +77,19 @@ dev_dependencies:
   riverpod_generator: ^2.4.0
   build_runner: ^2.4.9
   riverpod_lint: ^2.3.10
+  flutter_launcher_icons: ^0.14.3
+
+dependency_overrides:
+  record_linux: ^1.0.0
+
+# App icon configuration
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/images/logo.png"
+  adaptive_icon_background: "#D64557"
+  adaptive_icon_foreground: "assets/images/logo.png"
+  min_sdk_android: 21
 
 flutter:
   uses-material-design: true

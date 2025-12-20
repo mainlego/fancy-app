@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
@@ -7,16 +8,51 @@ import '../../../../core/router/app_router.dart';
 import '../../../../shared/widgets/widgets.dart';
 import '../../../profile/domain/models/user_model.dart';
 import '../../../profile/domain/providers/current_profile_provider.dart';
+import '../../../auth/domain/providers/auth_provider.dart';
 import '../../domain/providers/profiles_provider.dart';
 import '../widgets/home_header.dart';
 import '../widgets/match_dialog.dart';
 
 /// Home screen with profile cards feed
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  bool _isCheckingOnboarding = true;
+  bool _needsOnboarding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkOnboardingStatus();
+  }
+
+  Future<void> _checkOnboardingStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final onboardingCompleted = prefs.getBool(onboardingShownKey) ?? false;
+
+    if (mounted) {
+      setState(() {
+        _needsOnboarding = !onboardingCompleted;
+        _isCheckingOnboarding = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // First check onboarding status
+    if (_isCheckingOnboarding) {
+      return const Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     // Check if user needs to complete profile setup
     final currentProfileAsync = ref.watch(currentProfileProvider);
 
@@ -44,12 +80,19 @@ class HomeScreen extends ConsumerWidget {
         ),
       ),
       data: (currentProfile) {
-        // If no profile exists, redirect to profile setup
+        // If no profile exists, check onboarding flow
         if (currentProfile == null) {
           // Schedule navigation after build
-          WidgetsBinding.instance.addPostFrameCallback((_) {
+          WidgetsBinding.instance.addPostFrameCallback((_) async {
             if (context.mounted) {
-              context.goToProfileSetup();
+              if (_needsOnboarding) {
+                // New user - show onboarding first, then profile setup
+                context.goToOnboarding();
+              } else {
+                // Returning user without profile (shouldn't happen normally)
+                // Go directly to profile setup
+                context.goToProfileSetup();
+              }
             }
           });
           return const Scaffold(
@@ -175,7 +218,8 @@ class HomeScreen extends ConsumerWidget {
         // Mobile: single column list with swipeable cards
         if (deviceType == DeviceType.mobile) {
           return ListView.builder(
-            padding: const EdgeInsets.all(AppSpacing.lg),
+            // No padding - card stretches 100% width
+            padding: EdgeInsets.zero,
             itemCount: profiles.length,
             itemBuilder: (context, index) {
               return Padding(

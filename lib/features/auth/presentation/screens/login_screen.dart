@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/config/supabase_config.dart';
+import '../../../settings/presentation/screens/legal_document_screen.dart';
 import '../../domain/providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -146,44 +148,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   Future<void> _navigateAfterAuth() async {
-    final prefs = await SharedPreferences.getInstance();
-    final onboardingShown = prefs.getBool(onboardingShownKey) ?? false;
-
     if (!mounted) return;
 
-    // Check if user already has a profile in database
-    // If profile exists, user is not new - skip onboarding
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    bool hasExistingProfile = false;
-
-    if (userId != null) {
-      try {
-        final response = await Supabase.instance.client
-            .from(SupabaseConfig.profilesTable)
-            .select('id')
-            .eq('id', userId)
-            .maybeSingle();
-        hasExistingProfile = response != null;
-      } catch (e) {
-        // If error checking profile, assume no profile
-        hasExistingProfile = false;
-      }
-    }
-
-    if (!mounted) return;
-
-    if (!onboardingShown && !hasExistingProfile) {
-      // First time auth and no profile - show onboarding
-      await prefs.setBool(onboardingShownKey, true);
-      context.go('/onboarding');
-    } else {
-      // Already seen onboarding OR has existing profile - go to home
-      // Also mark onboarding as shown if they have a profile
-      if (hasExistingProfile && !onboardingShown) {
-        await prefs.setBool(onboardingShownKey, true);
-      }
-      context.go(AppRoutes.home);
-    }
+    // Always go to home after successful auth
+    // HomeScreen will check profile and onboarding status and redirect appropriately
+    context.go(AppRoutes.home);
   }
 
   void _toggleMode() {
@@ -628,33 +597,53 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: GestureDetector(
-            onTap: () => setState(() => _agreeToTerms = !_agreeToTerms),
-            child: RichText(
-              text: TextSpan(
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.white.withValues(alpha: 0.6),
-                ),
-                children: const [
-                  TextSpan(text: 'I agree to the '),
-                  TextSpan(
-                    text: 'Terms of Service',
-                    style: TextStyle(
-                      color: AppColors.primary,
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
-                  TextSpan(text: ' and '),
-                  TextSpan(
-                    text: 'Privacy Policy',
-                    style: TextStyle(
-                      color: AppColors.primary,
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
-                ],
+          child: RichText(
+            text: TextSpan(
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.white.withValues(alpha: 0.6),
               ),
+              children: [
+                const TextSpan(text: 'I agree to the '),
+                TextSpan(
+                  text: 'Terms of Service',
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    decoration: TextDecoration.underline,
+                  ),
+                  recognizer: TapGestureRecognizer()
+                    ..onTap = () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const LegalDocumentScreen(
+                            documentType: LegalDocumentType.termsOfService,
+                          ),
+                        ),
+                      );
+                    },
+                ),
+                const TextSpan(text: ' and '),
+                TextSpan(
+                  text: 'Privacy Policy',
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    decoration: TextDecoration.underline,
+                  ),
+                  recognizer: TapGestureRecognizer()
+                    ..onTap = () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const LegalDocumentScreen(
+                            documentType: LegalDocumentType.privacyPolicy,
+                          ),
+                        ),
+                      );
+                    },
+                ),
+                const TextSpan(text: ', and confirm I am 18+'),
+              ],
             ),
           ),
         ),

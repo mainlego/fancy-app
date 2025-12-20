@@ -15,6 +15,7 @@ abstract class SupabaseConfig {
   static const String photosBucket = 'photos';
   static const String albumsBucket = 'albums';
   static const String chatMediaBucket = 'chat_media';
+  static const String verificationsBucket = 'verifications';
 
   /// Table names
   static const String usersTable = 'users';
@@ -36,4 +37,6 @@ abstract class SupabaseConfig {
   static const String aiMessagesTable = 'ai_messages';
   static const String userReportsTable = 'user_reports';
   static const String userBansTable = 'user_bans';
+  static const String verificationRequestsTable = 'verification_requests';
+  static const String hiddenUsersTable = 'hidden_users';
 }

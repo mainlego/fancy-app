@@ -1,11 +1,16 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/services/location_service.dart';
+import '../../../../core/services/supabase_service.dart';
 import '../../../profile/domain/models/user_model.dart';
 import '../../../profile/domain/providers/current_profile_provider.dart';
 
@@ -28,9 +33,16 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   String? _gender;
   DatingGoal? _datingGoal;
   String? _city;
+  double? _latitude;
+  double? _longitude;
   final _bioController = TextEditingController();
   final _cityController = TextEditingController();
   bool _isDetectingLocation = false;
+
+  // Photo upload
+  XFile? _selectedPhoto;
+  Uint8List? _selectedPhotoBytes;
+  bool _isUploadingPhoto = false;
 
   @override
   void dispose() {
@@ -51,6 +63,10 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
         return _gender != null;
       case 3:
         return _datingGoal != null;
+      case 4:
+        return true; // Bio is optional
+      case 5:
+        return _selectedPhoto != null; // Photo is required
       default:
         return true;
     }
@@ -67,7 +83,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   }
 
   void _nextStep() {
-    if (_currentStep < 4) {
+    if (_currentStep < 5) {
       setState(() => _currentStep++);
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
@@ -89,32 +105,62 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   }
 
   Future<void> _completeSetup() async {
-    if (_birthDate == null || _gender == null || _datingGoal == null) return;
+    if (_birthDate == null || _gender == null || _datingGoal == null || _selectedPhoto == null) return;
 
     setState(() => _isLoading = true);
 
-    final notifier = ref.read(currentProfileProvider.notifier);
-    final success = await notifier.createProfile(
-      name: _nameController.text.trim(),
-      birthDate: _birthDate!,
-      gender: _gender!,
-      datingGoal: _datingGoal!,
-      bio: _bioController.text.trim().isNotEmpty ? _bioController.text.trim() : null,
-      city: _city,
-    );
+    try {
+      // First upload the photo
+      String? photoUrl;
+      if (_selectedPhotoBytes != null) {
+        final supabase = ref.read(supabaseServiceProvider);
+        final userId = supabase.currentUser?.id;
+        if (userId != null) {
+          final fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          photoUrl = await supabase.uploadProfilePhoto(
+            userId: userId,
+            fileName: fileName,
+            bytes: _selectedPhotoBytes!,
+          );
+        }
+      }
 
-    setState(() => _isLoading = false);
-
-    if (success && mounted) {
-      // Navigate to home after profile setup
-      context.goToHome();
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to create profile. Please try again.'),
-          backgroundColor: AppColors.error,
-        ),
+      final notifier = ref.read(currentProfileProvider.notifier);
+      final success = await notifier.createProfile(
+        name: _nameController.text.trim(),
+        birthDate: _birthDate!,
+        gender: _gender!,
+        datingGoal: _datingGoal!,
+        bio: _bioController.text.trim().isNotEmpty ? _bioController.text.trim() : null,
+        city: _city,
+        latitude: _latitude,
+        longitude: _longitude,
+        photos: photoUrl != null ? [photoUrl] : null,
       );
+
+      setState(() => _isLoading = false);
+
+      if (success && mounted) {
+        // Navigate to home after profile setup
+        context.goToHome();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to create profile. Please try again.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
     }
   }
 
@@ -133,7 +179,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
               )
             : null,
         title: Text(
-          'Step ${_currentStep + 1} of 5',
+          'Step ${_currentStep + 1} of 6',
           style: AppTypography.titleSmall.copyWith(
             color: AppColors.textSecondary,
           ),
@@ -147,7 +193,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
               child: LinearProgressIndicator(
-                value: (_currentStep + 1) / 5,
+                value: (_currentStep + 1) / 6,
                 backgroundColor: AppColors.surfaceVariant,
                 valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
                 borderRadius: BorderRadius.zero,
@@ -166,6 +212,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                   _buildGenderStep(),
                   _buildDatingGoalStep(),
                   _buildBioStep(),
+                  _buildPhotoStep(),
                 ],
               ),
             ),
@@ -199,7 +246,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                           ),
                         )
                       : Text(
-                          _currentStep < 4 ? 'Continue' : 'Complete',
+                          _currentStep < 5 ? 'Continue' : 'Complete',
                           style: AppTypography.titleMedium.copyWith(
                             color: Colors.white,
                           ),
@@ -380,12 +427,12 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'What is your gender?',
+            'Select your type of profile',
             style: AppTypography.displaySmall,
           ),
           AppSpacing.vGapSm,
           Text(
-            'Choose how you identify',
+            'Choose how you want to appear',
             style: AppTypography.bodyMedium.copyWith(
               color: AppColors.textSecondary,
             ),
@@ -468,7 +515,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
           AppSpacing.vGapMd,
           _buildGoalOption(DatingGoal.virtual, 'Virtual connection', Icons.chat),
           AppSpacing.vGapMd,
-          _buildGoalOption(DatingGoal.anything, 'Still figuring it out', Icons.explore),
+          _buildGoalOption(DatingGoal.anything, 'Anything', Icons.explore),
         ],
       ),
     );
@@ -619,6 +666,12 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       final position = await locationService.getCurrentPosition();
 
       if (position != null) {
+        // Save coordinates
+        setState(() {
+          _latitude = position.latitude;
+          _longitude = position.longitude;
+        });
+
         // Reverse geocode to get city name using web-compatible API
         final cityName = await locationService.reverseGeocode(
           position.latitude,
@@ -659,6 +712,165 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     } finally {
       if (mounted) {
         setState(() => _isDetectingLocation = false);
+      }
+    }
+  }
+
+  Widget _buildPhotoStep() {
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Add your photo',
+            style: AppTypography.displaySmall,
+          ),
+          AppSpacing.vGapSm,
+          Text(
+            'This will be your profile picture',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          AppSpacing.vGapXl,
+          Center(
+            child: GestureDetector(
+              onTap: _isUploadingPhoto ? null : _pickPhoto,
+              child: Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceVariant,
+                  borderRadius: BorderRadius.zero,
+                  border: Border.all(
+                    color: _selectedPhoto != null ? AppColors.primary : AppColors.divider,
+                    width: 2,
+                  ),
+                ),
+                child: _isUploadingPhoto
+                    ? const Center(
+                        child: CircularProgressIndicator(),
+                      )
+                    : _selectedPhotoBytes != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.zero,
+                            child: Image.memory(
+                              _selectedPhotoBytes!,
+                              width: 200,
+                              height: 200,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.add_a_photo,
+                                size: 48,
+                                color: AppColors.textSecondary,
+                              ),
+                              AppSpacing.vGapMd,
+                              Text(
+                                'Tap to add photo',
+                                style: AppTypography.bodyMedium.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+              ),
+            ),
+          ),
+          AppSpacing.vGapLg,
+          if (_selectedPhoto != null)
+            Center(
+              child: TextButton.icon(
+                onPressed: _pickPhoto,
+                icon: const Icon(Icons.refresh, color: AppColors.primary),
+                label: Text(
+                  'Change photo',
+                  style: AppTypography.labelLarge.copyWith(
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickPhoto() async {
+    final picker = ImagePicker();
+
+    // Show source selection dialog
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.zero,
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.textTertiary,
+                borderRadius: BorderRadius.zero,
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: AppColors.primary),
+              title: const Text('Choose from gallery'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: AppColors.primary),
+              title: const Text('Take a photo'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            AppSpacing.vGapLg,
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    setState(() => _isUploadingPhoto = true);
+
+    try {
+      final XFile? image = await picker.pickImage(
+        source: source,
+        maxWidth: 1080,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        setState(() {
+          _selectedPhoto = image;
+          _selectedPhotoBytes = bytes;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to pick photo: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingPhoto = false);
       }
     }
   }

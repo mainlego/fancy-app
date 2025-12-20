@@ -312,10 +312,12 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                       message: message,
                       isMe: isMe,
                       participantAvatarUrl: currentChat.participantAvatarUrl,
+                      participantName: currentChat.participantName,
                       onPrivateMediaViewed: () {
                         // Refresh messages to update the viewed state
                         ref.invalidate(messagesNotifierProvider(actualChatId));
                       },
+                      onDelete: (deleteForBoth) => _deleteMessage(message.id, deleteForBoth, actualChatId),
                     );
                   },
                 );
@@ -335,7 +337,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
 
   Widget _buildInputBar() {
     return Container(
-      height: 56 + MediaQuery.of(context).padding.bottom,
+      height: 44 + MediaQuery.of(context).padding.bottom,
       padding: EdgeInsets.only(
         left: AppSpacing.lg,
         right: AppSpacing.lg,
@@ -364,7 +366,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
               // Text field - takes remaining width
               Expanded(
                 child: SizedBox(
-                  height: 40,
+                  height: 28,
                   child: Focus(
                     focusNode: _focusNode,
                     onKeyEvent: _handleKeyEvent,
@@ -392,7 +394,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                         ),
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 12,
-                          vertical: 10,
+                          vertical: 5,
                         ),
                         isDense: true,
                       ),
@@ -661,9 +663,18 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       String contentType;
 
       if (kIsWeb) {
-        // On web, the filePath is a blob URL - fetch the data via HTTP
-        final response = await http.get(Uri.parse(result.filePath));
-        bytes = response.bodyBytes;
+        // On web, use webBytes if available, otherwise try HTTP fetch
+        if (result.webBytes != null) {
+          bytes = result.webBytes!;
+        } else {
+          // Fallback: try to fetch blob URL via HTTP (may not work for all blob URLs)
+          try {
+            final response = await http.get(Uri.parse(result.filePath));
+            bytes = response.bodyBytes;
+          } catch (e) {
+            throw Exception('Failed to get audio data on web: $e');
+          }
+        }
         fileName = 'voice_${DateTime.now().millisecondsSinceEpoch}.webm';
         contentType = 'audio/webm';
       } else {
@@ -811,6 +822,26 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
               onTap: () {
                 Navigator.pop(context);
                 _showBlockConfirmation(participantId);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.visibility_off, color: AppColors.textSecondary),
+              title: const Text('Hide user'),
+              subtitle: Text(
+                'They won\'t appear in your discovery',
+                style: AppTypography.bodySmall.copyWith(color: AppColors.textTertiary),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _showHideConfirmation(participantId);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.heart_broken_outlined, color: AppColors.warning),
+              title: const Text('Unmatch'),
+              onTap: () {
+                Navigator.pop(context);
+                _showUnmatchConfirmation(participantId);
               },
             ),
             ListTile(
@@ -982,6 +1013,160 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     }
   }
 
+  void _showHideConfirmation(String userId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(
+          'Hide User',
+          style: AppTypography.headlineSmall.copyWith(color: AppColors.textPrimary),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to hide this user?',
+              style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+            ),
+            AppSpacing.vGapMd,
+            Text(
+              'They won\'t appear in your discovery feed anymore, but they can still see your profile and send you messages.',
+              style: AppTypography.bodySmall.copyWith(color: AppColors.textTertiary),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _hideUser(userId);
+            },
+            child: const Text('Hide'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _hideUser(String userId) async {
+    try {
+      final supabase = ref.read(supabaseServiceProvider);
+      await supabase.hideUser(userId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('User hidden from your discovery'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to hide user: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showUnmatchConfirmation(String participantId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(
+          'Unmatch',
+          style: AppTypography.headlineSmall.copyWith(color: AppColors.textPrimary),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to unmatch?',
+              style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+            ),
+            AppSpacing.vGapMd,
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.1),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber, color: AppColors.warning, size: 20),
+                  AppSpacing.hGapSm,
+                  Expanded(
+                    child: Text(
+                      'This will remove your match and delete all messages. You won\'t be able to chat anymore unless you match again.',
+                      style: AppTypography.bodySmall.copyWith(color: AppColors.warning),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _unmatch(participantId);
+            },
+            child: const Text('Unmatch', style: TextStyle(color: AppColors.warning)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _unmatch(String participantId) async {
+    try {
+      final supabase = ref.read(supabaseServiceProvider);
+      final chatId = _actualChatId ?? widget.chatId;
+
+      // Delete the chat (which also removes match relationship)
+      await supabase.deleteChat(chatId);
+
+      // Refresh chats list
+      ref.read(chatsNotifierProvider.notifier).refresh();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('You have unmatched'),
+            backgroundColor: AppColors.textSecondary,
+          ),
+        );
+        Navigator.pop(context); // Go back to chats list
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to unmatch: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
   void _showDeleteChatConfirmation() {
     showDialog(
       context: context,
@@ -1041,6 +1226,32 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       }
     }
   }
+
+  Future<void> _deleteMessage(String messageId, bool deleteForBoth, String chatId) async {
+    try {
+      final messagesNotifier = ref.read(messagesNotifierProvider(chatId).notifier);
+      await messagesNotifier.deleteMessage(messageId, deleteForBoth: deleteForBoth);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(deleteForBoth ? 'Message deleted for everyone' : 'Message deleted'),
+            backgroundColor: AppColors.textSecondary,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete message: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
 }
 
 /// Message bubble colors per Figma design
@@ -1055,17 +1266,23 @@ class _MessageBubble extends StatelessWidget {
   final bool isMe;
   final String? participantAvatarUrl;
   final VoidCallback? onPrivateMediaViewed;
+  final void Function(bool deleteForBoth)? onDelete;
+  final String? participantName;
 
   const _MessageBubble({
     required this.message,
     required this.isMe,
     this.participantAvatarUrl,
     this.onPrivateMediaViewed,
+    this.onDelete,
+    this.participantName,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return GestureDetector(
+      onLongPress: () => _showDeleteDialog(context),
+      child: Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Row(
         mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
@@ -1137,6 +1354,109 @@ class _MessageBubble extends StatelessWidget {
             ),
           ),
         ],
+      ),
+      ),
+    );
+  }
+
+  void _showDeleteDialog(BuildContext context) {
+    if (onDelete == null) return;
+
+    bool deleteForBoth = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => Dialog(
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          child: Container(
+            width: 190,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Delete this message?',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    height: 18 / 14,
+                    letterSpacing: -0.28,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Checkbox for deleting for both
+                GestureDetector(
+                  onTap: () => setState(() => deleteForBoth = !deleteForBoth),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: Checkbox(
+                          value: deleteForBoth,
+                          onChanged: (value) => setState(() => deleteForBoth = value ?? false),
+                          activeColor: AppColors.primary,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                          side: BorderSide(color: AppColors.textSecondary),
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Also delete for ${participantName ?? 'them'}',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 14,
+                            height: 18 / 14,
+                            letterSpacing: -0.28,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 14,
+                          height: 18 / 14,
+                          letterSpacing: -0.28,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                        onDelete!(deleteForBoth);
+                      },
+                      child: Text(
+                        'Delete',
+                        style: TextStyle(
+                          color: AppColors.error,
+                          fontSize: 14,
+                          height: 18 / 14,
+                          letterSpacing: -0.28,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
