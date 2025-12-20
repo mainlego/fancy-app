@@ -16,41 +16,46 @@ class _AdminVerificationsScreenState extends ConsumerState<AdminVerificationsScr
   @override
   Widget build(BuildContext context) {
     final verificationsAsync = ref.watch(adminVerificationRequestsProvider(_selectedStatus));
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 768;
+    final padding = isMobile ? 16.0 : 24.0;
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(padding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
-          Row(
-            children: [
-              const Text(
-                'Verification Requests',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
+          // Header (only on desktop)
+          if (!isMobile) ...[
+            Row(
+              children: [
+                const Text(
+                  'Verification Requests',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.refresh, color: Colors.white54),
-                onPressed: () => ref.invalidate(adminVerificationRequestsProvider(_selectedStatus)),
-                tooltip: 'Refresh',
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.refresh, color: Colors.white54),
+                  onPressed: () => ref.invalidate(adminVerificationRequestsProvider(_selectedStatus)),
+                  tooltip: 'Refresh',
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+          ],
 
           // Status tabs
-          _buildStatusTabs(),
+          _buildStatusTabs(isMobile),
           const SizedBox(height: 16),
 
           // Verifications list
           Expanded(
             child: verificationsAsync.when(
-              data: (verifications) => _buildVerificationsList(verifications),
+              data: (verifications) => _buildVerificationsList(verifications, isMobile),
               loading: () => const Center(
                 child: CircularProgressIndicator(color: Color(0xFFD64557)),
               ),
@@ -64,7 +69,7 @@ class _AdminVerificationsScreenState extends ConsumerState<AdminVerificationsScr
     );
   }
 
-  Widget _buildStatusTabs() {
+  Widget _buildStatusTabs(bool isMobile) {
     final statuses = [
       ('pending', 'Pending', Icons.hourglass_empty, Colors.orange),
       ('approved', 'Approved', Icons.check_circle, Colors.green),
@@ -83,20 +88,24 @@ class _AdminVerificationsScreenState extends ConsumerState<AdminVerificationsScr
               onTap: () => setState(() => _selectedStatus = status.$1),
               borderRadius: BorderRadius.circular(8),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 12 : 16,
+                  vertical: isMobile ? 8 : 10,
+                ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
                   border: isSelected ? Border.all(color: status.$4) : null,
                 ),
                 child: Row(
                   children: [
-                    Icon(status.$3, color: status.$4, size: 18),
-                    const SizedBox(width: 8),
+                    Icon(status.$3, color: status.$4, size: isMobile ? 16 : 18),
+                    SizedBox(width: isMobile ? 4 : 8),
                     Text(
-                      status.$2,
+                      isMobile ? status.$2.substring(0, 3) : status.$2,
                       style: TextStyle(
                         color: isSelected ? status.$4 : Colors.white70,
                         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        fontSize: isMobile ? 12 : 14,
                       ),
                     ),
                   ],
@@ -109,7 +118,7 @@ class _AdminVerificationsScreenState extends ConsumerState<AdminVerificationsScr
     );
   }
 
-  Widget _buildVerificationsList(List<Map<String, dynamic>> verifications) {
+  Widget _buildVerificationsList(List<Map<String, dynamic>> verifications, bool isMobile) {
     if (verifications.isEmpty) {
       return Center(
         child: Column(
@@ -117,7 +126,7 @@ class _AdminVerificationsScreenState extends ConsumerState<AdminVerificationsScr
           children: [
             Icon(
               _selectedStatus == 'pending' ? Icons.verified_user : Icons.inbox,
-              size: 64,
+              size: isMobile ? 48 : 64,
               color: Colors.white24,
             ),
             const SizedBox(height: 16),
@@ -125,10 +134,23 @@ class _AdminVerificationsScreenState extends ConsumerState<AdminVerificationsScr
               _selectedStatus == 'pending'
                   ? 'No pending verifications'
                   : 'No ${_selectedStatus} verifications',
-              style: const TextStyle(color: Colors.white54, fontSize: 18),
+              style: TextStyle(color: Colors.white54, fontSize: isMobile ? 16 : 18),
             ),
           ],
         ),
+      );
+    }
+
+    if (isMobile) {
+      return ListView.builder(
+        itemCount: verifications.length,
+        itemBuilder: (context, index) {
+          return _VerificationCard(
+            verification: verifications[index],
+            onAction: (approved, reason) => _handleAction(verifications[index], approved, reason),
+            isMobile: true,
+          );
+        },
       );
     }
 
@@ -144,6 +166,7 @@ class _AdminVerificationsScreenState extends ConsumerState<AdminVerificationsScr
         return _VerificationCard(
           verification: verifications[index],
           onAction: (approved, reason) => _handleAction(verifications[index], approved, reason),
+          isMobile: false,
         );
       },
     );
@@ -181,10 +204,12 @@ class _AdminVerificationsScreenState extends ConsumerState<AdminVerificationsScr
 class _VerificationCard extends StatelessWidget {
   final Map<String, dynamic> verification;
   final Function(bool approved, String? reason) onAction;
+  final bool isMobile;
 
   const _VerificationCard({
     required this.verification,
     required this.onAction,
+    this.isMobile = false,
   });
 
   @override
@@ -202,6 +227,7 @@ class _VerificationCard extends StatelessWidget {
     final firstPhoto = avatarUrl ?? (photos.isNotEmpty ? photos.first as String : null);
 
     return Container(
+      margin: isMobile ? const EdgeInsets.only(bottom: 12) : null,
       decoration: BoxDecoration(
         color: const Color(0xFF1A1A1A),
         borderRadius: BorderRadius.circular(16),

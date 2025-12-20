@@ -16,41 +16,46 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
   @override
   Widget build(BuildContext context) {
     final reportsAsync = ref.watch(adminReportsProvider(_selectedStatus));
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 768;
+    final padding = isMobile ? 16.0 : 24.0;
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(padding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
-          Row(
-            children: [
-              const Text(
-                'Reports & Moderation',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
+          // Header (only on desktop)
+          if (!isMobile) ...[
+            Row(
+              children: [
+                const Text(
+                  'Reports & Moderation',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.refresh, color: Colors.white54),
-                onPressed: () => ref.invalidate(adminReportsProvider(_selectedStatus)),
-                tooltip: 'Refresh',
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.refresh, color: Colors.white54),
+                  onPressed: () => ref.invalidate(adminReportsProvider(_selectedStatus)),
+                  tooltip: 'Refresh',
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+          ],
 
           // Status tabs
-          _buildStatusTabs(),
+          _buildStatusTabs(isMobile),
           const SizedBox(height: 16),
 
           // Reports list
           Expanded(
             child: reportsAsync.when(
-              data: (reports) => _buildReportsList(reports),
+              data: (reports) => _buildReportsList(reports, isMobile),
               loading: () => const Center(
                 child: CircularProgressIndicator(color: Color(0xFFD64557)),
               ),
@@ -64,7 +69,7 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
     );
   }
 
-  Widget _buildStatusTabs() {
+  Widget _buildStatusTabs(bool isMobile) {
     final statuses = [
       ('pending', 'Pending', Icons.hourglass_empty, Colors.orange),
       ('reviewed', 'Reviewed', Icons.check_circle, Colors.blue),
@@ -72,45 +77,52 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
       ('dismissed', 'Dismissed', Icons.cancel, Colors.grey),
     ];
 
-    return Row(
-      children: statuses.map((status) {
-        final isSelected = _selectedStatus == status.$1;
-        return Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: Material(
-            color: isSelected ? status.$4.withOpacity(0.2) : const Color(0xFF1A1A1A),
-            borderRadius: BorderRadius.circular(8),
-            child: InkWell(
-              onTap: () => setState(() => _selectedStatus = status.$1),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: statuses.map((status) {
+          final isSelected = _selectedStatus == status.$1;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Material(
+              color: isSelected ? status.$4.withOpacity(0.2) : const Color(0xFF1A1A1A),
               borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  border: isSelected ? Border.all(color: status.$4) : null,
-                ),
-                child: Row(
-                  children: [
-                    Icon(status.$3, color: status.$4, size: 18),
-                    const SizedBox(width: 8),
-                    Text(
-                      status.$2,
-                      style: TextStyle(
-                        color: isSelected ? status.$4 : Colors.white70,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              child: InkWell(
+                onTap: () => setState(() => _selectedStatus = status.$1),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 12 : 16,
+                    vertical: isMobile ? 8 : 10,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: isSelected ? Border.all(color: status.$4) : null,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(status.$3, color: status.$4, size: isMobile ? 16 : 18),
+                      SizedBox(width: isMobile ? 4 : 8),
+                      Text(
+                        isMobile ? status.$2.substring(0, 3) : status.$2,
+                        style: TextStyle(
+                          color: isSelected ? status.$4 : Colors.white70,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontSize: isMobile ? 12 : 14,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        );
-      }).toList(),
+          );
+        }).toList(),
+      ),
     );
   }
 
-  Widget _buildReportsList(List<Map<String, dynamic>> reports) {
+  Widget _buildReportsList(List<Map<String, dynamic>> reports, bool isMobile) {
     if (reports.isEmpty) {
       return Center(
         child: Column(
@@ -118,7 +130,7 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
           children: [
             Icon(
               _selectedStatus == 'pending' ? Icons.check_circle : Icons.inbox,
-              size: 64,
+              size: isMobile ? 48 : 64,
               color: Colors.white24,
             ),
             const SizedBox(height: 16),
@@ -126,7 +138,7 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
               _selectedStatus == 'pending'
                   ? 'No pending reports'
                   : 'No ${_selectedStatus} reports',
-              style: const TextStyle(color: Colors.white54, fontSize: 18),
+              style: TextStyle(color: Colors.white54, fontSize: isMobile ? 16 : 18),
             ),
           ],
         ),
@@ -139,6 +151,7 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
         return _ReportCard(
           report: reports[index],
           onAction: (action, note) => _handleReportAction(reports[index], action, note),
+          isMobile: isMobile,
         );
       },
     );
@@ -209,10 +222,12 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
 class _ReportCard extends StatelessWidget {
   final Map<String, dynamic> report;
   final Function(String action, String? note) onAction;
+  final bool isMobile;
 
   const _ReportCard({
     required this.report,
     required this.onAction,
+    this.isMobile = false,
   });
 
   @override
@@ -314,39 +329,65 @@ class _ReportCard extends StatelessWidget {
           // Actions (only for pending)
           if (status == 'pending') ...[
             const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => _showActionDialog(context, 'dismissed'),
-                  icon: const Icon(Icons.cancel, size: 18),
-                  label: const Text('Dismiss'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.grey,
-                    side: const BorderSide(color: Colors.grey),
+            isMobile
+                ? Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _ActionChip(
+                        icon: Icons.cancel,
+                        label: 'Dismiss',
+                        color: Colors.grey,
+                        onTap: () => _showActionDialog(context, 'dismissed'),
+                      ),
+                      _ActionChip(
+                        icon: Icons.visibility,
+                        label: 'Review',
+                        color: Colors.blue,
+                        onTap: () => _showActionDialog(context, 'reviewed'),
+                      ),
+                      _ActionChip(
+                        icon: Icons.check,
+                        label: 'Resolve',
+                        color: Colors.green,
+                        filled: true,
+                        onTap: () => _showActionDialog(context, 'resolved'),
+                      ),
+                    ],
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () => _showActionDialog(context, 'dismissed'),
+                        icon: const Icon(Icons.cancel, size: 18),
+                        label: const Text('Dismiss'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.grey,
+                          side: const BorderSide(color: Colors.grey),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        onPressed: () => _showActionDialog(context, 'reviewed'),
+                        icon: const Icon(Icons.visibility, size: 18),
+                        label: const Text('Review'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.blue,
+                          side: const BorderSide(color: Colors.blue),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: () => _showActionDialog(context, 'resolved'),
+                        icon: const Icon(Icons.check, size: 18),
+                        label: const Text('Resolve'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                OutlinedButton.icon(
-                  onPressed: () => _showActionDialog(context, 'reviewed'),
-                  icon: const Icon(Icons.visibility, size: 18),
-                  label: const Text('Review'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.blue,
-                    side: const BorderSide(color: Colors.blue),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: () => _showActionDialog(context, 'resolved'),
-                  icon: const Icon(Icons.check, size: 18),
-                  label: const Text('Resolve'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                  ),
-                ),
-              ],
-            ),
           ],
         ],
       ),
@@ -465,6 +506,55 @@ class _StatusBadge extends StatelessWidget {
             style: TextStyle(color: color, fontSize: 12),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ActionChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final bool filled;
+  final VoidCallback onTap;
+
+  const _ActionChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+    this.filled = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: filled ? color : color.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: filled ? null : Border.all(color: color),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: filled ? Colors.white : color, size: 16),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  color: filled ? Colors.white : color,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
