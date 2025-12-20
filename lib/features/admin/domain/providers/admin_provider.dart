@@ -177,7 +177,7 @@ class AdminService {
     try {
       var query = _client
           .from('profiles')
-          .select('*, subscriptions(plan_type, is_active, end_date)');
+          .select('*');
 
       if (search != null && search.isNotEmpty) {
         query = query.or('name.ilike.%$search%,email.ilike.%$search%');
@@ -199,7 +199,29 @@ class AdminService {
           .order('created_at', ascending: false)
           .range(offset, offset + limit - 1);
 
-      return List<Map<String, dynamic>>.from(response);
+      final users = List<Map<String, dynamic>>.from(response);
+
+      // Fetch subscriptions separately for each user
+      if (users.isNotEmpty) {
+        final userIds = users.map((u) => u['id'] as String).toList();
+        final subsResponse = await _client
+            .from('subscriptions')
+            .select('user_id, plan_type, is_active, end_date')
+            .inFilter('user_id', userIds);
+
+        final subsMap = <String, Map<String, dynamic>>{};
+        for (final sub in subsResponse) {
+          subsMap[sub['user_id'] as String] = sub;
+        }
+
+        // Merge subscription data into users
+        for (final user in users) {
+          final userId = user['id'] as String;
+          user['subscription'] = subsMap[userId];
+        }
+      }
+
+      return users;
     } catch (e) {
       print('Error getting users: $e');
       return [];
@@ -211,9 +233,20 @@ class AdminService {
     try {
       final response = await _client
           .from('profiles')
-          .select('*, subscriptions(*)')
+          .select('*')
           .eq('id', userId)
           .maybeSingle();
+
+      if (response == null) return null;
+
+      // Fetch subscription separately
+      final subResponse = await _client
+          .from('subscriptions')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      response['subscription'] = subResponse;
 
       return response;
     } catch (e) {

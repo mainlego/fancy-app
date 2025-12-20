@@ -41,7 +41,7 @@ class _AdminUserDialogState extends ConsumerState<AdminUserDialog> {
     final isVerified = _user['is_verified'] == true;
     final createdAt = _user['created_at'] as String?;
     final lastOnline = _user['last_online'] as String?;
-    final subscription = _user['subscriptions'] as Map<String, dynamic>?;
+    final subscription = _user['subscription'] as Map<String, dynamic>?;
 
     return Dialog(
       backgroundColor: const Color(0xFF1A1A1A),
