@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/providers/admin_provider.dart';
 import '../widgets/admin_user_dialog.dart';
+import '../../../../shared/widgets/debug_panel.dart';
 
 /// Admin users management screen - responsive design
 class AdminUsersScreen extends ConsumerStatefulWidget {
@@ -18,24 +19,35 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
   bool? _isBanned;
   bool _showFilters = false;
 
+  // Cache filters to prevent infinite rebuilds
+  Map<String, dynamic> _cachedFilters = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _updateFilters();
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
 
-  Map<String, dynamic> get _filters => {
-    'search': _searchController.text.isEmpty ? null : _searchController.text,
-    'profileType': _selectedProfileType,
-    'isPremium': _isPremium,
-    'isBanned': _isBanned,
-    'limit': 100,
-    'offset': 0,
-  };
+  void _updateFilters() {
+    _cachedFilters = {
+      'search': _searchController.text.isEmpty ? null : _searchController.text,
+      'profileType': _selectedProfileType,
+      'isPremium': _isPremium,
+      'isBanned': _isBanned,
+      'limit': 100,
+      'offset': 0,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
-    final usersAsync = ref.watch(adminUsersProvider(_filters));
+    final usersAsync = ref.watch(adminUsersProvider(_cachedFilters));
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 768;
     final padding = isMobile ? 16.0 : 24.0;
@@ -72,7 +84,27 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                 child: CircularProgressIndicator(color: Color(0xFFD64557)),
               ),
               error: (e, _) => Center(
-                child: Text('Error: $e', style: const TextStyle(color: Colors.red)),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                    const SizedBox(height: 16),
+                    Text('Error: $e', style: const TextStyle(color: Colors.red)),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () => ref.invalidate(adminUsersProvider(_cachedFilters)),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD64557)),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: () => DebugPanel.show(context),
+                      icon: const Icon(Icons.bug_report, color: Colors.orange),
+                      label: const Text('View Debug Logs', style: TextStyle(color: Colors.orange)),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -105,7 +137,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     isDense: true,
                   ),
-                  onSubmitted: (_) => setState(() {}),
+                  onSubmitted: (_) => setState(() => _updateFilters()),
                 ),
               ),
               const SizedBox(width: 8),
@@ -127,7 +159,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
               ),
               const SizedBox(width: 8),
               ElevatedButton(
-                onPressed: () => setState(() {}),
+                onPressed: () => setState(() => _updateFilters()),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFD64557),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -153,19 +185,19 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                     'man': 'Men',
                     'manAndWoman': 'M&W',
                   },
-                  onChanged: (v) => setState(() => _selectedProfileType = v),
+                  onChanged: (v) => setState(() { _selectedProfileType = v; _updateFilters(); }),
                 ),
                 _buildMobileFilterChip<bool?>(
                   label: 'Premium',
                   value: _isPremium,
                   items: {null: 'All', true: 'Yes', false: 'No'},
-                  onChanged: (v) => setState(() => _isPremium = v),
+                  onChanged: (v) => setState(() { _isPremium = v; _updateFilters(); }),
                 ),
                 _buildMobileFilterChip<bool?>(
                   label: 'Status',
                   value: _isBanned,
                   items: {null: 'All', true: 'Banned', false: 'Active'},
-                  onChanged: (v) => setState(() => _isBanned = v),
+                  onChanged: (v) => setState(() { _isBanned = v; _updateFilters(); }),
                 ),
                 if (_hasActiveFilters)
                   ActionChip(
@@ -205,7 +237,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
               ),
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
-            onSubmitted: (_) => setState(() {}),
+            onSubmitted: (_) => setState(() => _updateFilters()),
           ),
         ),
         _FilterDropdown(
@@ -219,22 +251,22 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
             'manPair': 'Man Pair',
             'womanPair': 'Woman Pair',
           },
-          onChanged: (value) => setState(() => _selectedProfileType = value),
+          onChanged: (value) => setState(() { _selectedProfileType = value; _updateFilters(); }),
         ),
         _FilterDropdown<bool?>(
           value: _isPremium,
           hint: 'Premium',
           items: const {null: 'All', true: 'Premium', false: 'Free'},
-          onChanged: (value) => setState(() => _isPremium = value),
+          onChanged: (value) => setState(() { _isPremium = value; _updateFilters(); }),
         ),
         _FilterDropdown<bool?>(
           value: _isBanned,
           hint: 'Status',
           items: const {null: 'All', true: 'Banned', false: 'Active'},
-          onChanged: (value) => setState(() => _isBanned = value),
+          onChanged: (value) => setState(() { _isBanned = value; _updateFilters(); }),
         ),
         ElevatedButton.icon(
-          onPressed: () => setState(() {}),
+          onPressed: () => setState(() => _updateFilters()),
           icon: const Icon(Icons.search, size: 18),
           label: const Text('Search'),
           style: ElevatedButton.styleFrom(
@@ -305,6 +337,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
       _selectedProfileType = null;
       _isPremium = null;
       _isBanned = null;
+      _updateFilters();
     });
   }
 
@@ -493,7 +526,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
       builder: (context) => AdminUserDialog(
         user: user,
         onUpdate: () {
-          ref.invalidate(adminUsersProvider(_filters));
+          ref.invalidate(adminUsersProvider(_cachedFilters));
         },
       ),
     );
@@ -531,7 +564,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
       }
     }
 
-    ref.invalidate(adminUsersProvider(_filters));
+    ref.invalidate(adminUsersProvider(_cachedFilters));
   }
 
   Future<void> _confirmDelete(Map<String, dynamic> user) async {
@@ -561,7 +594,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
     if (confirmed == true) {
       final adminService = ref.read(adminServiceProvider);
       await adminService.deleteUser(user['id'] as String);
-      ref.invalidate(adminUsersProvider(_filters));
+      ref.invalidate(adminUsersProvider(_cachedFilters));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('User deleted'), backgroundColor: Colors.red),

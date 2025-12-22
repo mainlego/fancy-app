@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import '../../../../core/services/debug_logger.dart';
 
 /// Dating goal options
 enum DatingGoal {
@@ -40,6 +41,40 @@ enum ZodiacSign {
   capricorn,
   aquarius,
   pisces,
+}
+
+/// Safe enum parsing helpers
+T? _tryParseEnum<T extends Enum>(List<T> values, String? name) {
+  if (name == null) return null;
+  try {
+    return values.byName(name);
+  } catch (e) {
+    logWarn('Unknown enum value "$name" for ${T.toString()}', tag: 'UserModel');
+    return null;
+  }
+}
+
+ProfileType _parseProfileType(String? name) {
+  if (name == null) return ProfileType.woman;
+  try {
+    return ProfileType.values.byName(name);
+  } catch (e) {
+    logWarn('Unknown profile_type "$name", defaulting to woman', tag: 'UserModel');
+    return ProfileType.woman;
+  }
+}
+
+Set<ProfileType> _parseLookingFor(List<dynamic>? list) {
+  if (list == null) return {};
+  final result = <ProfileType>{};
+  for (final item in list) {
+    try {
+      result.add(ProfileType.values.byName(item as String));
+    } catch (e) {
+      logWarn('Unknown looking_for value "$item", skipping', tag: 'UserModel');
+    }
+  }
+  return result;
 }
 
 /// User profile model
@@ -139,6 +174,53 @@ class UserModel extends Equatable {
     return city ?? country ?? '';
   }
 
+  /// Get distance display string with privacy fuzzing (±1km)
+  /// Shows only distance without city for privacy
+  String get distanceString {
+    if (distanceKm == null) {
+      return locationString; // Fallback to city/country if no distance
+    }
+
+    // Add random fuzzing ±1km for privacy (based on user id hash for consistency)
+    final fuzz = (id.hashCode % 3) - 1; // -1, 0, or +1
+    final fuzzedDistance = (distanceKm! + fuzz).clamp(1, 99999);
+
+    if (fuzzedDistance < 1) {
+      return 'Less than 1 km';
+    } else if (fuzzedDistance == 1) {
+      return '1 km away';
+    } else {
+      return '$fuzzedDistance km away';
+    }
+  }
+
+  /// Get short distance string for cards (city + distance)
+  String get distanceShortString {
+    final cityName = city ?? '';
+
+    if (distanceKm == null) {
+      return cityName; // Just city if no distance
+    }
+
+    // Add random fuzzing ±1km for privacy (based on user id hash for consistency)
+    final fuzz = (id.hashCode % 3) - 1; // -1, 0, or +1
+    final fuzzedDistance = (distanceKm! + fuzz).clamp(1, 99999);
+
+    String distanceText;
+    if (fuzzedDistance < 1) {
+      distanceText = '< 1 km';
+    } else {
+      distanceText = '$fuzzedDistance km';
+    }
+
+    // Combine city and distance
+    if (cityName.isNotEmpty) {
+      return '$cityName • $distanceText';
+    } else {
+      return distanceText;
+    }
+  }
+
   /// Copy with method
   UserModel copyWith({
     String? id,
@@ -223,35 +305,24 @@ class UserModel extends Equatable {
       isOnline: json['isOnline'] as bool? ?? false,
       isVerified: json['isVerified'] as bool? ?? false,
       isPremium: json['isPremium'] as bool? ?? false,
-      isActive: json['isActive'] as bool? ?? true,
+      isActive: json['isActive'] as bool? ?? false,
       isAi: json['isAi'] as bool? ?? false,
       city: json['city'] as String?,
       country: json['country'] as String?,
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
       distanceKm: json['distanceKm'] as int?,
-      datingGoal: json['datingGoal'] != null
-          ? DatingGoal.values.byName(json['datingGoal'] as String)
-          : null,
-      relationshipStatus: json['relationshipStatus'] != null
-          ? RelationshipStatus.values.byName(json['relationshipStatus'] as String)
-          : null,
-      profileType: json['profileType'] != null
-          ? ProfileType.values.byName(json['profileType'] as String)
-          : ProfileType.woman,
+      datingGoal: _tryParseEnum(DatingGoal.values, json['datingGoal'] as String?),
+      relationshipStatus: _tryParseEnum(RelationshipStatus.values, json['relationshipStatus'] as String?),
+      profileType: _parseProfileType(json['profileType'] as String?),
       heightCm: json['heightCm'] as int?,
       weightKg: json['weightKg'] as int?,
-      zodiacSign: json['zodiacSign'] != null
-          ? ZodiacSign.values.byName(json['zodiacSign'] as String)
-          : null,
+      zodiacSign: _tryParseEnum(ZodiacSign.values, json['zodiacSign'] as String?),
       occupation: json['occupation'] as String?,
       languages: (json['languages'] as List<dynamic>?)?.cast<String>() ?? [],
       interests: (json['interests'] as List<dynamic>?)?.cast<String>() ?? [],
       fantasies: (json['fantasies'] as List<dynamic>?)?.cast<String>() ?? [],
-      lookingFor: (json['lookingFor'] as List<dynamic>?)
-              ?.map((e) => ProfileType.values.byName(e as String))
-              .toSet() ??
-          {},
+      lookingFor: _parseLookingFor(json['lookingFor'] as List<dynamic>?),
       lastOnline: json['lastOnline'] != null
           ? DateTime.parse(json['lastOnline'] as String)
           : null,
@@ -264,70 +335,68 @@ class UserModel extends Equatable {
 
   /// From Supabase JSON (snake_case format)
   factory UserModel.fromSupabase(Map<String, dynamic> json) {
-    // Calculate age from birth_date, default to 18 if not set
-    int age = 18; // Default age for profiles without birth_date
-    final birthDateRaw = json['birth_date'];
-    if (birthDateRaw != null) {
-      try {
-        final birthDate = DateTime.parse(birthDateRaw as String);
-        age = DateTime.now().difference(birthDate).inDays ~/ 365;
-      } catch (e) {
-        // Invalid date format - use default age 18
+    try {
+      // Calculate age from birth_date, default to 18 if not set
+      int age = 18; // Default age for profiles without birth_date
+      final birthDateRaw = json['birth_date'];
+      if (birthDateRaw != null) {
+        try {
+          final birthDate = DateTime.parse(birthDateRaw as String);
+          age = DateTime.now().difference(birthDate).inDays ~/ 365;
+        } catch (e) {
+          print('Warning: Invalid birth_date format: $birthDateRaw');
+        }
       }
-    }
 
-    return UserModel(
-      id: json['id'] as String,
-      name: json['name'] as String? ?? json['display_name'] as String? ?? 'Unknown',
-      age: age,
-      birthDate: json['birth_date'] != null
-          ? DateTime.parse(json['birth_date'] as String)
-          : null,
-      bio: json['bio'] as String?,
-      photos: (json['photos'] as List<dynamic>?)?.cast<String>() ?? [],
-      avatarUrl: json['avatar_url'] as String?,
-      isOnline: json['is_online'] as bool? ?? false,
-      isVerified: json['is_verified'] as bool? ?? false,
-      isPremium: json['is_premium'] as bool? ?? false,
-      isActive: json['is_active'] as bool? ?? true,
-      isAi: json['is_ai'] as bool? ?? false,
-      city: json['city'] as String?,
-      country: json['country'] as String?,
-      latitude: (json['latitude'] as num?)?.toDouble(),
-      longitude: (json['longitude'] as num?)?.toDouble(),
-      distanceKm: json['distance_km'] as int?,
-      datingGoal: json['dating_goal'] != null
-          ? DatingGoal.values.byName(json['dating_goal'] as String)
-          : null,
-      relationshipStatus: json['relationship_status'] != null
-          ? RelationshipStatus.values.byName(json['relationship_status'] as String)
-          : null,
-      profileType: json['profile_type'] != null
-          ? ProfileType.values.byName(json['profile_type'] as String)
-          : ProfileType.woman,
-      heightCm: json['height_cm'] as int?,
-      weightKg: json['weight_kg'] as int?,
-      zodiacSign: json['zodiac_sign'] != null
-          ? ZodiacSign.values.byName(json['zodiac_sign'] as String)
-          : null,
-      occupation: json['occupation'] as String?,
-      languages: (json['languages'] as List<dynamic>?)?.cast<String>() ?? [],
-      interests: (json['interests'] as List<dynamic>?)?.cast<String>() ?? [],
-      fantasies: (json['fantasies'] as List<dynamic>?)?.cast<String>() ?? [],
-      lookingFor: (json['looking_for'] as List<dynamic>?)
-              ?.map((e) => ProfileType.values.byName(e as String))
-              .toSet() ??
-          {},
-      lastOnline: json['last_online'] != null
-          ? DateTime.parse(json['last_online'] as String)
-          : null,
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'] as String)
-          : DateTime.now(),
-      profileTypeChangedAt: json['profile_type_changed_at'] != null
-          ? DateTime.parse(json['profile_type_changed_at'] as String)
-          : null,
-    );
+      // Safe date parsing helper
+      DateTime? tryParseDate(dynamic value) {
+        if (value == null) return null;
+        try {
+          return DateTime.parse(value as String);
+        } catch (e) {
+          print('Warning: Invalid date format: $value');
+          return null;
+        }
+      }
+
+      return UserModel(
+        id: json['id'] as String? ?? '',
+        name: json['name'] as String? ?? json['display_name'] as String? ?? 'Unknown',
+        age: age,
+        birthDate: tryParseDate(json['birth_date']),
+        bio: json['bio'] as String?,
+        photos: (json['photos'] as List<dynamic>?)?.cast<String>() ?? [],
+        avatarUrl: json['avatar_url'] as String?,
+        isOnline: json['is_online'] as bool? ?? false,
+        isVerified: json['is_verified'] as bool? ?? false,
+        isPremium: json['is_premium'] as bool? ?? false,
+        isActive: json['is_active'] as bool? ?? false,
+        isAi: json['is_ai'] as bool? ?? false,
+        city: json['city'] as String?,
+        country: json['country'] as String?,
+        latitude: (json['latitude'] as num?)?.toDouble(),
+        longitude: (json['longitude'] as num?)?.toDouble(),
+        distanceKm: json['distance_km'] as int?,
+        datingGoal: _tryParseEnum(DatingGoal.values, json['dating_goal'] as String?),
+        relationshipStatus: _tryParseEnum(RelationshipStatus.values, json['relationship_status'] as String?),
+        profileType: _parseProfileType(json['profile_type'] as String?),
+        heightCm: json['height_cm'] as int?,
+        weightKg: json['weight_kg'] as int?,
+        zodiacSign: _tryParseEnum(ZodiacSign.values, json['zodiac_sign'] as String?),
+        occupation: json['occupation'] as String?,
+        languages: (json['languages'] as List<dynamic>?)?.cast<String>() ?? [],
+        interests: (json['interests'] as List<dynamic>?)?.cast<String>() ?? [],
+        fantasies: (json['fantasies'] as List<dynamic>?)?.cast<String>() ?? [],
+        lookingFor: _parseLookingFor(json['looking_for'] as List<dynamic>?),
+        lastOnline: tryParseDate(json['last_online']),
+        createdAt: tryParseDate(json['created_at']) ?? DateTime.now(),
+        profileTypeChangedAt: tryParseDate(json['profile_type_changed_at']),
+      );
+    } catch (e, st) {
+      logError('Failed to parse UserModel from Supabase', tag: 'UserModel', error: e, stackTrace: st);
+      logDebug('JSON data that failed: $json', tag: 'UserModel');
+      rethrow;
+    }
   }
 
   /// To Supabase JSON (snake_case format)

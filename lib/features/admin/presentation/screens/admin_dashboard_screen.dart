@@ -150,12 +150,6 @@ class AdminDashboardScreen extends ConsumerWidget {
         highlight: stats.pendingReports > 0,
       ),
       _StatCardData(
-        title: 'AI Profiles',
-        value: stats.totalAiProfiles.toString(),
-        icon: Icons.smart_toy,
-        color: const Color(0xFF9B59B6),
-      ),
-      _StatCardData(
         title: 'Matches',
         value: stats.totalMatches.toString(),
         icon: Icons.favorite,

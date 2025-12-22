@@ -4,7 +4,6 @@ import '../../../profile/domain/models/user_model.dart';
 import '../../../profile/domain/providers/current_profile_provider.dart';
 import '../../../filters/domain/models/filter_model.dart';
 import '../../../filters/domain/providers/filter_provider.dart';
-import '../../../ai_profiles/domain/providers/ai_profiles_provider.dart';
 
 /// Current filter state provider (alias for backward compatibility)
 /// Use filterNotifierProvider for new code
@@ -64,12 +63,30 @@ class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
   final SupabaseService _supabase;
   final Ref _ref;
   bool _isLoading = false;
+  bool _isLoadingMore = false;
+  bool _hasMoreProfiles = true;
+  int _loadCounter = 0; // Track load operations to prevent race conditions
+  static const int _pageSize = 20;
+
+  // Track liked profiles (user stays in feed until match)
+  final Set<String> _likedProfileIds = {};
 
   ProfilesNotifier(this._supabase, this._ref) : super(const AsyncValue.loading()) {
     // Listen for current profile changes to reload with proper filters
     _ref.listen<AsyncValue<UserModel?>>(currentProfileProvider, (previous, next) {
       // When profile becomes available, reload profiles with proper filters
       if (next.hasValue && next.value != null) {
+        loadProfiles();
+      }
+    });
+
+    // Listen for filter changes that require reloading (distance, age)
+    _ref.listen<FilterModel>(filterNotifierProvider, (previous, next) {
+      if (previous == null) return;
+      // Reload if distance or age filters changed (these are server-side filters)
+      if (previous.maxDistanceKm != next.maxDistanceKm ||
+          previous.minAge != next.minAge ||
+          previous.maxAge != next.maxAge) {
         loadProfiles();
       }
     });
@@ -83,8 +100,9 @@ class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
   }
 
   Future<void> loadProfiles() async {
-    // Prevent concurrent loads
+    // Prevent concurrent loads using counter pattern
     if (_isLoading) return;
+    final currentLoad = ++_loadCounter;
 
     // Get current user's profile for bidirectional matching
     final currentProfile = _ref.read(currentProfileProvider).valueOrNull;
@@ -99,6 +117,9 @@ class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
       final lookingFor = currentProfile.lookingFor;
       final myProfileType = currentProfile.profileType;
 
+      // Get current filter settings
+      final filter = _ref.read(filterNotifierProvider);
+
       // Convert Set<ProfileType> to List<String> for the query
       List<String>? lookingForStrings;
       if (lookingFor.isNotEmpty) {
@@ -108,41 +129,126 @@ class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
       // Get my profile type for bidirectional matching
       String? myProfileTypeString = myProfileType.name;
 
+      // Don't apply distance filter if set to 500+ (maxDistanceLimit means "no limit")
+      final maxDistanceFilter = filter.maxDistanceKm >= FilterModel.maxDistanceLimit
+          ? null
+          : filter.maxDistanceKm;
+
       final data = await _supabase.getDiscoveryProfiles(
-        limit: 50,
+        limit: _pageSize,
+        offset: 0,
         lookingFor: lookingForStrings,
         myProfileType: myProfileTypeString,
+        // Pass distance and age filters to server
+        maxDistance: maxDistanceFilter,
+        minAge: filter.minAge,
+        maxAge: filter.maxAge,
       );
 
       final profiles = data.map((json) => UserModel.fromSupabase(json)).toList();
-      state = AsyncValue.data(profiles);
+      // Only update state if this is still the latest load operation
+      if (currentLoad == _loadCounter) {
+        _hasMoreProfiles = profiles.length >= _pageSize;
+        state = AsyncValue.data(profiles);
+      }
     } catch (e, st) {
-      state = AsyncValue.error(e, st);
+      if (currentLoad == _loadCounter) {
+        state = AsyncValue.error(e, st);
+      }
     } finally {
       _isLoading = false;
     }
+  }
+
+  /// Load more profiles (pagination)
+  Future<void> loadMore() async {
+    if (_isLoadingMore || !_hasMoreProfiles) return;
+
+    final currentProfiles = state.valueOrNull;
+    if (currentProfiles == null || currentProfiles.isEmpty) return;
+
+    final currentProfile = _ref.read(currentProfileProvider).valueOrNull;
+    if (currentProfile == null) return;
+
+    _isLoadingMore = true;
+
+    try {
+      final lookingFor = currentProfile.lookingFor;
+      final myProfileType = currentProfile.profileType;
+      final filter = _ref.read(filterNotifierProvider);
+
+      List<String>? lookingForStrings;
+      if (lookingFor.isNotEmpty) {
+        lookingForStrings = lookingFor.map((e) => e.name).toList();
+      }
+
+      String? myProfileTypeString = myProfileType.name;
+
+      final maxDistanceFilter = filter.maxDistanceKm >= FilterModel.maxDistanceLimit
+          ? null
+          : filter.maxDistanceKm;
+
+      final data = await _supabase.getDiscoveryProfiles(
+        limit: _pageSize,
+        offset: currentProfiles.length,
+        lookingFor: lookingForStrings,
+        myProfileType: myProfileTypeString,
+        maxDistance: maxDistanceFilter,
+        minAge: filter.minAge,
+        maxAge: filter.maxAge,
+      );
+
+      final newProfiles = data.map((json) => UserModel.fromSupabase(json)).toList();
+      _hasMoreProfiles = newProfiles.length >= _pageSize;
+
+      // Append new profiles to existing list
+      state = AsyncValue.data([...currentProfiles, ...newProfiles]);
+    } catch (e) {
+      // Don't replace state with error, just log it
+      print('Error loading more profiles: $e');
+    } finally {
+      _isLoadingMore = false;
+    }
+  }
+
+  /// Check if more profiles can be loaded
+  bool get canLoadMore => _hasMoreProfiles && !_isLoadingMore;
+
+  /// Check if currently loading more
+  bool get isLoadingMore => _isLoadingMore;
+
+  @override
+  void dispose() {
+    // Clean up any resources if needed
+    super.dispose();
   }
 
   Future<void> refresh() async {
     await loadProfiles();
   }
 
-  /// Like a user - pass the full UserModel to correctly detect AI profiles
+  /// Check if a profile has been liked
+  bool isProfileLiked(String profileId) => _likedProfileIds.contains(profileId);
+
+  /// Like a user
   Future<bool> likeUserModel(UserModel user) async {
     try {
-      bool isMatch;
-      if (user.isAi) {
-        // AI profiles always like back - it's always a match!
-        isMatch = true;
-      } else {
-        // Real users - check for mutual like
-        isMatch = await _supabase.likeUser(user.id);
-      }
+      final isMatch = await _supabase.likeUser(user.id);
 
-      // Remove from current list after action (only affects real profiles)
-      state.whenData((profiles) {
-        state = AsyncValue.data(profiles.where((p) => p.id != user.id).toList());
-      });
+      if (isMatch) {
+        // Remove from current list ONLY if it's a match
+        state.whenData((profiles) {
+          state = AsyncValue.data(profiles.where((p) => p.id != user.id).toList());
+        });
+        _likedProfileIds.remove(user.id);
+      } else {
+        // Mark as liked but keep in feed
+        _likedProfileIds.add(user.id);
+        // Trigger rebuild to update UI
+        state.whenData((profiles) {
+          state = AsyncValue.data([...profiles]);
+        });
+      }
       return isMatch;
     } catch (e) {
       print('Error liking user: $e');
@@ -150,34 +256,25 @@ class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
     }
   }
 
-  /// Legacy method - kept for compatibility but prefer likeUserModel
+  /// Like a user by ID
   Future<bool> likeUser(String userId) async {
     try {
-      // Check if this is an AI profile by ID prefix (for locally generated)
-      // or by checking the profiles list
-      bool isAIProfile = userId.startsWith('ai_');
+      final isMatch = await _supabase.likeUser(userId);
 
-      // Also check current profiles list for isAi flag
-      state.whenData((profiles) {
-        final profile = profiles.where((p) => p.id == userId).firstOrNull;
-        if (profile != null && profile.isAi) {
-          isAIProfile = true;
-        }
-      });
-
-      bool isMatch;
-      if (isAIProfile) {
-        // AI profiles always like back - it's always a match!
-        isMatch = true;
+      if (isMatch) {
+        // Remove from current list ONLY if it's a match
+        state.whenData((profiles) {
+          state = AsyncValue.data(profiles.where((p) => p.id != userId).toList());
+        });
+        _likedProfileIds.remove(userId);
       } else {
-        // Real users - check for mutual like
-        isMatch = await _supabase.likeUser(userId);
+        // Mark as liked but keep in feed
+        _likedProfileIds.add(userId);
+        // Trigger rebuild to update UI
+        state.whenData((profiles) {
+          state = AsyncValue.data([...profiles]);
+        });
       }
-
-      // Remove from current list after action
-      state.whenData((profiles) {
-        state = AsyncValue.data(profiles.where((p) => p.id != userId).toList());
-      });
       return isMatch;
     } catch (e) {
       print('Error liking user: $e');
@@ -187,10 +284,7 @@ class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
 
   Future<void> passUser(String userId) async {
     try {
-      // Don't call Supabase for AI profiles
-      if (!userId.startsWith('ai_')) {
-        await _supabase.passUser(userId);
-      }
+      await _supabase.passUser(userId);
       // Remove from current list after action
       state.whenData((profiles) {
         state = AsyncValue.data(profiles.where((p) => p.id != userId).toList());
@@ -202,10 +296,7 @@ class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
 
   Future<void> addToFavorites(String userId) async {
     try {
-      // Don't call Supabase for AI profiles - just show success
-      if (!userId.startsWith('ai_')) {
-        await _supabase.addToFavorites(userId);
-      }
+      await _supabase.addToFavorites(userId);
     } catch (e) {
       print('Error adding to favorites: $e');
       rethrow;
@@ -214,10 +305,7 @@ class ProfilesNotifier extends StateNotifier<AsyncValue<List<UserModel>>> {
 
   Future<void> blockUser(String userId) async {
     try {
-      // Don't call Supabase for AI profiles
-      if (!userId.startsWith('ai_')) {
-        await _supabase.blockUser(userId);
-      }
+      await _supabase.blockUser(userId);
       // Remove blocked user from list
       state.whenData((profiles) {
         state = AsyncValue.data(profiles.where((p) => p.id != userId).toList());
@@ -236,23 +324,20 @@ final profilesNotifierProvider = StateNotifierProvider<ProfilesNotifier, AsyncVa
 });
 
 /// Filtered profiles provider - applies local filters to loaded profiles
-/// Includes AI profiles mixed with real profiles
 final filteredProfilesProvider = Provider<List<UserModel>>((ref) {
   final profilesAsync = ref.watch(profilesNotifierProvider);
-  final aiProfiles = ref.watch(aiProfilesAsUsersProvider);
   final filter = ref.watch(filterProvider);
   final quickGoals = ref.watch(quickDatingGoalsProvider);
   final quickStatuses = ref.watch(quickRelationshipStatusesProvider);
 
-  // Get real profiles (empty list if loading/error)
-  final realProfiles = profilesAsync.valueOrNull ?? [];
+  // Get profiles (empty list if loading/error)
+  final profiles = profilesAsync.valueOrNull ?? [];
 
-  // Combine real profiles with AI profiles
-  // Real users are shown FIRST, then AI profiles
-  final allProfiles = [...realProfiles, ...aiProfiles];
-
-  return allProfiles.where((profile) {
-    final isAI = profile.isAi;
+  return profiles.where((profile) {
+    // Only show active profiles
+    if (!profile.isActive) {
+      return false;
+    }
 
     // Quick filter: dating goals (supports multiple selection)
     if (quickGoals.isNotEmpty &&
@@ -268,8 +353,10 @@ final filteredProfilesProvider = Provider<List<UserModel>>((ref) {
       return false;
     }
 
-    // Distance filter (skip for AI profiles)
-    if (!isAI && profile.distanceKm != null && profile.distanceKm! > filter.distanceKm) {
+    // Distance filter (skip if set to 500+ which means "no limit")
+    if (filter.maxDistanceKm < FilterModel.maxDistanceLimit &&
+        profile.distanceKm != null &&
+        profile.distanceKm! > filter.distanceKm) {
       return false;
     }
 

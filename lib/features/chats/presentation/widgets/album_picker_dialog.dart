@@ -249,7 +249,12 @@ class _AlbumPickerDialogState extends ConsumerState<AlbumPickerDialog>
 
   Widget _buildPrivacyOptions() {
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: EdgeInsets.only(
+        left: AppSpacing.lg,
+        right: AppSpacing.lg,
+        top: AppSpacing.lg,
+        bottom: AppSpacing.lg + MediaQuery.of(context).padding.bottom,
+      ),
       decoration: const BoxDecoration(
         color: AppColors.surfaceVariant,
         border: Border(

@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import '../../../../core/utils/profile_utils.dart';
 
 /// Message type enum
 enum MessageType {
@@ -284,14 +285,8 @@ class ChatModel extends Equatable {
       participantProfile = json[separateKey] as Map<String, dynamic>?;
     }
 
-    // Get avatar: prefer avatar_url, fallback to first photo
-    String? avatarUrl = participantProfile?['avatar_url'] as String?;
-    if (avatarUrl == null || avatarUrl.isEmpty) {
-      final photos = participantProfile?['photos'] as List<dynamic>?;
-      if (photos != null && photos.isNotEmpty) {
-        avatarUrl = photos.first as String?;
-      }
-    }
+    // Get avatar using utility function
+    final avatarUrl = getDisplayAvatar(participantProfile);
 
     // Get last message from messages array if available
     MessageModel? lastMessage;
@@ -412,25 +407,11 @@ class LikeModel extends Equatable {
   factory LikeModel.fromSupabase(Map<String, dynamic> json) {
     final profileData = json['profiles'] as Map<String, dynamic>?;
 
-    // Calculate age from birth_date, default to 18
-    int age = 18;
-    if (profileData?['birth_date'] != null) {
-      try {
-        final birthDate = DateTime.parse(profileData!['birth_date'] as String);
-        age = DateTime.now().difference(birthDate).inDays ~/ 365;
-      } catch (_) {
-        // Keep default age 18
-      }
-    }
+    // Calculate age using utility function
+    final age = calculateAgeFromString(profileData?['birth_date'] as String?);
 
-    // Get avatar: prefer avatar_url, fallback to first photo
-    String? avatarUrl = profileData?['avatar_url'] as String?;
-    if (avatarUrl == null || avatarUrl.isEmpty) {
-      final photos = profileData?['photos'] as List<dynamic>?;
-      if (photos != null && photos.isNotEmpty) {
-        avatarUrl = photos.first as String?;
-      }
-    }
+    // Get avatar using utility function
+    final avatarUrl = getDisplayAvatar(profileData);
 
     return LikeModel(
       id: json['from_user_id'] as String? ?? '',
@@ -510,25 +491,11 @@ class FavoriteModel extends Equatable {
   factory FavoriteModel.fromSupabase(Map<String, dynamic> json) {
     final profileData = json['profiles'] as Map<String, dynamic>?;
 
-    // Calculate age from birth_date, default to 18
-    int age = 18;
-    if (profileData?['birth_date'] != null) {
-      try {
-        final birthDate = DateTime.parse(profileData!['birth_date'] as String);
-        age = DateTime.now().difference(birthDate).inDays ~/ 365;
-      } catch (_) {
-        // Keep default age 18
-      }
-    }
+    // Calculate age using utility function
+    final age = calculateAgeFromString(profileData?['birth_date'] as String?);
 
-    // Get avatar: prefer avatar_url, fallback to first photo
-    String? avatarUrl = profileData?['avatar_url'] as String?;
-    if (avatarUrl == null || avatarUrl.isEmpty) {
-      final photos = profileData?['photos'] as List<dynamic>?;
-      if (photos != null && photos.isNotEmpty) {
-        avatarUrl = photos.first as String?;
-      }
-    }
+    // Get avatar using utility function
+    final avatarUrl = getDisplayAvatar(profileData);
 
     return FavoriteModel(
       id: json['id'] as String? ?? '',

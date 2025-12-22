@@ -46,13 +46,49 @@ class LocationService {
     return await Geolocator.isLocationServiceEnabled();
   }
 
-  /// Check and request location permission
+  /// Check and request location permission (including background/always)
   Future<LocationPermission> checkPermission() async {
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
     return permission;
+  }
+
+  /// Check if we have "always" (background) location permission
+  Future<bool> hasAlwaysPermission() async {
+    final permission = await Geolocator.checkPermission();
+    return permission == LocationPermission.always;
+  }
+
+  /// Request "always" location permission for background access
+  /// Returns true if permission is granted, false otherwise
+  /// On Android 10+, user must manually grant this in settings after initial "while in use" grant
+  Future<bool> requestAlwaysPermission() async {
+    var permission = await Geolocator.checkPermission();
+
+    // First request basic permission
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    // If denied forever, we can't request again
+    if (permission == LocationPermission.deniedForever) {
+      return false;
+    }
+
+    // If we already have "always", we're good
+    if (permission == LocationPermission.always) {
+      return true;
+    }
+
+    // If we have "while in use", try requesting again
+    // On Android 11+, this will show the permission dialog with "Allow all the time" option
+    if (permission == LocationPermission.whileInUse) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    return permission == LocationPermission.always;
   }
 
   /// Get current position
@@ -87,8 +123,13 @@ class LocationService {
 
   /// Get and save user location to profile with city detection
   Future<LocationData?> updateUserLocation() async {
+    debugPrint('LocationService.updateUserLocation: Starting...');
     final position = await getCurrentPosition();
-    if (position == null) return null;
+    if (position == null) {
+      debugPrint('LocationService.updateUserLocation: No position available');
+      return null;
+    }
+    debugPrint('LocationService.updateUserLocation: Got position (${position.latitude}, ${position.longitude})');
 
     // Reverse geocode to get city and country
     String? city;
@@ -114,12 +155,16 @@ class LocationService {
     // Update profile in Supabase
     final userId = _supabase.currentUser?.id;
     if (userId != null) {
+      debugPrint('LocationService.updateUserLocation: Saving to Supabase - lat=${position.latitude}, lon=${position.longitude}, city=$city, country=$country');
       await _supabase.updateProfile(userId, {
         'latitude': position.latitude,
         'longitude': position.longitude,
         if (city != null) 'city': city,
         if (country != null) 'country': country,
       });
+      debugPrint('LocationService.updateUserLocation: Saved to Supabase successfully');
+    } else {
+      debugPrint('LocationService.updateUserLocation: No user ID, cannot save to Supabase');
     }
 
     return locationData;
@@ -302,7 +347,123 @@ final locationServiceProvider = Provider<LocationService>((ref) {
   return LocationService(supabase);
 });
 
-/// Current user location provider
+/// Location state for tracking user position with timestamps
+class LocationState {
+  final LocationData? location;
+  final DateTime? lastUpdated;
+  final bool isLoading;
+
+  const LocationState({
+    this.location,
+    this.lastUpdated,
+    this.isLoading = false,
+  });
+
+  LocationState copyWith({
+    LocationData? location,
+    DateTime? lastUpdated,
+    bool? isLoading,
+  }) {
+    return LocationState(
+      location: location ?? this.location,
+      lastUpdated: lastUpdated ?? this.lastUpdated,
+      isLoading: isLoading ?? this.isLoading,
+    );
+  }
+}
+
+/// Location notifier for managing user location with periodic updates
+class LocationNotifier extends StateNotifier<LocationState> {
+  final LocationService _locationService;
+  static const Duration _updateInterval = Duration(minutes: 5);
+  static const double _significantDistanceMeters = 100; // 100m threshold for update
+
+  LocationNotifier(this._locationService) : super(const LocationState()) {
+    _initLocation();
+  }
+
+  Future<void> _initLocation() async {
+    state = state.copyWith(isLoading: true);
+
+    // Try to get saved location first
+    var location = await _locationService.getSavedLocation();
+
+    if (location != null) {
+      state = LocationState(
+        location: location,
+        lastUpdated: DateTime.now(),
+        isLoading: false,
+      );
+    }
+
+    // Then try to get fresh location
+    await updateLocation();
+  }
+
+  /// Update location if needed (checks interval and significant distance change)
+  Future<bool> updateLocation({bool force = false}) async {
+    // Check if we should update (time-based)
+    if (!force && state.lastUpdated != null) {
+      final timeSinceUpdate = DateTime.now().difference(state.lastUpdated!);
+      if (timeSinceUpdate < _updateInterval) {
+        debugPrint('LocationNotifier: Skipping update, last update was ${timeSinceUpdate.inSeconds}s ago');
+        return false;
+      }
+    }
+
+    state = state.copyWith(isLoading: true);
+
+    try {
+      final newLocation = await _locationService.updateUserLocation();
+
+      if (newLocation == null) {
+        state = state.copyWith(isLoading: false);
+        return false;
+      }
+
+      final oldLocation = state.location;
+      final hasSignificantChange = oldLocation == null ||
+          _hasSignificantDistanceChange(oldLocation, newLocation);
+
+      state = LocationState(
+        location: newLocation,
+        lastUpdated: DateTime.now(),
+        isLoading: false,
+      );
+
+      debugPrint('LocationNotifier: Updated location to (${newLocation.latitude}, ${newLocation.longitude}), significant change: $hasSignificantChange');
+
+      return hasSignificantChange;
+    } catch (e) {
+      debugPrint('LocationNotifier: Error updating location: $e');
+      state = state.copyWith(isLoading: false);
+      return false;
+    }
+  }
+
+  /// Check if distance change is significant (> 100m)
+  bool _hasSignificantDistanceChange(LocationData old, LocationData newLoc) {
+    final distance = LocationService.calculateDistance(
+      old.latitude, old.longitude,
+      newLoc.latitude, newLoc.longitude,
+    );
+    // Convert km to meters
+    return distance * 1000 > _significantDistanceMeters;
+  }
+
+  /// Force refresh location
+  Future<bool> forceRefresh() async {
+    return updateLocation(force: true);
+  }
+}
+
+/// Location notifier provider
+final locationNotifierProvider = StateNotifierProvider<LocationNotifier, LocationState>((ref) {
+  final locationService = ref.watch(locationServiceProvider);
+  return LocationNotifier(locationService);
+});
+
+/// Current user location provider (legacy, for compatibility)
 final userLocationProvider = FutureProvider<LocationData?>((ref) async {
   final locationService = ref.watch(locationServiceProvider);
 
@@ -346,4 +507,10 @@ final userLocationProvider = FutureProvider<LocationData?>((ref) async {
 final locationPermissionProvider = FutureProvider<LocationPermission>((ref) async {
   final locationService = ref.watch(locationServiceProvider);
   return await locationService.checkPermission();
+});
+
+/// Has "always" location permission provider
+final hasAlwaysLocationPermissionProvider = FutureProvider<bool>((ref) async {
+  final locationService = ref.watch(locationServiceProvider);
+  return await locationService.hasAlwaysPermission();
 });

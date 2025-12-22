@@ -100,7 +100,14 @@ class QuickFilters extends ConsumerWidget {
       label: label,
       isSelected: selected == goal,
       onTap: () {
+        // Update quick filter
         ref.read(quickDatingGoalProvider.notifier).state = goal;
+        // Also update quickDatingGoalsProvider for consistency
+        if (goal == null) {
+          ref.read(quickDatingGoalsProvider.notifier).state = {};
+        } else {
+          ref.read(quickDatingGoalsProvider.notifier).state = {goal};
+        }
       },
     );
   }
@@ -115,7 +122,14 @@ class QuickFilters extends ConsumerWidget {
       label: label,
       isSelected: selected == status,
       onTap: () {
+        // Update quick filter
         ref.read(quickRelationshipStatusProvider.notifier).state = status;
+        // Also update quickRelationshipStatusesProvider for consistency
+        if (status == null) {
+          ref.read(quickRelationshipStatusesProvider.notifier).state = {};
+        } else {
+          ref.read(quickRelationshipStatusesProvider.notifier).state = {status};
+        }
       },
     );
   }

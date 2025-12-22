@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/router/app_router.dart';
+import '../../core/services/location_service.dart';
 import '../../core/services/realtime_service.dart';
 import '../../core/services/supabase_service.dart';
 import '../../core/services/sound_service.dart';
 import '../../features/chats/domain/providers/chats_provider.dart';
+import '../../features/home/domain/providers/profiles_provider.dart';
 import '../../features/profile/domain/models/user_model.dart';
 import '../../features/profile/domain/providers/current_profile_provider.dart';
 import '../../features/home/presentation/widgets/match_dialog.dart';
@@ -50,7 +53,49 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> with WidgetsBinding
       _setupRealtimeListeners();
       // Set user online when app starts
       _setOnlineStatus(true);
+      // Check profile location and request if missing
+      _checkAndUpdateLocation();
     });
+  }
+
+  /// Check if profile has location, request if missing, and update periodically
+  Future<void> _checkAndUpdateLocation() async {
+    try {
+      // Check if current profile has coordinates
+      final currentProfile = ref.read(currentProfileProvider).valueOrNull;
+      final hasLocation = currentProfile?.latitude != null && currentProfile?.longitude != null;
+
+      debugPrint('_checkAndUpdateLocation: Profile has location: $hasLocation');
+
+      final locationService = ref.read(locationServiceProvider);
+
+      // First request basic permission
+      final permission = await locationService.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        debugPrint('_checkAndUpdateLocation: Location permission denied');
+        return;
+      }
+
+      // Request "always" permission for background location
+      final hasAlways = await locationService.requestAlwaysPermission();
+      debugPrint('Location "always" permission: $hasAlways');
+
+      // Use LocationNotifier to update location
+      final locationNotifier = ref.read(locationNotifierProvider.notifier);
+
+      // Force update if profile has no location, otherwise normal update
+      final hasSignificantChange = await locationNotifier.updateLocation(force: !hasLocation);
+
+      // If location changed significantly, reload profiles to recalculate distances
+      if (hasSignificantChange) {
+        debugPrint('_checkAndUpdateLocation: Significant location change, reloading profiles');
+        // Import profiles_provider is needed - we'll use invalidate
+        ref.invalidate(profilesNotifierProvider);
+      }
+    } catch (e) {
+      debugPrint('Error checking/updating location: $e');
+    }
   }
 
   @override
@@ -66,6 +111,8 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> with WidgetsBinding
     switch (state) {
       case AppLifecycleState.resumed:
         _setOnlineStatus(true);
+        // Update location when app comes to foreground
+        _updateLocationInBackground();
         break;
       case AppLifecycleState.inactive:
         break;
@@ -78,6 +125,22 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> with WidgetsBinding
       case AppLifecycleState.hidden:
         _setOnlineStatus(false);
         break;
+    }
+  }
+
+  /// Update location in background when app resumes
+  Future<void> _updateLocationInBackground() async {
+    try {
+      final locationNotifier = ref.read(locationNotifierProvider.notifier);
+      final hasSignificantChange = await locationNotifier.updateLocation();
+
+      // If location changed significantly, reload profiles to recalculate distances
+      if (hasSignificantChange) {
+        debugPrint('_updateLocationInBackground: Significant location change, reloading profiles');
+        ref.invalidate(profilesNotifierProvider);
+      }
+    } catch (e) {
+      debugPrint('Error updating location: $e');
     }
   }
 
@@ -165,31 +228,54 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> with WidgetsBinding
 
     // Listen for new matches and show match dialog
     realtimeService.onNewMatch = (matchData) async {
-      if (_isShowingDialog || !mounted) return;
+      debugPrint('🎉 MainScaffold: onNewMatch callback triggered');
+      debugPrint('🎉 MainScaffold: _isShowingDialog=$_isShowingDialog, mounted=$mounted');
+
+      if (_isShowingDialog || !mounted) {
+        debugPrint('🎉 MainScaffold: Skipping - dialog showing or not mounted');
+        return;
+      }
 
       final user1Id = matchData['user1_id'] as String?;
       final user2Id = matchData['user2_id'] as String?;
       final supabase = ref.read(supabaseServiceProvider);
       final currentUserId = supabase.currentUser?.id;
 
-      if (currentUserId == null) return;
+      debugPrint('🎉 MainScaffold: Match data - user1=$user1Id, user2=$user2Id, current=$currentUserId');
+
+      if (currentUserId == null) {
+        debugPrint('🎉 MainScaffold: No current user ID');
+        return;
+      }
 
       // Find the other user's ID
       final otherUserId = user1Id == currentUserId ? user2Id : user1Id;
-      if (otherUserId == null) return;
+      if (otherUserId == null) {
+        debugPrint('🎉 MainScaffold: No other user ID found');
+        return;
+      }
 
-      // Refresh chats
+      debugPrint('🎉 MainScaffold: Other user ID = $otherUserId, refreshing chats and likes');
+
+      // Refresh chats and likes immediately
       ref.read(chatsNotifierProvider.notifier).refresh();
       ref.read(likesNotifierProvider.notifier).refresh();
 
+      // Increment unread notifications
+      ref.read(unreadNotificationsProvider.notifier).increment();
+
       // Get matched user's profile
       try {
+        debugPrint('🎉 MainScaffold: Fetching profile for $otherUserId');
         final profileData = await supabase.getProfile(otherUserId);
+
+        debugPrint('🎉 MainScaffold: Profile data received: ${profileData != null}');
 
         if (profileData != null && mounted) {
           final matchedUser = UserModel.fromSupabase(profileData);
           final currentProfile = ref.read(currentProfileProvider).valueOrNull;
 
+          debugPrint('🎉 MainScaffold: Showing match dialog for ${matchedUser.name}');
           _isShowingDialog = true;
 
           await MatchDialog.show(
@@ -203,12 +289,39 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> with WidgetsBinding
           );
 
           _isShowingDialog = false;
+          debugPrint('🎉 MainScaffold: Match dialog closed');
         }
       } catch (e) {
-        print('Error showing match dialog: $e');
+        debugPrint('🎉 MainScaffold: Error showing match dialog: $e');
         _isShowingDialog = false;
       }
     };
+
+    // Listen for chat deletions (when other user deletes)
+    realtimeService.onChatDeleted = (chatData) {
+      debugPrint('🗑️ MainScaffold: Chat deleted event received');
+      // Refresh chats list to remove the deleted chat
+      ref.read(chatsNotifierProvider.notifier).refresh();
+      // Also refresh likes as they might have been deleted too
+      ref.read(likesNotifierProvider.notifier).refresh();
+    };
+
+    // Listen for like deletions (when other user removes like)
+    realtimeService.onLikeDeleted = (likeData) {
+      debugPrint('🗑️ MainScaffold: Like deleted event received');
+      // Refresh likes list
+      ref.read(likesNotifierProvider.notifier).refresh();
+    };
+
+    // Listen for match deletions (when other user unmatches)
+    realtimeService.onMatchDeleted = (matchData) {
+      debugPrint('🗑️ MainScaffold: Match deleted event received');
+      // Refresh chats and likes
+      ref.read(chatsNotifierProvider.notifier).refresh();
+      ref.read(likesNotifierProvider.notifier).refresh();
+    };
+
+    debugPrint('🔔 MainScaffold: Realtime listeners setup complete');
   }
 
   Future<void> _navigateToMatchChat(String otherUserId) async {

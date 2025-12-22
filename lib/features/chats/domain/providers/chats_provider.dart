@@ -2,8 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../models/chat_model.dart';
-import '../../../ai_profiles/domain/services/ai_chat_service.dart';
-import '../../../ai_profiles/domain/providers/ai_profiles_provider.dart';
 
 /// Chats tab enum
 enum ChatsTab { chats, likes, favs }
@@ -22,17 +20,46 @@ class UserPresenceInfo {
   });
 }
 
-/// Provider for user's online status (fetches fresh from DB)
-final userOnlineStatusProvider = FutureProvider.family<bool, String>((ref, userId) async {
+/// Provider for user's online status (fetches fresh from DB and subscribes to changes)
+final userOnlineStatusProvider = StreamProvider.family<bool, String>((ref, userId) async* {
   final supabase = ref.watch(supabaseServiceProvider);
 
+  // First, yield the current status
   try {
     final profile = await supabase.getProfile(userId);
-    return profile?['is_online'] as bool? ?? false;
+    yield profile?['is_online'] as bool? ?? false;
   } catch (e) {
-    print('Error getting user online status: $e');
-    return false;
+    print('Error getting initial user online status: $e');
+    yield false;
   }
+
+  // Then subscribe to changes
+  final channel = Supabase.instance.client.channel('presence_$userId');
+
+  channel.onPostgresChanges(
+    event: PostgresChangeEvent.update,
+    schema: 'public',
+    table: 'profiles',
+    filter: PostgresChangeFilter(
+      type: PostgresChangeFilterType.eq,
+      column: 'id',
+      value: userId,
+    ),
+    callback: (payload) {
+      final newRecord = payload.newRecord;
+      if (newRecord.containsKey('is_online')) {
+        // Status changed - provider will automatically refresh on next read
+        ref.invalidateSelf();
+      }
+    },
+  );
+
+  channel.subscribe();
+
+  // Keep the stream alive
+  ref.onDispose(() {
+    channel.unsubscribe();
+  });
 });
 
 /// Provider for user presence info (online status + last seen)
@@ -129,7 +156,31 @@ class ChatsNotifier extends StateNotifier<AsyncValue<List<ChatModel>>> {
       callback: (payload) {
         print('💬 Chats: Received message update event');
         // Silent refresh - don't show loading state
-        loadChats(silent: true);
+        // Use unawaited pattern to avoid blocking callback
+        Future.microtask(() => loadChats(silent: true));
+      },
+    );
+
+    // Also subscribe to new matches/chats
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'matches',
+      callback: (payload) {
+        print('💬 Chats: New match received');
+        // Reload chats when a new match is created
+        Future.microtask(() => loadChats(silent: true));
+      },
+    );
+
+    // Subscribe to chat updates (e.g., deletions)
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.all,
+      schema: 'public',
+      table: 'chats',
+      callback: (payload) {
+        print('💬 Chats: Chat updated');
+        Future.microtask(() => loadChats(silent: true));
       },
     );
 
@@ -175,13 +226,50 @@ final likesProvider = FutureProvider<List<LikeModel>>((ref) async {
   }
 });
 
-/// Likes state notifier
+/// Likes state notifier with realtime subscription
 class LikesNotifier extends StateNotifier<AsyncValue<List<LikeModel>>> {
   final SupabaseService _supabase;
+  final Ref _ref;
   bool _isFirstLoad = true;
+  RealtimeChannel? _subscription;
 
-  LikesNotifier(this._supabase) : super(const AsyncValue.loading()) {
+  LikesNotifier(this._supabase, this._ref) : super(const AsyncValue.loading()) {
     loadLikes();
+    _subscribeToLikes();
+  }
+
+  void _subscribeToLikes() {
+    final currentUserId = _supabase.currentUser?.id;
+    if (currentUserId == null) return;
+
+    print('❤️ LikesNotifier: Setting up realtime subscription');
+
+    final channel = Supabase.instance.client.channel('likes_updates_$currentUserId');
+
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'likes',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'to_user_id',
+        value: currentUserId,
+      ),
+      callback: (payload) {
+        print('❤️ LikesNotifier: New like received');
+        // Reload likes when a new like is received
+        Future.microtask(() => loadLikes(silent: true));
+      },
+    );
+
+    channel.subscribe((status, error) {
+      print('❤️ Likes subscription status: $status');
+      if (error != null) {
+        print('❌ Likes subscription error: $error');
+      }
+    });
+
+    _subscription = channel;
   }
 
   Future<void> loadLikes({bool silent = false}) async {
@@ -248,12 +336,19 @@ class LikesNotifier extends StateNotifier<AsyncValue<List<LikeModel>>> {
       rethrow;
     }
   }
+
+  @override
+  void dispose() {
+    print('❤️ LikesNotifier disposing');
+    _subscription?.unsubscribe();
+    super.dispose();
+  }
 }
 
 /// Likes notifier provider
 final likesNotifierProvider = StateNotifierProvider<LikesNotifier, AsyncValue<List<LikeModel>>>((ref) {
   final supabase = ref.watch(supabaseServiceProvider);
-  return LikesNotifier(supabase);
+  return LikesNotifier(supabase, ref);
 });
 
 /// Favorites from Supabase
@@ -544,77 +639,3 @@ final messagesNotifierProvider = StateNotifierProvider.family<MessagesNotifier, 
   return MessagesNotifier(supabase, chatId);
 });
 
-/// AI Chats as ChatModel provider - converts AI chat history to ChatModel format
-final aiChatsAsChatsProvider = FutureProvider<List<ChatModel>>((ref) async {
-  final chatService = ref.watch(aiChatServiceProvider);
-  final aiProfiles = ref.watch(aiProfilesProvider);
-
-  // Get all AI chat IDs (profiles with chat history)
-  final aiChatIds = await chatService.getAllAIChatIds();
-
-  final aiChats = <ChatModel>[];
-
-  for (final aiProfileId in aiChatIds) {
-    // Find the AI profile
-    final profile = aiProfiles.whenOrNull(
-      data: (profiles) => profiles.where((p) => p.id == aiProfileId).firstOrNull,
-    );
-
-    if (profile == null) continue;
-
-    // Get chat history
-    final history = await chatService.getChatHistory(aiProfileId);
-    if (history.isEmpty) continue;
-
-    // Get last message
-    final lastMsg = history.last;
-    final lastMessage = MessageModel(
-      id: lastMsg['id'] as String? ?? '',
-      chatId: aiProfileId,
-      senderId: lastMsg['is_from_ai'] == true ? aiProfileId : 'user',
-      text: lastMsg['content'] as String? ?? '',
-      createdAt: DateTime.tryParse(lastMsg['created_at'] as String? ?? '') ?? DateTime.now(),
-    );
-
-    aiChats.add(ChatModel(
-      id: aiProfileId, // Use AI profile ID as chat ID
-      participantId: aiProfileId,
-      participantName: profile.name,
-      participantAvatarUrl: profile.photos.isNotEmpty ? profile.photos.first : null,
-      participantOnline: true, // AI profiles are always online
-      participantVerified: profile.isVerified,
-      lastMessage: lastMessage,
-      unreadCount: 0, // AI chats don't track unread
-      createdAt: DateTime.tryParse(history.first['created_at'] as String? ?? '') ?? DateTime.now(),
-      updatedAt: lastMessage.createdAt,
-    ));
-  }
-
-  // Sort by last message date (newest first)
-  aiChats.sort((a, b) => (b.lastMessage?.createdAt ?? b.updatedAt).compareTo(a.lastMessage?.createdAt ?? a.updatedAt));
-
-  return aiChats;
-});
-
-/// Combined chats provider - merges real chats with AI chats
-final combinedChatsProvider = Provider<AsyncValue<List<ChatModel>>>((ref) {
-  final realChatsAsync = ref.watch(chatsNotifierProvider);
-  final aiChatsAsync = ref.watch(aiChatsAsChatsProvider);
-
-  // If real chats are loading, show loading
-  if (realChatsAsync.isLoading && aiChatsAsync.isLoading) {
-    return const AsyncValue.loading();
-  }
-
-  // Get real chats (empty list if loading/error)
-  final realChats = realChatsAsync.valueOrNull ?? [];
-
-  // Get AI chats (empty list if loading/error)
-  final aiChats = aiChatsAsync.valueOrNull ?? [];
-
-  // Combine and sort by last message date
-  final allChats = [...aiChats, ...realChats];
-  allChats.sort((a, b) => (b.lastMessage?.createdAt ?? b.updatedAt).compareTo(a.lastMessage?.createdAt ?? a.updatedAt));
-
-  return AsyncValue.data(allChats);
-});

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/providers/admin_provider.dart';
+import '../../../../shared/widgets/debug_panel.dart';
 
 /// Admin subscriptions management screen - responsive design
 class AdminSubscriptionsScreen extends ConsumerStatefulWidget {
@@ -14,14 +15,25 @@ class _AdminSubscriptionsScreenState extends ConsumerState<AdminSubscriptionsScr
   String? _selectedPlan;
   bool? _isActive;
 
-  Map<String, dynamic> get _filters => {
-    'planType': _selectedPlan,
-    'isActive': _isActive,
-  };
+  // Cache filters to prevent infinite rebuilds
+  Map<String, dynamic> _cachedFilters = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _updateFilters();
+  }
+
+  void _updateFilters() {
+    _cachedFilters = {
+      'planType': _selectedPlan,
+      'isActive': _isActive,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
-    final subscriptionsAsync = ref.watch(adminSubscriptionsProvider(_filters));
+    final subscriptionsAsync = ref.watch(adminSubscriptionsProvider(_cachedFilters));
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 768;
     final padding = isMobile ? 16.0 : 24.0;
@@ -46,7 +58,7 @@ class _AdminSubscriptionsScreenState extends ConsumerState<AdminSubscriptionsScr
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.refresh, color: Colors.white54),
-                  onPressed: () => ref.invalidate(adminSubscriptionsProvider(_filters)),
+                  onPressed: () => ref.invalidate(adminSubscriptionsProvider(_cachedFilters)),
                   tooltip: 'Refresh',
                 ),
               ],
@@ -68,7 +80,27 @@ class _AdminSubscriptionsScreenState extends ConsumerState<AdminSubscriptionsScr
                 child: CircularProgressIndicator(color: Color(0xFFD64557)),
               ),
               error: (e, _) => Center(
-                child: Text('Error: $e', style: const TextStyle(color: Colors.red)),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                    const SizedBox(height: 16),
+                    Text('Error: $e', style: const TextStyle(color: Colors.red)),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () => ref.invalidate(adminSubscriptionsProvider(_cachedFilters)),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD64557)),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: () => DebugPanel.show(context),
+                      icon: const Icon(Icons.bug_report, color: Colors.orange),
+                      label: const Text('View Debug Logs', style: TextStyle(color: Colors.orange)),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -92,14 +124,14 @@ class _AdminSubscriptionsScreenState extends ConsumerState<AdminSubscriptionsScr
             'monthly': 'Monthly',
             'yearly': 'Yearly',
           },
-          onChanged: (value) => setState(() => _selectedPlan = value),
+          onChanged: (value) => setState(() { _selectedPlan = value; _updateFilters(); }),
           compact: isMobile,
         ),
         _FilterDropdown<bool?>(
           value: _isActive,
           hint: 'Status',
           items: const {null: 'All', true: 'Active', false: 'Inactive'},
-          onChanged: (value) => setState(() => _isActive = value),
+          onChanged: (value) => setState(() { _isActive = value; _updateFilters(); }),
           compact: isMobile,
         ),
         if (_selectedPlan != null || _isActive != null)
@@ -108,6 +140,7 @@ class _AdminSubscriptionsScreenState extends ConsumerState<AdminSubscriptionsScr
               setState(() {
                 _selectedPlan = null;
                 _isActive = null;
+                _updateFilters();
               });
             },
             child: Text(
@@ -304,7 +337,7 @@ class _AdminSubscriptionsScreenState extends ConsumerState<AdminSubscriptionsScr
 
     try {
       await adminService.updateSubscription(subId, {'is_active': !isActive});
-      ref.invalidate(adminSubscriptionsProvider(_filters));
+      ref.invalidate(adminSubscriptionsProvider(_cachedFilters));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -349,7 +382,7 @@ class _AdminSubscriptionsScreenState extends ConsumerState<AdminSubscriptionsScr
         'end_date': newEndDate.toIso8601String(),
         'is_active': true,
       });
-      ref.invalidate(adminSubscriptionsProvider(_filters));
+      ref.invalidate(adminSubscriptionsProvider(_cachedFilters));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

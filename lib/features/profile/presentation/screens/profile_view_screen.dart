@@ -217,56 +217,9 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
                 ),
               ),
 
-              // Profile details
+              // Profile details - new design
               SliverToBoxAdapter(
-                child: ContentContainer(
-                  maxWidth: 500,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      AppSpacing.vGapLg,
-
-                      // Bio
-                      if (user.bio != null) ...[
-                        Text(
-                          'About',
-                          style: AppTypography.titleMedium.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        AppSpacing.vGapSm,
-                        Text(
-                          user.bio!,
-                          style: AppTypography.bodyMedium,
-                        ),
-                        AppSpacing.vGapXl,
-                      ],
-
-                      // Details
-                      _buildDetailsSection(user),
-                      AppSpacing.vGapXl,
-
-                      // Albums section
-                      _buildAlbumsSection(user),
-
-                      // Interests (with matching indication)
-                      if (user.interests.isNotEmpty) ...[
-                        Text(
-                          'Interests',
-                          style: AppTypography.titleMedium.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        AppSpacing.vGapSm,
-                        _buildInterestsTags(user),
-                        AppSpacing.vGapXl,
-                      ],
-
-                      // Spacer for bottom buttons
-                      const SizedBox(height: 100),
-                    ],
-                  ),
-                ),
+                child: _buildProfileContent(user),
               ),
             ],
           ),
@@ -417,9 +370,7 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
             ),
             const SizedBox(width: 4),
             Text(
-              user.distanceKm != null
-                  ? '${user.city ?? ''} • ${user.distanceKm} km away'
-                  : user.locationString,
+              user.distanceString,
               style: AppTypography.bodyMedium.copyWith(
                 color: AppColors.textSecondary,
               ),
@@ -450,89 +401,326 @@ class _ProfileViewScreenState extends ConsumerState<ProfileViewScreen> {
     }
   }
 
-  Widget _buildDetailsSection(UserModel user) {
-    return FancyCard(
-      padding: EdgeInsets.zero,
+  // Color constants for profile view (from Figma)
+  static const Color _primaryInfoColor = Color(0xFFF2F2F2); // Dating goal, status
+  static const Color _secondaryInfoColor = Color(0xFFCCCCCC); // Other info
+  static const Color _tertiaryInfoColor = Color(0xFF999999); // Basic info text
+  static const Color _dividerColor = Color(0xFF333333); // Divider lines
+
+  /// Build full profile content with new design
+  Widget _buildProfileContent(UserModel user) {
+    return Container(
+      color: AppColors.background,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (user.datingGoal != null)
-            _buildDetailTile(
-              Icons.favorite_outline,
-              'Looking for',
-              _getDatingGoalText(user.datingGoal!),
-            ),
-          if (user.relationshipStatus != null) ...[
-            const Divider(height: 1),
-            _buildDetailTile(
-              Icons.people_outline,
-              'Status',
-              _getStatusText(user.relationshipStatus!),
-            ),
-          ],
-          if (user.heightCm != null) ...[
-            const Divider(height: 1),
-            _buildDetailTile(
-              Icons.height,
-              'Height',
-              '${user.heightCm} cm',
+          // Bio section
+          if (user.bio != null && user.bio!.isNotEmpty) ...[
+            AppSpacing.vGapMd,
+            Text(
+              user.bio!,
+              style: const TextStyle(
+                fontFamily: 'Onest',
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                height: 18 / 14, // line height 18
+                letterSpacing: -0.02 * 14, // -2%
+                color: _tertiaryInfoColor,
+              ),
             ),
           ],
-          if (user.occupation != null) ...[
-            const Divider(height: 1),
-            _buildDetailTile(
-              Icons.work_outline,
-              'Occupation',
-              user.occupation!,
-            ),
+
+          // Divider
+          _buildDivider(),
+
+          // Dating goal and Relationship status (highlighted)
+          _buildPrimaryInfoRow(user),
+
+          // Divider
+          _buildDivider(),
+
+          // Secondary info (verified, location, distance, etc)
+          _buildSecondaryInfoRow(user),
+
+          // Divider
+          _buildDivider(),
+
+          // Physical info (age, height, weight, zodiac)
+          _buildPhysicalInfoRow(user),
+
+          // Divider
+          _buildDivider(),
+
+          // Languages and work
+          _buildLanguagesAndWorkRow(user),
+
+          // Divider before interests
+          if (user.interests.isNotEmpty) ...[
+            _buildDivider(),
+            // Regular interests
+            _buildInterestsSection(user),
           ],
-          if (user.zodiacSign != null) ...[
-            const Divider(height: 1),
-            _buildDetailTile(
-              Icons.auto_awesome,
-              'Zodiac',
-              _getZodiacText(user.zodiacSign!),
-            ),
+
+          // Private interests / fantasies (if any)
+          if (user.fantasies.isNotEmpty) ...[
+            AppSpacing.vGapMd,
+            _buildPrivateInterestsSection(user),
           ],
-          if (user.languages.isNotEmpty) ...[
-            const Divider(height: 1),
-            _buildDetailTile(
-              Icons.language,
-              'Languages',
-              user.languages.join(', '),
-            ),
-          ],
+
+          // Albums section
+          _buildAlbumsSection(user),
+
+          // Spacer for bottom buttons
+          const SizedBox(height: 120),
         ],
       ),
     );
   }
 
-  Widget _buildDetailTile(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: AppColors.textSecondary),
-          AppSpacing.hGapMd,
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: AppTypography.labelSmall.copyWith(
-                    color: AppColors.textTertiary,
-                  ),
-                ),
-                Text(
-                  value,
-                  style: AppTypography.bodyMedium,
-                ),
-              ],
-            ),
-          ),
-        ],
+  Widget _buildDivider() {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+      height: 1,
+      color: _dividerColor,
+    );
+  }
+
+  /// Dating goal and relationship status - primary highlight color #F2F2F2
+  Widget _buildPrimaryInfoRow(UserModel user) {
+    final items = <String>[];
+    if (user.datingGoal != null) {
+      items.add(_getDatingGoalText(user.datingGoal!).toLowerCase());
+    }
+    if (user.relationshipStatus != null) {
+      items.add(_getStatusText(user.relationshipStatus!).toLowerCase());
+    }
+
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    return Text(
+      items.join(' · '),
+      style: const TextStyle(
+        fontFamily: 'Onest',
+        fontSize: 16,
+        fontWeight: FontWeight.w400,
+        height: 1, // line height 16
+        letterSpacing: -0.04 * 16, // -4%
+        color: _primaryInfoColor,
       ),
     );
+  }
+
+  /// Secondary info: online/offline, verified, location, distance
+  Widget _buildSecondaryInfoRow(UserModel user) {
+    // Fetch fresh online status
+    final presenceAsync = ref.watch(userPresenceProvider(user.id));
+    final presence = presenceAsync.valueOrNull;
+    final isOnline = presence?.isOnline ?? user.isOnline;
+    final lastSeen = presence?.lastSeen ?? user.lastOnline;
+
+    final items = <String>[];
+
+    // Online status
+    if (isOnline) {
+      items.add('online');
+    } else if (lastSeen != null) {
+      items.add('offline, ${_formatLastSeenShort(lastSeen)}');
+    } else {
+      items.add('offline');
+    }
+
+    // Verified
+    if (user.isVerified) {
+      items.add('verified');
+    }
+
+    // Profile type
+    if (user.profileType != ProfileType.man && user.profileType != ProfileType.woman) {
+      items.add(_getProfileTypeShort(user.profileType));
+    }
+
+    // Location and distance
+    final locationParts = <String>[];
+    if (user.city != null) {
+      locationParts.add(user.city!.toLowerCase());
+    }
+    if (user.distanceKm != null) {
+      locationParts.add('${user.distanceKm!.round()} km');
+    }
+    if (locationParts.isNotEmpty) {
+      items.add(locationParts.join(' · '));
+    }
+
+    return Text(
+      items.join(' · '),
+      style: const TextStyle(
+        fontFamily: 'Onest',
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+        height: 16 / 14, // line height 16
+        letterSpacing: -0.04 * 14, // -4%
+        color: _secondaryInfoColor,
+      ),
+    );
+  }
+
+  /// Physical info: age, height, weight, zodiac
+  Widget _buildPhysicalInfoRow(UserModel user) {
+    final items = <String>[];
+
+    // Age
+    items.add('${user.age} y');
+
+    // Height
+    if (user.heightCm != null) {
+      items.add('${user.heightCm} cm');
+    }
+
+    // Weight
+    if (user.weightKg != null) {
+      items.add('${user.weightKg} kg');
+    }
+
+    // Zodiac
+    if (user.zodiacSign != null) {
+      items.add(_getZodiacText(user.zodiacSign!).toLowerCase());
+    }
+
+    return Text(
+      items.join(' · '),
+      style: const TextStyle(
+        fontFamily: 'Onest',
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+        height: 16 / 14,
+        letterSpacing: -0.04 * 14,
+        color: _secondaryInfoColor,
+      ),
+    );
+  }
+
+  /// Languages and work info
+  Widget _buildLanguagesAndWorkRow(UserModel user) {
+    final items = <String>[];
+
+    // Languages
+    if (user.languages.isNotEmpty) {
+      items.add(user.languages.map((l) => l.toLowerCase()).join('/'));
+    }
+
+    // Occupation/work
+    if (user.occupation != null) {
+      items.add(user.occupation!.toLowerCase());
+    }
+
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    return Text(
+      items.join(' · '),
+      style: const TextStyle(
+        fontFamily: 'Onest',
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+        height: 16 / 14,
+        letterSpacing: -0.04 * 14,
+        color: _secondaryInfoColor,
+      ),
+    );
+  }
+
+  /// Regular interests section
+  Widget _buildInterestsSection(UserModel user) {
+    // Get current user's interests for comparison
+    final currentUserAsync = ref.watch(currentProfileProvider);
+    final currentUser = currentUserAsync.valueOrNull;
+    final myInterests = currentUser?.interests ?? [];
+
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: user.interests.map((interest) {
+        final isMatching = myInterests.contains(interest);
+        return _buildInterestChip(interest, isMatching: isMatching);
+      }).toList(),
+    );
+  }
+
+  /// Private/intimate interests section (pink tags)
+  Widget _buildPrivateInterestsSection(UserModel user) {
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: user.fantasies.map((interest) {
+        return _buildInterestChip(interest, isPrivate: true);
+      }).toList(),
+    );
+  }
+
+  Widget _buildInterestChip(String label, {bool isMatching = false, bool isPrivate = false}) {
+    Color bgColor;
+    Color textColor;
+
+    if (isPrivate) {
+      bgColor = AppColors.primary.withOpacity(0.2);
+      textColor = AppColors.primary;
+    } else if (isMatching) {
+      bgColor = AppColors.success.withOpacity(0.2);
+      textColor = AppColors.success;
+    } else {
+      bgColor = AppColors.surfaceVariant;
+      textColor = _secondaryInfoColor;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.zero,
+        border: Border.all(
+          color: isPrivate ? AppColors.primary.withOpacity(0.3) : Colors.transparent,
+        ),
+      ),
+      child: Text(
+        label.toLowerCase(),
+        style: TextStyle(
+          fontFamily: 'Onest',
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+          height: 16 / 14,
+          letterSpacing: -0.04 * 14,
+          color: textColor,
+        ),
+      ),
+    );
+  }
+
+  String _formatLastSeenShort(DateTime lastSeen) {
+    final now = DateTime.now();
+    final diff = now.difference(lastSeen);
+
+    if (diff.inMinutes < 60) {
+      return 'seen recently';
+    } else if (diff.inHours < 24) {
+      return 'seen ${diff.inHours}h ago';
+    } else {
+      return 'seen ${diff.inDays}d ago';
+    }
+  }
+
+  String _getProfileTypeShort(ProfileType type) {
+    switch (type) {
+      case ProfileType.man:
+        return 'm';
+      case ProfileType.woman:
+        return 'f';
+      case ProfileType.manAndWoman:
+        return 'f&m';
+      case ProfileType.manPair:
+        return 'm&m';
+      case ProfileType.womanPair:
+        return 'f&f';
+    }
   }
 
   Widget _buildAlbumsSection(UserModel user) {

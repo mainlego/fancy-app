@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/services/supabase_service.dart';
 import '../models/access_request_model.dart';
@@ -183,13 +184,40 @@ final albumsNotifierProvider = StateNotifierProvider<AlbumsNotifier, AsyncValue<
   return AlbumsNotifier(service, ref);
 });
 
-/// Access requests notifier for managing access request operations
+/// Access requests notifier for managing access request operations with realtime
 class AccessRequestsNotifier extends StateNotifier<AsyncValue<List<AccessRequestModel>>> {
   final SupabaseService _service;
   final Ref _ref;
+  RealtimeChannel? _subscription;
 
   AccessRequestsNotifier(this._service, this._ref) : super(const AsyncValue.loading()) {
     loadRequests();
+    _subscribeToRequests();
+  }
+
+  void _subscribeToRequests() {
+    final currentUserId = _service.currentUser?.id;
+    if (currentUserId == null) return;
+
+    final channel = Supabase.instance.client.channel('access_requests_$currentUserId');
+
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'album_access_requests',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'owner_id',
+        value: currentUserId,
+      ),
+      callback: (payload) {
+        print('📂 AccessRequests: New request received');
+        Future.microtask(() => refresh());
+      },
+    );
+
+    channel.subscribe();
+    _subscription = channel;
   }
 
   Future<void> loadRequests() async {
@@ -243,6 +271,12 @@ class AccessRequestsNotifier extends StateNotifier<AsyncValue<List<AccessRequest
   Future<void> revokeAccess(String requestId) async {
     await _service.revokeAlbumAccess(requestId);
     await refresh();
+  }
+
+  @override
+  void dispose() {
+    _subscription?.unsubscribe();
+    super.dispose();
   }
 }
 

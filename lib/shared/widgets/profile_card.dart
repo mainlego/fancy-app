@@ -292,7 +292,7 @@ class _ProfileCardState extends State<ProfileCard> {
         ),
         AppSpacing.vGapXs,
 
-        // Location and distance
+        // Distance (with privacy fuzzing)
         Row(
           children: [
             const Icon(
@@ -303,9 +303,7 @@ class _ProfileCardState extends State<ProfileCard> {
             const SizedBox(width: 4),
             Expanded(
               child: Text(
-                widget.user.distanceKm != null
-                    ? '${widget.user.city ?? ''} ${widget.user.distanceKm} km'
-                    : widget.user.locationString,
+                widget.user.distanceShortString,
                 style: AppTypography.bodySmall,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

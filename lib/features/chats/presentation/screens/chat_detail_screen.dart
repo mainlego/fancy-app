@@ -51,6 +51,11 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
   void initState() {
     super.initState();
     _setupTypingIndicator();
+    // Set current open chat ID to prevent notifications for this chat
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final realtimeService = ref.read(realtimeServiceProvider);
+      realtimeService.currentOpenChatId = _actualChatId ?? widget.chatId;
+    });
   }
 
   void _setupTypingIndicator() {
@@ -73,6 +78,8 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     final chatId = _actualChatId ?? widget.chatId;
     final realtimeService = ref.read(realtimeServiceProvider);
     realtimeService.unsubscribeFromChat(chatId);
+    // Clear current open chat ID when leaving
+    realtimeService.currentOpenChatId = null;
     super.dispose();
   }
 

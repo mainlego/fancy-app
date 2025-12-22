@@ -30,7 +30,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   // Form data
   final _nameController = TextEditingController();
   DateTime? _birthDate;
-  String? _gender;
+  ProfileType? _profileType;
   DatingGoal? _datingGoal;
   String? _city;
   double? _latitude;
@@ -60,7 +60,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       case 1:
         return _birthDate != null && _calculateAge(_birthDate!) >= 18;
       case 2:
-        return _gender != null;
+        return _profileType != null;
       case 3:
         return _datingGoal != null;
       case 4:
@@ -105,7 +105,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   }
 
   Future<void> _completeSetup() async {
-    if (_birthDate == null || _gender == null || _datingGoal == null || _selectedPhoto == null) return;
+    if (_birthDate == null || _profileType == null || _datingGoal == null || _selectedPhoto == null) return;
 
     setState(() => _isLoading = true);
 
@@ -126,11 +126,16 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       }
 
       final notifier = ref.read(currentProfileProvider.notifier);
+      // Map ProfileType to gender string for backward compatibility
+      final genderStr = _profileType == ProfileType.man ? 'male'
+          : _profileType == ProfileType.woman ? 'female'
+          : 'other';
       final success = await notifier.createProfile(
         name: _nameController.text.trim(),
         birthDate: _birthDate!,
-        gender: _gender!,
+        gender: genderStr,
         datingGoal: _datingGoal!,
+        profileType: _profileType,
         bio: _bioController.text.trim().isNotEmpty ? _bioController.text.trim() : null,
         city: _city,
         latitude: _latitude,
@@ -438,21 +443,33 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
             ),
           ),
           AppSpacing.vGapXl,
-          _buildGenderOption('male', 'Male', Icons.male),
-          AppSpacing.vGapMd,
-          _buildGenderOption('female', 'Female', Icons.female),
-          AppSpacing.vGapMd,
-          _buildGenderOption('other', 'Other', Icons.transgender),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  _buildProfileTypeOption(ProfileType.man, 'Man', Icons.male),
+                  AppSpacing.vGapMd,
+                  _buildProfileTypeOption(ProfileType.woman, 'Woman', Icons.female),
+                  AppSpacing.vGapMd,
+                  _buildProfileTypeOption(ProfileType.manAndWoman, 'Man & Woman', Icons.people),
+                  AppSpacing.vGapMd,
+                  _buildProfileTypeOption(ProfileType.manPair, 'Man Pair', Icons.group),
+                  AppSpacing.vGapMd,
+                  _buildProfileTypeOption(ProfileType.womanPair, 'Woman Pair', Icons.group),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildGenderOption(String value, String label, IconData icon) {
-    final isSelected = _gender == value;
+  Widget _buildProfileTypeOption(ProfileType type, String label, IconData icon) {
+    final isSelected = _profileType == type;
 
     return GestureDetector(
-      onTap: () => setState(() => _gender = value),
+      onTap: () => setState(() => _profileType = type),
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(

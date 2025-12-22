@@ -38,9 +38,17 @@ Future<void> main() async {
       // Set current user ID for MessageModel
       MessageModel.currentUserId = Supabase.instance.client.auth.currentUser?.id;
 
-      // Listen for auth changes to update currentUserId
-      Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      // Listen for auth changes to update currentUserId and save FCM token
+      Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
         MessageModel.currentUserId = data.session?.user.id;
+        // Save FCM token when user signs in
+        if (data.event == AuthChangeEvent.signedIn) {
+          try {
+            await FcmService().saveTokenToSupabase();
+          } catch (e) {
+            debugPrint('Error saving FCM token: $e');
+          }
+        }
       });
 
       // Set system UI overlay style for dark theme
@@ -74,10 +82,8 @@ Future<void> main() async {
       // Initialize notification service for all platforms
       await NotificationService().init();
 
-      // Initialize Firebase Cloud Messaging for Android push notifications
-      if (!kIsWeb) {
-        await FcmService().init();
-      }
+      // Initialize Firebase Cloud Messaging for push notifications (all platforms)
+      await FcmService().init();
 
       runApp(
         const ProviderScope(

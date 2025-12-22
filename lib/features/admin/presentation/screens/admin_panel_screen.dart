@@ -5,8 +5,10 @@ import 'admin_dashboard_screen.dart';
 import 'admin_users_screen.dart';
 import 'admin_subscriptions_screen.dart';
 import 'admin_reports_screen.dart';
-import 'admin_ai_profiles_screen.dart';
 import 'admin_verifications_screen.dart';
+import 'admin_financial_analytics_screen.dart';
+import 'admin_app_analytics_screen.dart';
+import '../../../../shared/widgets/debug_panel.dart';
 
 /// Main admin panel with responsive sidebar/drawer navigation
 class AdminPanelScreen extends ConsumerStatefulWidget {
@@ -42,14 +44,21 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
       screen: const AdminReportsScreen(),
     ),
     _AdminMenuItem(
-      icon: Icons.smart_toy,
-      label: 'AI Profiles',
-      screen: const AdminAIProfilesScreen(),
-    ),
-    _AdminMenuItem(
       icon: Icons.verified_user,
       label: 'Verifications',
       screen: const AdminVerificationsScreen(),
+    ),
+    _AdminMenuItem(
+      icon: Icons.attach_money,
+      label: 'Finance',
+      screen: const AdminFinancialAnalyticsScreen(),
+      section: 'Analytics',
+    ),
+    _AdminMenuItem(
+      icon: Icons.analytics,
+      label: 'App Analytics',
+      screen: const AdminAppAnalyticsScreen(),
+      section: 'Analytics',
     ),
   ];
 
@@ -175,6 +184,11 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.bug_report, color: Colors.orange),
+            onPressed: () => DebugPanel.show(context),
+            tooltip: 'Debug Logs',
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white54),
             onPressed: () {
               ref.invalidate(adminStatsProvider);
@@ -261,10 +275,32 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
                 itemBuilder: (context, index) {
                   final item = _menuItems[index];
                   final isSelected = index == _selectedIndex;
-                  return _buildMenuItem(item, isSelected, () {
-                    setState(() => _selectedIndex = index);
-                    Navigator.pop(context); // Close drawer
-                  });
+                  final showSectionHeader = item.section != null &&
+                      (index == 0 || _menuItems[index - 1].section != item.section);
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (showSectionHeader) ...[
+                        const SizedBox(height: 16),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: Text(
+                            item.section!,
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
+                      ],
+                      _buildMenuItem(item, isSelected, () {
+                        setState(() => _selectedIndex = index);
+                        Navigator.pop(context); // Close drawer
+                      }),
+                    ],
+                  );
                 },
               ),
             ),
@@ -353,9 +389,31 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
               itemBuilder: (context, index) {
                 final item = _menuItems[index];
                 final isSelected = index == _selectedIndex;
-                return _buildMenuItem(item, isSelected, () {
-                  setState(() => _selectedIndex = index);
-                });
+                final showSectionHeader = item.section != null &&
+                    (index == 0 || _menuItems[index - 1].section != item.section);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (showSectionHeader) ...[
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Text(
+                          item.section!,
+                          style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                    ],
+                    _buildMenuItem(item, isSelected, () {
+                      setState(() => _selectedIndex = index);
+                    }),
+                  ],
+                );
               },
             ),
           ),
@@ -426,10 +484,12 @@ class _AdminMenuItem {
   final IconData icon;
   final String label;
   final Widget screen;
+  final String? section;
 
   _AdminMenuItem({
     required this.icon,
     required this.label,
     required this.screen,
+    this.section,
   });
 }

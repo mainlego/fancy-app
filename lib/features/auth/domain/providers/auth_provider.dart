@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../../core/services/fcm_service.dart';
+import '../../../../core/services/debug_logger.dart';
 
 /// Key for tracking if onboarding was shown (shared with login_screen)
 const String onboardingShownKey = 'onboarding_shown';
@@ -23,6 +24,13 @@ enum AuthState {
   authenticated,
   unauthenticated,
   error,
+}
+
+/// Sign up result enum
+enum SignUpResult {
+  success,
+  emailConfirmationRequired,
+  failed,
 }
 
 /// Auth state model
@@ -71,7 +79,9 @@ class AuthNotifier extends StateNotifier<AuthStateModel> {
       );
       // Save FCM token for already logged-in user
       if (!kIsWeb) {
-        FcmService().saveTokenToSupabase();
+        FcmService().saveTokenToSupabase().catchError((e) {
+          logWarn('Failed to save FCM token on init: $e', tag: 'Auth');
+        });
       }
     } else {
       state = const AuthStateModel(state: AuthState.unauthenticated);
@@ -92,7 +102,11 @@ class AuthNotifier extends StateNotifier<AuthStateModel> {
           if (!kIsWeb && session?.user != null) {
             // Small delay to ensure auth is fully processed
             await Future.delayed(const Duration(milliseconds: 500));
-            await FcmService().saveTokenToSupabase();
+            try {
+              await FcmService().saveTokenToSupabase();
+            } catch (e) {
+              logWarn('Failed to save FCM token on sign in: $e', tag: 'Auth');
+            }
           }
           break;
         case AuthChangeEvent.signedOut:
@@ -116,21 +130,37 @@ class AuthNotifier extends StateNotifier<AuthStateModel> {
   }
 
   /// Sign up with email and password
-  Future<bool> signUp({
+  /// Returns SignUpResult indicating success type
+  Future<SignUpResult> signUp({
     required String email,
     required String password,
     String? name,
   }) async {
     state = state.copyWith(state: AuthState.loading, errorMessage: null);
+    logInfo('signUp: Starting registration for email: $email', tag: 'Auth');
 
     try {
+      logDebug('signUp: Calling Supabase signUp...', tag: 'Auth');
       final response = await _supabase.signUp(
         email: email,
         password: password,
         data: name != null ? {'name': name} : null,
       );
 
+      logDebug('signUp: Response received, user=${response.user?.id}, session=${response.session != null}', tag: 'Auth');
+
       if (response.user != null) {
+        // Check if email confirmation is required (session will be null)
+        if (response.session == null) {
+          logInfo('signUp: Email confirmation required for ${response.user!.email}', tag: 'Auth');
+          state = const AuthStateModel(
+            state: AuthState.unauthenticated,
+          );
+          return SignUpResult.emailConfirmationRequired;
+        }
+
+        // Email confirmed or confirmation disabled - user is authenticated
+        logInfo('signUp: Registration successful for ${response.user!.id}', tag: 'Auth');
         state = AuthStateModel(
           state: AuthState.authenticated,
           user: response.user,
@@ -139,26 +169,30 @@ class AuthNotifier extends StateNotifier<AuthStateModel> {
         if (!kIsWeb) {
           await FcmService().saveTokenToSupabase();
         }
-        return true;
+        return SignUpResult.success;
       } else {
+        logWarn('signUp: Registration returned null user', tag: 'Auth');
         state = const AuthStateModel(
           state: AuthState.unauthenticated,
           errorMessage: 'Registration failed',
         );
-        return false;
+        return SignUpResult.failed;
       }
     } on AuthException catch (e) {
+      logError('signUp: AuthException', tag: 'Auth', error: e);
+      logDebug('signUp: AuthException details - code=${e.statusCode}, message=${e.message}', tag: 'Auth');
       state = AuthStateModel(
         state: AuthState.error,
         errorMessage: e.message,
       );
-      return false;
-    } catch (e) {
+      return SignUpResult.failed;
+    } catch (e, st) {
+      logError('signUp: Unknown error', tag: 'Auth', error: e, stackTrace: st);
       state = AuthStateModel(
         state: AuthState.error,
         errorMessage: e.toString(),
       );
-      return false;
+      return SignUpResult.failed;
     }
   }
 

@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +10,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/config/supabase_config.dart';
+import '../../../../shared/widgets/debug_panel.dart';
 import '../../../settings/presentation/screens/legal_document_screen.dart';
 import '../../domain/providers/auth_provider.dart';
 
@@ -88,7 +90,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       _hearts.add(_FloatingHeart(
         x: random.nextDouble(),
         y: random.nextDouble(),
-        size: 10 + random.nextDouble() * 25,
+        size: 10.0 + random.nextDouble() * 25,
         speed: 0.2 + random.nextDouble() * 0.5,
         opacity: 0.1 + random.nextDouble() * 0.2,
         delay: random.nextDouble() * 2,
@@ -121,23 +123,120 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       return;
     }
 
-    bool success;
     if (_isSignUp) {
-      success = await ref.read(authProvider.notifier).signUp(
+      final result = await ref.read(authProvider.notifier).signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         name: _nameController.text.trim(),
       );
+
+      if (!mounted) return;
+
+      switch (result) {
+        case SignUpResult.success:
+          await _navigateAfterAuth();
+          break;
+        case SignUpResult.emailConfirmationRequired:
+          _showEmailConfirmationDialog(_emailController.text.trim());
+          break;
+        case SignUpResult.failed:
+          // Error is already shown via authState.errorMessage
+          break;
+      }
     } else {
-      success = await ref.read(authProvider.notifier).signIn(
+      final success = await ref.read(authProvider.notifier).signIn(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
-    }
 
-    if (success && mounted) {
-      await _navigateAfterAuth();
+      if (success && mounted) {
+        await _navigateAfterAuth();
+      }
     }
+  }
+
+  void _showEmailConfirmationDialog(String email) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        title: Row(
+          children: [
+            Icon(Icons.mark_email_read, color: AppColors.primary, size: 28),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Check Your Email',
+                style: TextStyle(color: Colors.white, fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'We\'ve sent a confirmation link to:',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.email, color: AppColors.primary, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      email,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Please click the link in the email to verify your account and complete registration.',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Don\'t see the email? Check your spam folder.',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.5),
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // Switch to sign in mode
+              setState(() {
+                _isSignUp = false;
+              });
+            },
+            child: const Text(
+              'Got it',
+              style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _handleGoogleSignIn() async {
@@ -212,6 +311,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     const SizedBox(height: 20),
                   ],
                 ),
+              ),
+            ),
+          ),
+
+          // Debug button
+          Positioned(
+            top: 40,
+            right: 16,
+            child: SafeArea(
+              child: IconButton(
+                icon: const Icon(Icons.bug_report, color: Colors.orange),
+                onPressed: () => DebugPanel.show(context),
+                tooltip: 'Debug Logs',
               ),
             ),
           ),

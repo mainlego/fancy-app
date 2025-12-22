@@ -8,7 +8,6 @@ import '../../features/auth/presentation/screens/profile_setup_screen.dart';
 import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/chats/presentation/screens/chats_screen.dart';
 import '../../features/chats/presentation/screens/chat_detail_screen.dart';
-import '../../features/ai_profiles/presentation/screens/ai_chat_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
 import '../../features/profile/presentation/screens/profile_edit_screen.dart';
 import '../../features/profile/presentation/screens/profile_view_screen.dart';
@@ -30,7 +29,6 @@ abstract class AppRoutes {
   static const String home = '/';
   static const String chats = '/chats';
   static const String chatDetail = '/chats/:chatId';
-  static const String aiChat = '/ai-chat/:aiProfileId';
   static const String profile = '/profile';
   static const String profileEdit = '/profile/edit';
   static const String profileView = '/profile/:userId';
@@ -149,14 +147,6 @@ final appRouter = GoRouter(
       },
     ),
     GoRoute(
-      path: AppRoutes.aiChat,
-      parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) {
-        final aiProfileId = state.pathParameters['aiProfileId']!;
-        return AIChatScreen(aiProfileId: aiProfileId);
-      },
-    ),
-    GoRoute(
       path: AppRoutes.profileEdit,
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const ProfileEditScreen(),
@@ -221,15 +211,7 @@ extension NavigationExtension on BuildContext {
   void goToChats() => go(AppRoutes.chats);
   void goToProfile() => go(AppRoutes.profile);
 
-  void pushChatDetail(String chatId) {
-    // Check if this is an AI profile (starts with 'ai_')
-    if (chatId.startsWith('ai_')) {
-      push('/ai-chat/$chatId');
-    } else {
-      push('/chats/$chatId');
-    }
-  }
-  void pushAIChat(String aiProfileId) => push('/ai-chat/$aiProfileId');
+  void pushChatDetail(String chatId) => push('/chats/$chatId');
   void pushProfileView(String userId) => push('/profile/$userId');
   void pushProfileEdit() => push(AppRoutes.profileEdit);
   void pushSettings() => push(AppRoutes.settings);

@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
 import '../data/profile_data.dart';
 import '../../features/referrals/domain/models/referral_model.dart';
+import 'debug_logger.dart';
 
 /// Supabase client provider
 final supabaseClientProvider = Provider<SupabaseClient>((ref) {
@@ -156,7 +157,13 @@ class SupabaseService {
 
   /// Create or update profile (upsert) - handles existing profile case
   Future<void> createOrUpdateProfile(Map<String, dynamic> data) async {
-    await _client.from(SupabaseConfig.profilesTable).upsert(data);
+    try {
+      await _client.from(SupabaseConfig.profilesTable).upsert(data);
+    } catch (e) {
+      print('SupabaseService.createOrUpdateProfile ERROR: $e');
+      print('Data being sent: $data');
+      rethrow;
+    }
   }
 
   /// Get profiles for discovery (excluding current user, blocked users, and already interacted)
@@ -171,7 +178,13 @@ class SupabaseService {
     int offset = 0,
   }) async {
     final userId = currentUser?.id;
-    if (userId == null) return [];
+    if (userId == null) {
+      logWarn('getDiscoveryProfiles: No current user', tag: 'Discovery');
+      return [];
+    }
+
+    logInfo('getDiscoveryProfiles: Starting for user $userId', tag: 'Discovery');
+    logInfo('getDiscoveryProfiles: Params - lookingFor=$lookingFor, myProfileType=$myProfileType, minAge=$minAge, maxAge=$maxAge, maxDistance=$maxDistance', tag: 'Discovery');
 
     try {
       // Get IDs of users we've already interacted with (liked/passed)
@@ -183,6 +196,7 @@ class SupabaseService {
       final interactedIds = (interactedResponse as List)
           .map((e) => e['to_user_id'] as String)
           .toSet();
+      logDebug('getDiscoveryProfiles: Excluded ${interactedIds.length} already interacted users', tag: 'Discovery');
 
       // Get IDs of blocked users (both directions)
       final blockedResponse = await _client
@@ -197,6 +211,7 @@ class SupabaseService {
         if (blockerId != null && blockerId != userId) blockedIds.add(blockerId);
         if (blockedId != null && blockedId != userId) blockedIds.add(blockedId);
       }
+      logDebug('getDiscoveryProfiles: Excluded ${blockedIds.length} blocked users', tag: 'Discovery');
 
       // Get IDs of hidden users (only users I've hidden)
       final hiddenResponse = await _client
@@ -207,19 +222,27 @@ class SupabaseService {
       final hiddenIds = (hiddenResponse as List)
           .map((e) => e['hidden_id'] as String)
           .toSet();
+      logDebug('getDiscoveryProfiles: Excluded ${hiddenIds.length} hidden users', tag: 'Discovery');
 
       // Combine all IDs to exclude
       final excludeIds = {...interactedIds, ...blockedIds, ...hiddenIds, userId};
+      logDebug('getDiscoveryProfiles: Total excluded IDs: ${excludeIds.length}', tag: 'Discovery');
 
       // Build query for profiles with gender filter on server side
+      logInfo('getDiscoveryProfiles: Building query with lookingFor=$lookingFor, myProfileType=$myProfileType', tag: 'Discovery');
+
       PostgrestFilterBuilder query = _client
           .from(SupabaseConfig.profilesTable)
-          .select();
+          .select()
+          .eq('is_active', true); // Only show active profiles
 
       // Apply filter: show profiles whose profile_type matches what I'm looking for
       if (lookingFor != null && lookingFor.isNotEmpty) {
         // Filter by profile_type IN (lookingFor list)
+        logDebug('getDiscoveryProfiles: Applying profile_type filter: $lookingFor', tag: 'Discovery');
         query = query.inFilter('profile_type', lookingFor);
+      } else {
+        logDebug('getDiscoveryProfiles: No lookingFor filter, showing all profile types', tag: 'Discovery');
       }
 
       // Note: We apply bidirectional filter client-side to handle profiles with empty looking_for
@@ -228,9 +251,31 @@ class SupabaseService {
           .limit((limit + excludeIds.length) * 2) // Get extra to account for filtering
           .order('last_online', ascending: false);
 
+      logInfo('getDiscoveryProfiles: Raw query returned ${(response as List).length} profiles', tag: 'Discovery');
+
+      // Log all raw profiles before any filtering
+      int rawIndex = 0;
+      for (final p in response) {
+        final pId = p['id'] as String?;
+        final pName = p['name'] as String? ?? 'Unknown';
+        final pType = p['profile_type'] as String?;
+        final pActive = p['is_active'] as bool?;
+        final pLookingFor = p['looking_for'] as List<dynamic>?;
+        logDebug('getDiscoveryProfiles: Raw[$rawIndex] id=$pId, name=$pName, type=$pType, active=$pActive, lookingFor=$pLookingFor', tag: 'Discovery');
+        rawIndex++;
+      }
+
       // Filter out excluded users and apply bidirectional matching
       var profiles = (response as List)
-          .where((p) => !excludeIds.contains(p['id'] as String?))
+          .where((p) {
+            final pId = p['id'] as String?;
+            final isExcluded = excludeIds.contains(pId);
+            if (isExcluded) {
+              final pName = p['name'] as String? ?? 'Unknown';
+              logDebug('getDiscoveryProfiles: EXCLUDED "$pName" (id=$pId) - already interacted/blocked/hidden', tag: 'Discovery');
+            }
+            return !isExcluded;
+          })
           .where((p) {
             // Bidirectional filter: only show profiles who are looking for my profile type
             // Skip this check if my profile type is not set
@@ -238,16 +283,29 @@ class SupabaseService {
 
             // Get the profile's looking_for array
             final theirLookingFor = (p['looking_for'] as List<dynamic>?)?.cast<String>() ?? [];
+            final pName = p['name'] as String? ?? 'Unknown';
+            final pId = p['id'] as String?;
 
             // If their looking_for is empty, assume they're looking for everyone (haven't set preference)
-            if (theirLookingFor.isEmpty) return true;
+            if (theirLookingFor.isEmpty) {
+              logDebug('getDiscoveryProfiles: "$pName" (id=$pId) has empty looking_for, PASSING bidirectional check', tag: 'Discovery');
+              return true;
+            }
 
             // Check if my profile type is in their looking_for list
-            return theirLookingFor.contains(myProfileType);
+            final passes = theirLookingFor.contains(myProfileType);
+            if (!passes) {
+              logDebug('getDiscoveryProfiles: EXCLUDED "$pName" (id=$pId) - their looking_for=$theirLookingFor does NOT contain myType=$myProfileType', tag: 'Discovery');
+            } else {
+              logDebug('getDiscoveryProfiles: "$pName" (id=$pId) PASSES bidirectional check - their looking_for=$theirLookingFor contains myType=$myProfileType', tag: 'Discovery');
+            }
+            return passes;
           })
           .take(limit)
           .map((p) => Map<String, dynamic>.from(p))
           .toList();
+
+      logInfo('getDiscoveryProfiles: After filtering: ${profiles.length} profiles remain', tag: 'Discovery');
 
       // Apply age filter
       if (minAge != null || maxAge != null) {
@@ -268,25 +326,38 @@ class SupabaseService {
       final myLat = currentUserProfile?['latitude'] as double?;
       final myLon = currentUserProfile?['longitude'] as double?;
 
+      logInfo('getDiscoveryProfiles: My location: lat=$myLat, lon=$myLon, maxDistance=$maxDistance', tag: 'Discovery');
+
       // Calculate distance for each profile
       if (myLat != null && myLon != null) {
+        int profilesWithLocation = 0;
+        int profilesWithoutLocation = 0;
         for (var profile in profiles) {
           final theirLat = profile['latitude'] as double?;
           final theirLon = profile['longitude'] as double?;
+          final profileName = profile['name'] as String? ?? 'Unknown';
 
           if (theirLat != null && theirLon != null) {
             final distance = _calculateDistance(myLat, myLon, theirLat, theirLon);
             profile['distance_km'] = distance.round();
+            profilesWithLocation++;
+            logDebug('getDiscoveryProfiles: Profile "$profileName" at ($theirLat, $theirLon), distance=${distance.round()}km', tag: 'Discovery');
+          } else {
+            profilesWithoutLocation++;
+            logDebug('getDiscoveryProfiles: Profile "$profileName" has no location (lat=$theirLat, lon=$theirLon)', tag: 'Discovery');
           }
         }
+        logInfo('getDiscoveryProfiles: Calculated distance for $profilesWithLocation/${profiles.length} profiles ($profilesWithoutLocation without location)', tag: 'Discovery');
 
         // Apply distance filter if specified
         if (maxDistance != null) {
+          final beforeCount = profiles.length;
           profiles = profiles.where((p) {
             final distance = p['distance_km'] as int?;
             if (distance == null) return true; // Include profiles without location
             return distance <= maxDistance;
           }).toList();
+          logDebug('getDiscoveryProfiles: Distance filter ($maxDistance km): $beforeCount -> ${profiles.length} profiles', tag: 'Discovery');
         }
 
         // Sort by distance (closest first)
@@ -295,19 +366,50 @@ class SupabaseService {
           final distB = b['distance_km'] as int? ?? 999999;
           return distA.compareTo(distB);
         });
+      } else {
+        logWarn('getDiscoveryProfiles: User has no location data, skipping distance calculation', tag: 'Discovery');
       }
 
+      logInfo('getDiscoveryProfiles: Returning ${profiles.length} profiles', tag: 'Discovery');
       return profiles;
     } catch (e) {
-      print('Error getting discovery profiles: $e');
-      // Fallback to simple query
-      final response = await _client
-          .from(SupabaseConfig.profilesTable)
-          .select()
-          .neq('id', userId)
-          .limit(limit);
+      logError('getDiscoveryProfiles: Error - $e', tag: 'Discovery');
 
-      return List<Map<String, dynamic>>.from(response);
+      // Check if error is about missing is_active column
+      final errorStr = e.toString().toLowerCase();
+      final isColumnMissing = errorStr.contains('is_active') && errorStr.contains('does not exist');
+
+      if (isColumnMissing) {
+        logWarn('getDiscoveryProfiles: is_active column missing, using fallback WITHOUT is_active filter', tag: 'Discovery');
+        // Fallback query WITHOUT is_active filter
+        final response = await _client
+            .from(SupabaseConfig.profilesTable)
+            .select()
+            .neq('id', userId)
+            .limit(limit);
+        return List<Map<String, dynamic>>.from(response);
+      }
+
+      // Fallback to simple query with is_active
+      logWarn('getDiscoveryProfiles: Using fallback query with is_active filter', tag: 'Discovery');
+      try {
+        final response = await _client
+            .from(SupabaseConfig.profilesTable)
+            .select()
+            .eq('is_active', true)
+            .neq('id', userId)
+            .limit(limit);
+        return List<Map<String, dynamic>>.from(response);
+      } catch (e2) {
+        logError('getDiscoveryProfiles: Fallback also failed - $e2', tag: 'Discovery');
+        // Ultimate fallback - no filters
+        final response = await _client
+            .from(SupabaseConfig.profilesTable)
+            .select()
+            .neq('id', userId)
+            .limit(limit);
+        return List<Map<String, dynamic>>.from(response);
+      }
     }
   }
 
@@ -1455,100 +1557,19 @@ class SupabaseService {
   }
 
   // ===================
-  // AI PROFILES
+  // USER REPORTS & BANS
   // ===================
 
-  /// Get all active AI profiles (not expired)
-  Future<List<Map<String, dynamic>>> getAIProfiles() async {
-    final now = DateTime.now().toIso8601String();
-    final response = await _client
-        .from(SupabaseConfig.aiProfilesTable)
-        .select()
-        .eq('is_ai', true)
-        .gte('expires_at', now)
-        .order('created_at', ascending: false);
-
-    return List<Map<String, dynamic>>.from(response);
-  }
-
-  /// Get AI profiles for admin (all profiles including expired)
-  Future<List<Map<String, dynamic>>> getAIProfilesAdmin() async {
-    final response = await _client
-        .from(SupabaseConfig.aiProfilesTable)
-        .select()
-        .order('created_at', ascending: false);
-
-    return List<Map<String, dynamic>>.from(response);
-  }
-
-  /// Create AI profile
-  Future<String> createAIProfile(Map<String, dynamic> profile) async {
-    final response = await _client
-        .from(SupabaseConfig.aiProfilesTable)
-        .insert({
-          ...profile,
-          'created_at': DateTime.now().toIso8601String(),
-        })
-        .select('id')
-        .single();
-
-    return response['id'] as String;
-  }
-
-  /// Update AI profile
-  Future<void> updateAIProfile(String profileId, Map<String, dynamic> updates) async {
-    await _client
-        .from(SupabaseConfig.aiProfilesTable)
-        .update({
-          ...updates,
-          'updated_at': DateTime.now().toIso8601String(),
-        })
-        .eq('id', profileId);
-  }
-
-  /// Delete AI profile
-  Future<void> deleteAIProfile(String profileId) async {
-    await _client
-        .from(SupabaseConfig.aiProfilesTable)
-        .delete()
-        .eq('id', profileId);
-  }
-
-  /// Delete expired AI profiles (cleanup)
-  Future<int> deleteExpiredAIProfiles() async {
-    final now = DateTime.now().toIso8601String();
-    final response = await _client
-        .from(SupabaseConfig.aiProfilesTable)
-        .delete()
-        .lt('expires_at', now)
-        .select('id');
-
-    return (response as List).length;
-  }
-
-  /// Increment AI profile message count
-  Future<void> incrementAIMessageCount(String profileId) async {
-    await _client.rpc('increment_ai_message_count', params: {
-      'profile_id': profileId,
-    });
-  }
-
-  // ===================
-  // USER REPORTS & BANS (AI-triggered)
-  // ===================
-
-  /// Report user (can be triggered by AI)
+  /// Report user
   Future<void> reportUser({
     required String reportedUserId,
     required String reason,
-    String? reportedByAiProfileId,
     String? reportedByUserId,
     String? details,
   }) async {
     await _client.from(SupabaseConfig.userReportsTable).insert({
       'reported_user_id': reportedUserId,
       'reported_by_user_id': reportedByUserId,
-      'reported_by_ai_profile_id': reportedByAiProfileId,
       'reason': reason,
       'details': details,
       'status': 'pending',
@@ -1556,11 +1577,10 @@ class SupabaseService {
     });
   }
 
-  /// Ban user (can be triggered by AI after multiple offenses)
+  /// Ban user
   Future<void> banUser({
     required String userId,
     required String reason,
-    String? bannedByAiProfileId,
     Duration? duration,
   }) async {
     final now = DateTime.now();
@@ -1569,7 +1589,6 @@ class SupabaseService {
     await _client.from(SupabaseConfig.userBansTable).insert({
       'user_id': userId,
       'reason': reason,
-      'banned_by_ai_profile_id': bannedByAiProfileId,
       'expires_at': expiresAt?.toIso8601String(),
       'is_permanent': duration == null,
       'created_at': now.toIso8601String(),
@@ -1622,93 +1641,6 @@ class SupabaseService {
           'reviewed_at': DateTime.now().toIso8601String(),
         })
         .eq('id', reportId);
-  }
-
-  // ===================
-  // AI CHATS
-  // ===================
-
-  /// Get or create AI chat
-  Future<Map<String, dynamic>> getOrCreateAIChat(String aiProfileId) async {
-    final userId = currentUser?.id;
-    if (userId == null) throw Exception('Not authenticated');
-
-    // Check if chat exists
-    final existing = await _client
-        .from(SupabaseConfig.aiChatsTable)
-        .select()
-        .eq('user_id', userId)
-        .eq('ai_profile_id', aiProfileId)
-        .maybeSingle();
-
-    if (existing != null) return existing;
-
-    // Create new chat
-    final response = await _client
-        .from(SupabaseConfig.aiChatsTable)
-        .insert({
-          'user_id': userId,
-          'ai_profile_id': aiProfileId,
-          'created_at': DateTime.now().toIso8601String(),
-        })
-        .select()
-        .single();
-
-    return response;
-  }
-
-  /// Get AI chat messages
-  Future<List<Map<String, dynamic>>> getAIChatMessages(String chatId) async {
-    final response = await _client
-        .from(SupabaseConfig.aiMessagesTable)
-        .select()
-        .eq('chat_id', chatId)
-        .order('created_at', ascending: true);
-
-    return List<Map<String, dynamic>>.from(response);
-  }
-
-  /// Save AI chat message
-  Future<void> saveAIChatMessage({
-    required String chatId,
-    required String aiProfileId,
-    required String content,
-    required bool isFromAI,
-  }) async {
-    final userId = currentUser?.id;
-    if (userId == null) return;
-
-    await _client.from(SupabaseConfig.aiMessagesTable).insert({
-      'chat_id': chatId,
-      'ai_profile_id': aiProfileId,
-      'user_id': userId,
-      'content': content,
-      'is_from_ai': isFromAI,
-      'created_at': DateTime.now().toIso8601String(),
-    });
-
-    // Update chat last message
-    await _client
-        .from(SupabaseConfig.aiChatsTable)
-        .update({
-          'last_message': content,
-          'last_message_at': DateTime.now().toIso8601String(),
-        })
-        .eq('id', chatId);
-  }
-
-  /// Get user's AI chats
-  Future<List<Map<String, dynamic>>> getUserAIChats() async {
-    final userId = currentUser?.id;
-    if (userId == null) return [];
-
-    final response = await _client
-        .from(SupabaseConfig.aiChatsTable)
-        .select('*, ai_profile:${SupabaseConfig.aiProfilesTable}(*)')
-        .eq('user_id', userId)
-        .order('last_message_at', ascending: false);
-
-    return List<Map<String, dynamic>>.from(response);
   }
 
   // ===================
@@ -2416,31 +2348,53 @@ class SupabaseService {
   /// Get user's selected interest IDs
   Future<List<String>> getUserInterestIds() async {
     final userId = currentUser?.id;
-    if (userId == null) return [];
+    if (userId == null) {
+      logWarn('getUserInterestIds: No user ID', tag: 'Supabase');
+      return [];
+    }
 
-    final response = await _client
-        .from('user_interests')
-        .select('interest_id')
-        .eq('user_id', userId);
+    try {
+      logDebug('getUserInterestIds: Fetching for user $userId', tag: 'Supabase');
+      final response = await _client
+          .from('user_interests')
+          .select('interest_id')
+          .eq('user_id', userId);
 
-    return (response as List)
-        .map((e) => e['interest_id'] as String)
-        .toList();
+      final ids = (response as List)
+          .map((e) => e['interest_id'] as String)
+          .toList();
+      logDebug('getUserInterestIds: Found ${ids.length} interests', tag: 'Supabase');
+      return ids;
+    } catch (e, st) {
+      logError('getUserInterestIds: Error', tag: 'Supabase', error: e, stackTrace: st);
+      return [];
+    }
   }
 
   /// Get user's selected fantasy IDs
   Future<List<String>> getUserFantasyIds() async {
     final userId = currentUser?.id;
-    if (userId == null) return [];
+    if (userId == null) {
+      logWarn('getUserFantasyIds: No user ID', tag: 'Supabase');
+      return [];
+    }
 
-    final response = await _client
-        .from('user_fantasies')
-        .select('fantasy_id')
-        .eq('user_id', userId);
+    try {
+      logDebug('getUserFantasyIds: Fetching for user $userId', tag: 'Supabase');
+      final response = await _client
+          .from('user_fantasies')
+          .select('fantasy_id')
+          .eq('user_id', userId);
 
-    return (response as List)
-        .map((e) => e['fantasy_id'] as String)
-        .toList();
+      final ids = (response as List)
+          .map((e) => e['fantasy_id'] as String)
+          .toList();
+      logDebug('getUserFantasyIds: Found ${ids.length} fantasies', tag: 'Supabase');
+      return ids;
+    } catch (e, st) {
+      logError('getUserFantasyIds: Error', tag: 'Supabase', error: e, stackTrace: st);
+      return [];
+    }
   }
 
   /// Get user's occupation ID
@@ -2523,32 +2477,47 @@ class SupabaseService {
     final userId = currentUser?.id;
     if (userId == null) throw Exception('Not authenticated');
 
-    // Update interests
-    await _client.from('user_interests').delete().eq('user_id', userId);
-    if (interestIds.isNotEmpty) {
-      await _client.from('user_interests').insert(
-        interestIds.map((id) => {
-          'user_id': userId,
-          'interest_id': id,
-        }).toList(),
-      );
-    }
+    logInfo('updateUserSelections: Starting for user $userId', tag: 'Supabase');
+    logDebug('updateUserSelections: interests=${interestIds.length}, fantasies=${fantasyIds.length}, occupation=$occupationId', tag: 'Supabase');
 
-    // Update fantasies
-    await _client.from('user_fantasies').delete().eq('user_id', userId);
-    if (fantasyIds.isNotEmpty) {
-      await _client.from('user_fantasies').insert(
-        fantasyIds.map((id) => {
-          'user_id': userId,
-          'fantasy_id': id,
-        }).toList(),
-      );
-    }
+    try {
+      // Update interests
+      logDebug('updateUserSelections: Deleting old interests...', tag: 'Supabase');
+      await _client.from('user_interests').delete().eq('user_id', userId);
+      if (interestIds.isNotEmpty) {
+        logDebug('updateUserSelections: Inserting ${interestIds.length} interests...', tag: 'Supabase');
+        await _client.from('user_interests').insert(
+          interestIds.map((id) => ({
+            'user_id': userId,
+            'interest_id': id,
+          })).toList(),
+        );
+      }
 
-    // Update occupation
-    await _client.from('profiles').update({
-      'occupation_id': occupationId,
-    }).eq('id', userId);
+      // Update fantasies
+      logDebug('updateUserSelections: Deleting old fantasies...', tag: 'Supabase');
+      await _client.from('user_fantasies').delete().eq('user_id', userId);
+      if (fantasyIds.isNotEmpty) {
+        logDebug('updateUserSelections: Inserting ${fantasyIds.length} fantasies...', tag: 'Supabase');
+        await _client.from('user_fantasies').insert(
+          fantasyIds.map((id) => ({
+            'user_id': userId,
+            'fantasy_id': id,
+          })).toList(),
+        );
+      }
+
+      // Update occupation
+      logDebug('updateUserSelections: Updating occupation...', tag: 'Supabase');
+      await _client.from('profiles').update({
+        'occupation_id': occupationId,
+      }).eq('id', userId);
+
+      logInfo('updateUserSelections: Completed successfully', tag: 'Supabase');
+    } catch (e, st) {
+      logError('updateUserSelections: Failed', tag: 'Supabase', error: e, stackTrace: st);
+      rethrow;
+    }
   }
 
   /// Get user's interests with full data

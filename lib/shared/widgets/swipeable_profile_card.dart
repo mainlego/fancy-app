@@ -18,6 +18,7 @@ class SwipeableProfileCard extends StatefulWidget {
   final VoidCallback? onHide;
   final VoidCallback? onBlock;
   final VoidCallback? onReport;
+  final bool isLiked; // Whether this user has already been liked
 
   const SwipeableProfileCard({
     super.key,
@@ -28,6 +29,7 @@ class SwipeableProfileCard extends StatefulWidget {
     this.onHide,
     this.onBlock,
     this.onReport,
+    this.isLiked = false,
   });
 
   @override
@@ -305,16 +307,18 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    // Fire button (Super Like)
+                    // Fire button (Super Like) - always active (paid feature)
                     _ActionButton(
                       svgPath: AppAssets.icSuperLikeOutline,
                       onTap: widget.onSuperLike,
                     ),
                     const SizedBox(width: 24),
-                    // Heart button (Like)
+                    // Heart button (Like) - disabled if already liked
                     _ActionButton(
                       svgPath: AppAssets.icLikeOutline,
-                      onTap: widget.onLike,
+                      onTap: widget.isLiked ? null : widget.onLike,
+                      isActive: widget.isLiked,
+                      activeColor: AppColors.like,
                     ),
                   ],
                 ),
@@ -393,12 +397,8 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard>
   }
 
   Widget _buildLocationRow() {
-    final city = widget.user.city ?? 'Unknown';
-    final distance = widget.user.distanceKm != null
-        ? '${widget.user.distanceKm} km'
-        : '';
-
-    final text = distance.isNotEmpty ? '$city • $distance' : city;
+    // Use distanceShortString which includes city and distance with ±1km privacy fuzzing
+    final text = widget.user.distanceShortString;
 
     return Text(
       text.toLowerCase(),
@@ -452,7 +452,7 @@ class _SwipeableProfileCardState extends State<SwipeableProfileCard>
   }
 }
 
-/// More menu overlay (hide, block, report) - positioned BELOW the dots button
+/// More menu overlay (hide, block, report) - positioned above or below the dots button
 class _MoreMenuOverlay extends StatelessWidget {
   final Offset buttonPosition;
   final Size buttonSize;
@@ -471,12 +471,32 @@ class _MoreMenuOverlay extends StatelessWidget {
   });
 
   static const double _menuWidth = 100.0;
+  static const double _menuHeight = 132.0; // Approximate height of 3 menu items
 
   @override
   Widget build(BuildContext context) {
-    // Position menu BELOW the button, centered horizontally
+    final screenHeight = MediaQuery.of(context).size.height;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
+    // Position menu centered horizontally
     final menuLeft = buttonPosition.dx + (buttonSize.width / 2) - (_menuWidth / 2);
-    final menuTop = buttonPosition.dy + buttonSize.height + 8;
+
+    // Calculate available space below and above the button
+    final spaceBelow = screenHeight - buttonPosition.dy - buttonSize.height - bottomPadding - 8;
+    final spaceAbove = buttonPosition.dy - 8;
+
+    // Determine if menu should open above or below
+    final openAbove = spaceBelow < _menuHeight && spaceAbove >= _menuHeight;
+
+    // Calculate menu position
+    final double menuTop;
+    if (openAbove) {
+      // Position menu ABOVE the button
+      menuTop = buttonPosition.dy - _menuHeight - 8;
+    } else {
+      // Position menu BELOW the button
+      menuTop = buttonPosition.dy + buttonSize.height + 8;
+    }
 
     return Stack(
       children: [
@@ -488,7 +508,7 @@ class _MoreMenuOverlay extends StatelessWidget {
             child: Container(color: Colors.transparent),
           ),
         ),
-        // Menu positioned BELOW the dots button
+        // Menu positioned above or below the dots button
         Positioned(
           left: menuLeft,
           top: menuTop,
@@ -556,10 +576,14 @@ class _MoreMenuOverlay extends StatelessWidget {
 class _ActionButton extends StatefulWidget {
   final String svgPath;
   final VoidCallback? onTap;
+  final bool isActive; // Whether the button is in "activated" state (e.g., already liked)
+  final Color? activeColor; // Color when isActive is true
 
   const _ActionButton({
     required this.svgPath,
     this.onTap,
+    this.isActive = false,
+    this.activeColor,
   });
 
   @override
@@ -590,7 +614,9 @@ class _ActionButtonState extends State<_ActionButton>
   }
 
   void _onTapDown(TapDownDetails details) {
-    _controller.forward();
+    if (widget.onTap != null) {
+      _controller.forward();
+    }
   }
 
   void _onTapUp(TapUpDetails details) {
@@ -604,10 +630,18 @@ class _ActionButtonState extends State<_ActionButton>
 
   @override
   Widget build(BuildContext context) {
+    final isDisabled = widget.onTap == null;
+    final buttonColor = widget.isActive && widget.activeColor != null
+        ? widget.activeColor!
+        : AppColors.border;
+    final iconColor = widget.isActive && widget.activeColor != null
+        ? widget.activeColor!
+        : null; // null means use default SVG color
+
     return GestureDetector(
-      onTapDown: _onTapDown,
-      onTapUp: _onTapUp,
-      onTapCancel: _onTapCancel,
+      onTapDown: isDisabled ? null : _onTapDown,
+      onTapUp: isDisabled ? null : _onTapUp,
+      onTapCancel: isDisabled ? null : _onTapCancel,
       child: AnimatedBuilder(
         animation: _scaleAnimation,
         builder: (context, child) {
@@ -621,8 +655,9 @@ class _ActionButtonState extends State<_ActionButton>
           height: 56,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
+            color: widget.isActive ? buttonColor.withOpacity(0.1) : null,
             border: Border.all(
-              color: AppColors.border,
+              color: buttonColor,
               width: 1.5,
             ),
           ),
@@ -631,6 +666,9 @@ class _ActionButtonState extends State<_ActionButton>
               widget.svgPath,
               width: 24,
               height: 24,
+              colorFilter: iconColor != null
+                  ? ColorFilter.mode(iconColor, BlendMode.srcIn)
+                  : null,
             ),
           ),
         ),

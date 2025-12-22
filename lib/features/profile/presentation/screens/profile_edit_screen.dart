@@ -7,6 +7,7 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/data/profile_data.dart';
 import '../../../../shared/widgets/widgets.dart';
+import '../../../../shared/widgets/debug_panel.dart';
 import '../../domain/models/user_model.dart';
 import '../../domain/providers/current_profile_provider.dart';
 import '../../domain/providers/profile_options_provider.dart';
@@ -46,16 +47,25 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
   }
 
   Future<void> _loadUserSelections() async {
-    final selectionsNotifier = ref.read(userSelectionsProvider.notifier);
-    await selectionsNotifier.loadUserSelections();
-    final selections = ref.read(userSelectionsProvider);
-    if (mounted) {
-      setState(() {
-        _selectedInterestIds = Set.from(selections.selectedInterestIds);
-        _selectedFantasyIds = Set.from(selections.selectedFantasyIds);
-        _selectedOccupationId = selections.selectedOccupationId;
-        _isLoadingSelections = false;
-      });
+    try {
+      final selectionsNotifier = ref.read(userSelectionsProvider.notifier);
+      await selectionsNotifier.loadUserSelections();
+      final selections = ref.read(userSelectionsProvider);
+      if (mounted) {
+        setState(() {
+          _selectedInterestIds = Set.from(selections.selectedInterestIds);
+          _selectedFantasyIds = Set.from(selections.selectedFantasyIds);
+          _selectedOccupationId = selections.selectedOccupationId;
+          _isLoadingSelections = false;
+        });
+      }
+    } catch (e) {
+      // Even on error, stop showing loading
+      if (mounted) {
+        setState(() {
+          _isLoadingSelections = false;
+        });
+      }
     }
   }
 
@@ -71,6 +81,13 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('edit profile'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.bug_report, color: Colors.orange),
+            onPressed: () => DebugPanel.show(context),
+            tooltip: 'Debug Logs',
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(
@@ -220,7 +237,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
             itemIdGetter: (i) => (i as Interest).id,
             maxItems: 20,
             onTap: () => _showInterestsBottomSheet(optionsState),
-            isLoading: _isLoadingSelections || optionsState.isLoading,
+            isLoading: optionsState.isLoading && optionsState.interests.isEmpty,
           ),
           const SizedBox(height: 16),
 
@@ -256,7 +273,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
             itemIdGetter: (f) => (f as Fantasy).id,
             maxItems: 15,
             onTap: () => _showFantasiesBottomSheet(optionsState),
-            isLoading: _isLoadingSelections || optionsState.isLoading,
+            isLoading: optionsState.isLoading && optionsState.fantasies.isEmpty,
           ),
           const SizedBox(height: 16),
 
@@ -1421,7 +1438,11 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
   Widget _buildOccupationSelector() {
     final optionsState = ref.watch(profileOptionsProvider);
 
-    if (_isLoadingSelections || optionsState.isLoading) {
+    // Show loading only if actually loading AND no data yet
+    final isActuallyLoading = (optionsState.isLoading && optionsState.occupations.isEmpty) ||
+                              (_isLoadingSelections && optionsState.occupations.isEmpty);
+
+    if (isActuallyLoading) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(AppSpacing.lg),

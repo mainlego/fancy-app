@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/data/profile_data.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../../../../core/services/debug_logger.dart';
 
 /// State for profile options
 class ProfileOptionsState {
@@ -75,6 +76,7 @@ class ProfileOptionsNotifier extends StateNotifier<ProfileOptionsState> {
   /// Load all profile options from database
   Future<void> loadAll() async {
     state = state.copyWith(isLoading: true, error: null);
+    logInfo('ProfileOptions: Loading all options...', tag: 'Profile');
 
     try {
       final results = await Future.wait([
@@ -83,13 +85,15 @@ class ProfileOptionsNotifier extends StateNotifier<ProfileOptionsState> {
         _supabase.getOccupations(),
       ]);
 
+      logInfo('ProfileOptions: Loaded ${(results[0] as List).length} interests, ${(results[1] as List).length} fantasies, ${(results[2] as List).length} occupations', tag: 'Profile');
       state = state.copyWith(
         interests: results[0] as List<Interest>,
         fantasies: results[1] as List<Fantasy>,
         occupations: results[2] as List<Occupation>,
         isLoading: false,
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      logError('ProfileOptions: Failed to load', tag: 'Profile', error: e, stackTrace: stackTrace);
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
@@ -228,6 +232,7 @@ class UserSelectionsNotifier extends StateNotifier<UserSelectionsState> {
   /// Load user's current selections
   Future<void> loadUserSelections() async {
     state = state.copyWith(isLoading: true, error: null);
+    logInfo('UserSelections: Loading user selections...', tag: 'Profile');
 
     try {
       final results = await Future.wait([
@@ -236,13 +241,15 @@ class UserSelectionsNotifier extends StateNotifier<UserSelectionsState> {
         _supabase.getUserOccupationId(),
       ]);
 
+      logInfo('UserSelections: Loaded ${(results[0] as List).length} interests, ${(results[1] as List).length} fantasies, occupation=${results[2]}', tag: 'Profile');
       state = state.copyWith(
         selectedInterestIds: (results[0] as List<String>).toSet(),
         selectedFantasyIds: (results[1] as List<String>).toSet(),
         selectedOccupationId: results[2] as String?,
         isLoading: false,
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      logError('UserSelections: Failed to load', tag: 'Profile', error: e, stackTrace: stackTrace);
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
@@ -285,15 +292,20 @@ class UserSelectionsNotifier extends StateNotifier<UserSelectionsState> {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
+      logInfo('saveSelections: Starting save...', tag: 'Profile');
+      logDebug('saveSelections: interests=${state.selectedInterestIds.length}, fantasies=${state.selectedFantasyIds.length}, occupation=${state.selectedOccupationId}', tag: 'Profile');
+
       await _supabase.updateUserSelections(
         interestIds: state.selectedInterestIds.toList(),
         fantasyIds: state.selectedFantasyIds.toList(),
         occupationId: state.selectedOccupationId,
       );
 
+      logInfo('saveSelections: Saved successfully', tag: 'Profile');
       state = state.copyWith(isLoading: false);
       return true;
-    } catch (e) {
+    } catch (e, stackTrace) {
+      logError('saveSelections: Failed to save', tag: 'Profile', error: e, stackTrace: stackTrace);
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),

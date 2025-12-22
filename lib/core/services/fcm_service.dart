@@ -37,54 +37,148 @@ class FcmService {
 
   /// Initialize FCM service
   Future<void> init() async {
-    if (_initialized || kIsWeb) return;
+    if (_initialized) return;
 
     try {
       // Initialize Firebase
       await Firebase.initializeApp();
 
-      // Initialize local notifications for showing FCM messages
-      await _initLocalNotifications();
-
-      // Set up background message handler
-      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-      // Request permission
-      await _requestPermission();
-
-      // Get FCM token
-      _fcmToken = await FirebaseMessaging.instance.getToken();
-      debugPrint('FCM Token: $_fcmToken');
-
-      // Save token to Supabase
-      if (_fcmToken != null) {
-        await _saveTokenToSupabase(_fcmToken!);
-      }
-
-      // Listen for token refresh
-      FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
-        _fcmToken = token;
-        debugPrint('FCM Token refreshed: $token');
-        await _saveTokenToSupabase(token);
-      });
-
-      // Handle foreground messages
-      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-
-      // Handle notification tap when app is in background
-      FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
-
-      // Check if app was opened from notification
-      final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
-      if (initialMessage != null) {
-        _handleNotificationTap(initialMessage);
+      if (kIsWeb) {
+        // Web-specific initialization
+        await _initForWeb();
+      } else {
+        // Mobile initialization
+        await _initForMobile();
       }
 
       _initialized = true;
-      debugPrint('FCM Service initialized successfully');
+      debugPrint('FCM Service initialized successfully (${kIsWeb ? 'web' : 'mobile'})');
     } catch (e) {
       debugPrint('Error initializing FCM: $e');
     }
+  }
+
+  /// Initialize FCM for mobile platforms
+  Future<void> _initForMobile() async {
+    // Initialize local notifications for showing FCM messages
+    await _initLocalNotifications();
+
+    // Set up background message handler
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    // Request permission
+    await _requestPermission();
+
+    // Get FCM token
+    _fcmToken = await FirebaseMessaging.instance.getToken();
+    debugPrint('FCM Token: $_fcmToken');
+
+    // Save token to Supabase
+    if (_fcmToken != null) {
+      await _saveTokenToSupabase(_fcmToken!);
+    }
+
+    // Listen for token refresh
+    FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
+      _fcmToken = token;
+      debugPrint('FCM Token refreshed: $token');
+      await _saveTokenToSupabase(token);
+    });
+
+    // Handle foreground messages
+    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+
+    // Handle notification tap when app is in background
+    FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
+
+    // Check if app was opened from notification
+    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    if (initialMessage != null) {
+      _handleNotificationTap(initialMessage);
+    }
+  }
+
+  /// Initialize FCM for web platform
+  Future<void> _initForWeb() async {
+    try {
+      // Request permission for web
+      final settings = await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional) {
+        debugPrint('Web notification permission granted');
+
+        // Get FCM token for web - requires VAPID key
+        // Note: You need to set up VAPID key in Firebase Console > Cloud Messaging > Web Push certificates
+        try {
+          _fcmToken = await FirebaseMessaging.instance.getToken(
+            vapidKey: 'YOUR_VAPID_KEY_HERE', // TODO: Replace with actual VAPID key from Firebase Console
+          );
+          debugPrint('Web FCM Token: ${_fcmToken?.substring(0, 20)}...');
+
+          if (_fcmToken != null) {
+            await _saveTokenToSupabase(_fcmToken!);
+          }
+        } catch (e) {
+          debugPrint('Error getting web FCM token: $e');
+          // Fallback: try without VAPID key (may work in some cases)
+          _fcmToken = await FirebaseMessaging.instance.getToken();
+          if (_fcmToken != null) {
+            debugPrint('Web FCM Token (fallback): ${_fcmToken?.substring(0, 20)}...');
+            await _saveTokenToSupabase(_fcmToken!);
+          }
+        }
+
+        // Listen for token refresh
+        FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
+          _fcmToken = token;
+          debugPrint('Web FCM Token refreshed');
+          await _saveTokenToSupabase(token);
+        });
+
+        // Handle foreground messages on web
+        FirebaseMessaging.onMessage.listen(_handleForegroundMessageWeb);
+
+        // Handle notification tap when app is in background (web)
+        FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
+      } else {
+        debugPrint('Web notification permission denied');
+      }
+    } catch (e) {
+      debugPrint('Error initializing FCM for web: $e');
+    }
+  }
+
+  /// Handle foreground messages on web
+  void _handleForegroundMessageWeb(RemoteMessage message) {
+    debugPrint('Web foreground message: ${message.notification?.title}');
+
+    // On web, we need to show the notification manually in foreground
+    // The service worker handles background notifications
+    final notification = message.notification;
+    if (notification != null) {
+      // Use browser Notification API or custom in-app notification
+      _showWebNotification(
+        title: notification.title ?? 'FANCY',
+        body: notification.body ?? '',
+        data: message.data,
+      );
+    }
+  }
+
+  /// Show notification on web using browser API
+  void _showWebNotification({
+    required String title,
+    required String body,
+    Map<String, dynamic>? data,
+  }) {
+    // This will be handled by notification_service_web.dart
+    // We just log it here and can show an in-app toast/snackbar
+    debugPrint('Web notification: $title - $body');
   }
 
   /// Initialize local notifications

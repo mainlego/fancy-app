@@ -344,7 +344,7 @@ class _ChatsListView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final chatsAsync = ref.watch(combinedChatsProvider);
+    final chatsAsync = ref.watch(chatsNotifierProvider);
     final favoritesAsync = ref.watch(favoritesNotifierProvider);
     final favoriteIds = favoritesAsync.valueOrNull?.map((f) => f.oderId).toSet() ?? {};
 
@@ -373,17 +373,12 @@ class _ChatsListView extends ConsumerWidget {
           ),
           itemBuilder: (context, index) {
             final chat = chats[index];
-            final isAIChat = chat.id.startsWith('ai_');
             final isFavorite = favoriteIds.contains(chat.participantId);
             return _ChatListTile(
               chat: chat,
               isFavorite: isFavorite,
               onTap: () {
-                if (isAIChat) {
-                  context.pushAIChat(chat.id);
-                } else {
-                  context.pushChatDetail(chat.id);
-                }
+                context.pushChatDetail(chat.id);
               },
               onDismiss: () => onDeleteChat(chat),
               onLongPress: () => onShowFavoriteDialog(chat, isFavorite),

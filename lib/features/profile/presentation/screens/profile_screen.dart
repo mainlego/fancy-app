@@ -4,6 +4,7 @@ import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/router/app_router.dart';
+import '../../../../shared/widgets/debug_panel.dart';
 import '../../domain/models/user_model.dart';
 import '../../domain/providers/current_profile_provider.dart';
 
@@ -23,18 +24,33 @@ class ProfileScreen extends ConsumerWidget {
       error: (error, _) => Scaffold(
         backgroundColor: AppColors.background,
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 48, color: AppColors.error),
-              const SizedBox(height: 16),
-              Text('Error loading profile', style: AppTypography.titleMedium),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => ref.refresh(currentProfileProvider),
-                child: const Text('Retry'),
-              ),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+                const SizedBox(height: 16),
+                Text('Error loading profile', style: AppTypography.titleMedium),
+                const SizedBox(height: 8),
+                Text(
+                  error.toString(),
+                  style: AppTypography.bodySmall.copyWith(color: Colors.white54),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () => ref.refresh(currentProfileProvider),
+                  child: const Text('Retry'),
+                ),
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: () => DebugPanel.show(context),
+                  icon: const Icon(Icons.bug_report, color: AppColors.primary),
+                  label: Text('View Debug Logs', style: TextStyle(color: AppColors.primary)),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -76,6 +92,21 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
     _selectedGoals = widget.user.datingGoal != null ? [widget.user.datingGoal!] : [];
     _selectedStatus = widget.user.relationshipStatus;
     _isActive = widget.user.isActive;
+  }
+
+  @override
+  void didUpdateWidget(covariant _ProfileContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Update state when user data changes from provider
+    if (oldWidget.user.isActive != widget.user.isActive ||
+        oldWidget.user.datingGoal != widget.user.datingGoal ||
+        oldWidget.user.relationshipStatus != widget.user.relationshipStatus) {
+      setState(() {
+        _selectedGoals = widget.user.datingGoal != null ? [widget.user.datingGoal!] : [];
+        _selectedStatus = widget.user.relationshipStatus;
+        _isActive = widget.user.isActive;
+      });
+    }
   }
 
   @override
@@ -245,9 +276,9 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
               ),
               const SizedBox(height: 4),
 
-              // location • distance
+              // location (your own profile shows city)
               Text(
-                '${widget.user.locationString} • ${widget.user.distanceKm ?? 0} km',
+                widget.user.locationString,
                 style: AppTypography.bodySmall.copyWith(
                   color: AppColors.textSecondary,
                 ),
@@ -491,11 +522,24 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
   /// Activate profile button at bottom
   Widget _buildActivateButton() {
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
         setState(() {
           _isActive = !_isActive;
         });
-        _saveProfile();
+        await _saveProfile();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                _isActive
+                    ? 'Profile activated! You are now visible to others.'
+                    : 'Profile deactivated. You are hidden from others.',
+              ),
+              backgroundColor: _isActive ? Colors.green : Colors.orange,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
       },
       child: Container(
         width: double.infinity,
@@ -508,7 +552,7 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
               child: Padding(
                 padding: const EdgeInsets.only(left: 48),
                 child: Text(
-                  'activate profile',
+                  _isActive ? 'profile active' : 'activate profile',
                   textAlign: TextAlign.center,
                   style: AppTypography.bodyLarge.copyWith(
                     color: Colors.white,
@@ -520,7 +564,7 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
             Padding(
               padding: const EdgeInsets.only(right: 16),
               child: Icon(
-                _isActive ? Icons.check_circle_outline : Icons.circle_outlined,
+                _isActive ? Icons.check_circle : Icons.circle_outlined,
                 color: Colors.white,
                 size: 24,
               ),
@@ -534,12 +578,20 @@ class _ProfileContentState extends ConsumerState<_ProfileContent> {
   Future<void> _saveProfile() async {
     // Get the first selected goal (for single-goal storage) or null if none selected
     final datingGoal = _selectedGoals.isNotEmpty ? _selectedGoals.first : null;
+    final clearDatingGoal = _selectedGoals.isEmpty;
+    final clearRelationshipStatus = _selectedStatus == null;
 
-    await ref.read(currentProfileProvider.notifier).updateProfile(
+    debugPrint('_saveProfile: Saving isActive=$_isActive, datingGoal=$datingGoal (clear=$clearDatingGoal), status=$_selectedStatus (clear=$clearRelationshipStatus)');
+
+    final success = await ref.read(currentProfileProvider.notifier).updateProfile(
       datingGoal: datingGoal,
+      clearDatingGoal: clearDatingGoal,
       relationshipStatus: _selectedStatus,
+      clearRelationshipStatus: clearRelationshipStatus,
       isActive: _isActive,
     );
+
+    debugPrint('_saveProfile: Save result=$success');
   }
 
   String _getDatingGoalText(DatingGoal? goal) {

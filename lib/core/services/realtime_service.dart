@@ -11,6 +11,9 @@ enum RealtimeEventType {
   userOnline,
   userOffline,
   profileUpdate,
+  chatDeleted,
+  likeDeleted,
+  matchDeleted,
 }
 
 /// Realtime event model
@@ -38,6 +41,10 @@ class RealtimeService {
   void Function(Map<String, dynamic>)? onNewLike;
   void Function(Map<String, dynamic>)? onNewMatch;
   void Function(String, bool)? onUserPresenceChange;
+  // Delete event callbacks
+  void Function(Map<String, dynamic>)? onChatDeleted;
+  void Function(Map<String, dynamic>)? onLikeDeleted;
+  void Function(Map<String, dynamic>)? onMatchDeleted;
 
   // Current chat ID to avoid notifications for open chat
   String? currentOpenChatId;
@@ -60,6 +67,7 @@ class RealtimeService {
     _subscribeToLikes();
     _subscribeToMatches();
     _subscribeToPresence();
+    _subscribeToDeleteEvents();
   }
 
   /// Subscribe to new messages for current user's chats
@@ -166,55 +174,85 @@ class RealtimeService {
   }
 
   /// Subscribe to new matches for current user
+  /// Uses two separate subscriptions - one for user1_id and one for user2_id
   void _subscribeToMatches() {
     final userId = _currentUserId;
     if (userId == null) return;
 
     print('🔔 Setting up matches realtime subscription for user: $userId');
 
-    final channel = _client.channel('user_matches_$userId');
-
-    channel.onPostgresChanges(
+    // Subscribe to matches where current user is user1
+    final channel1 = _client.channel('user_matches_as_user1_$userId');
+    channel1.onPostgresChanges(
       event: PostgresChangeEvent.insert,
       schema: 'public',
       table: SupabaseConfig.matchesTable,
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'user1_id',
+        value: userId,
+      ),
       callback: (payload) async {
-        print('🎉 Realtime: New match event received');
-        final newMatch = payload.newRecord;
-        // Check if current user is part of this match
-        final user1Id = newMatch['user1_id'] as String?;
-        final user2Id = newMatch['user2_id'] as String?;
-
-        print('🎉 Match between: $user1Id and $user2Id');
-
-        if (user1Id == userId || user2Id == userId) {
-          final otherUserId = user1Id == userId ? user2Id : user1Id;
-
-          // Show match notification
-          if (otherUserId != null) {
-            await _notificationService.showMatchNotification(
-              userName: 'Someone special',
-              matchId: newMatch['id'] as String?,
-            );
-          }
-
-          onNewMatch?.call(newMatch);
-          onEvent?.call(RealtimeEvent(
-            type: RealtimeEventType.newMatch,
-            data: newMatch,
-          ));
-        }
+        print('🎉 Realtime: New match event received (as user1)');
+        _handleNewMatch(payload.newRecord, userId);
       },
     );
-
-    channel.subscribe((status, error) {
-      print('🔔 Matches subscription status: $status');
+    channel1.subscribe((status, error) {
+      print('🔔 Matches (user1) subscription status: $status');
       if (error != null) {
-        print('❌ Matches subscription error: $error');
+        print('❌ Matches (user1) subscription error: $error');
       }
     });
+    _channels['matches_user1'] = channel1;
 
-    _channels['matches'] = channel;
+    // Subscribe to matches where current user is user2
+    final channel2 = _client.channel('user_matches_as_user2_$userId');
+    channel2.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: SupabaseConfig.matchesTable,
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'user2_id',
+        value: userId,
+      ),
+      callback: (payload) async {
+        print('🎉 Realtime: New match event received (as user2)');
+        _handleNewMatch(payload.newRecord, userId);
+      },
+    );
+    channel2.subscribe((status, error) {
+      print('🔔 Matches (user2) subscription status: $status');
+      if (error != null) {
+        print('❌ Matches (user2) subscription error: $error');
+      }
+    });
+    _channels['matches_user2'] = channel2;
+  }
+
+  /// Handle new match event
+  Future<void> _handleNewMatch(Map<String, dynamic> newMatch, String userId) async {
+    final user1Id = newMatch['user1_id'] as String?;
+    final user2Id = newMatch['user2_id'] as String?;
+
+    print('🎉 Match between: $user1Id and $user2Id, current user: $userId');
+
+    final otherUserId = user1Id == userId ? user2Id : user1Id;
+
+    // Show match notification
+    if (otherUserId != null) {
+      await _notificationService.showMatchNotification(
+        userName: 'Someone special',
+        matchId: newMatch['id'] as String?,
+      );
+    }
+
+    print('🎉 Calling onNewMatch callback: ${onNewMatch != null}');
+    onNewMatch?.call(newMatch);
+    onEvent?.call(RealtimeEvent(
+      type: RealtimeEventType.newMatch,
+      data: newMatch,
+    ));
   }
 
   /// Subscribe to presence changes
@@ -262,6 +300,168 @@ class RealtimeService {
             });
           }
         });
+  }
+
+  /// Subscribe to DELETE events for chats, likes, and matches
+  /// This ensures both users see updates when one deletes
+  void _subscribeToDeleteEvents() {
+    final userId = _currentUserId;
+    if (userId == null) return;
+
+    print('🔔 Setting up DELETE events subscription for user: $userId');
+
+    // Subscribe to chat deletions where current user is a participant
+    final chatDeleteChannel1 = _client.channel('chat_delete_p1_$userId');
+    chatDeleteChannel1.onPostgresChanges(
+      event: PostgresChangeEvent.delete,
+      schema: 'public',
+      table: SupabaseConfig.chatsTable,
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'participant1_id',
+        value: userId,
+      ),
+      callback: (payload) {
+        print('🗑️ Realtime: Chat deleted (as participant1)');
+        final oldRecord = payload.oldRecord;
+        print('🗑️ Deleted chat: $oldRecord');
+        onChatDeleted?.call(oldRecord);
+        onEvent?.call(RealtimeEvent(
+          type: RealtimeEventType.chatDeleted,
+          data: oldRecord,
+        ));
+      },
+    );
+    chatDeleteChannel1.subscribe((status, error) {
+      print('🔔 Chat delete (p1) subscription status: $status');
+      if (error != null) print('❌ Error: $error');
+    });
+    _channels['chat_delete_p1'] = chatDeleteChannel1;
+
+    final chatDeleteChannel2 = _client.channel('chat_delete_p2_$userId');
+    chatDeleteChannel2.onPostgresChanges(
+      event: PostgresChangeEvent.delete,
+      schema: 'public',
+      table: SupabaseConfig.chatsTable,
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'participant2_id',
+        value: userId,
+      ),
+      callback: (payload) {
+        print('🗑️ Realtime: Chat deleted (as participant2)');
+        final oldRecord = payload.oldRecord;
+        print('🗑️ Deleted chat: $oldRecord');
+        onChatDeleted?.call(oldRecord);
+        onEvent?.call(RealtimeEvent(
+          type: RealtimeEventType.chatDeleted,
+          data: oldRecord,
+        ));
+      },
+    );
+    chatDeleteChannel2.subscribe((status, error) {
+      print('🔔 Chat delete (p2) subscription status: $status');
+      if (error != null) print('❌ Error: $error');
+    });
+    _channels['chat_delete_p2'] = chatDeleteChannel2;
+
+    // Subscribe to like deletions (where current user sent the like)
+    final likeDeleteChannel1 = _client.channel('like_delete_from_$userId');
+    likeDeleteChannel1.onPostgresChanges(
+      event: PostgresChangeEvent.delete,
+      schema: 'public',
+      table: SupabaseConfig.likesTable,
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'from_user_id',
+        value: userId,
+      ),
+      callback: (payload) {
+        print('🗑️ Realtime: Like deleted (from current user)');
+        final oldRecord = payload.oldRecord;
+        onLikeDeleted?.call(oldRecord);
+        onEvent?.call(RealtimeEvent(
+          type: RealtimeEventType.likeDeleted,
+          data: oldRecord,
+        ));
+      },
+    );
+    likeDeleteChannel1.subscribe();
+    _channels['like_delete_from'] = likeDeleteChannel1;
+
+    // Subscribe to like deletions (where current user received the like)
+    final likeDeleteChannel2 = _client.channel('like_delete_to_$userId');
+    likeDeleteChannel2.onPostgresChanges(
+      event: PostgresChangeEvent.delete,
+      schema: 'public',
+      table: SupabaseConfig.likesTable,
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'to_user_id',
+        value: userId,
+      ),
+      callback: (payload) {
+        print('🗑️ Realtime: Like deleted (to current user)');
+        final oldRecord = payload.oldRecord;
+        onLikeDeleted?.call(oldRecord);
+        onEvent?.call(RealtimeEvent(
+          type: RealtimeEventType.likeDeleted,
+          data: oldRecord,
+        ));
+      },
+    );
+    likeDeleteChannel2.subscribe();
+    _channels['like_delete_to'] = likeDeleteChannel2;
+
+    // Subscribe to match deletions (user1)
+    final matchDeleteChannel1 = _client.channel('match_delete_u1_$userId');
+    matchDeleteChannel1.onPostgresChanges(
+      event: PostgresChangeEvent.delete,
+      schema: 'public',
+      table: SupabaseConfig.matchesTable,
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'user1_id',
+        value: userId,
+      ),
+      callback: (payload) {
+        print('🗑️ Realtime: Match deleted (as user1)');
+        final oldRecord = payload.oldRecord;
+        onMatchDeleted?.call(oldRecord);
+        onEvent?.call(RealtimeEvent(
+          type: RealtimeEventType.matchDeleted,
+          data: oldRecord,
+        ));
+      },
+    );
+    matchDeleteChannel1.subscribe();
+    _channels['match_delete_u1'] = matchDeleteChannel1;
+
+    // Subscribe to match deletions (user2)
+    final matchDeleteChannel2 = _client.channel('match_delete_u2_$userId');
+    matchDeleteChannel2.onPostgresChanges(
+      event: PostgresChangeEvent.delete,
+      schema: 'public',
+      table: SupabaseConfig.matchesTable,
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'user2_id',
+        value: userId,
+      ),
+      callback: (payload) {
+        print('🗑️ Realtime: Match deleted (as user2)');
+        final oldRecord = payload.oldRecord;
+        onMatchDeleted?.call(oldRecord);
+        onEvent?.call(RealtimeEvent(
+          type: RealtimeEventType.matchDeleted,
+          data: oldRecord,
+        ));
+      },
+    );
+    matchDeleteChannel2.subscribe();
+    _channels['match_delete_u2'] = matchDeleteChannel2;
+
+    print('🔔 DELETE events subscriptions setup complete');
   }
 
   /// Subscribe to messages in a specific chat
@@ -407,18 +607,20 @@ class OnlineUsersNotifier extends StateNotifier<Set<String>> {
   bool isUserOnline(String userId) => state.contains(userId);
 }
 
+/// Unread notifications count notifier
+class UnreadNotificationsNotifier extends StateNotifier<int> {
+  UnreadNotificationsNotifier() : super(0);
+
+  void increment() {
+    state++;
+  }
+
+  void reset() {
+    state = 0;
+  }
+}
+
 /// Unread notifications count provider
-final unreadNotificationsProvider = StateProvider<int>((ref) {
-  final service = ref.watch(realtimeServiceProvider);
-  int count = 0;
-
-  service.onNewLike = (_) {
-    count++;
-  };
-
-  service.onNewMatch = (_) {
-    count++;
-  };
-
-  return count;
+final unreadNotificationsProvider = StateNotifierProvider<UnreadNotificationsNotifier, int>((ref) {
+  return UnreadNotificationsNotifier();
 });
